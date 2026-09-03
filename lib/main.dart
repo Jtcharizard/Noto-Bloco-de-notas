@@ -1,5 +1,8 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:ui';
+
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
@@ -22,7 +25,7 @@ Future<void> main() async {
 }
 
 class Note {
-  Note({required this.id, required this.title, required this.body, required this.updatedAt, this.color = 0, this.pinned = false, this.wallpaper = 0, this.customWallpaper, this.textColor = 0, this.font = 0, this.favorite = false, this.folder = 'Geral', this.tags = const [], this.checklist = false, this.deletedAt, this.reminderAt});
+  Note({required this.id, required this.title, required this.body, required this.updatedAt, this.color = 0, this.pinned = false, this.wallpaper = 0, this.customWallpaper, this.textColor = 0, this.font = 0, this.favorite = false, this.folder = 'Geral', this.tags = const [], this.checklist = false, this.deletedAt, this.reminderAt, this.archived = false, this.wallpaperDarkness = .38, this.wallpaperBlur = 0});
   final String id;
   String title;
   String body;
@@ -39,9 +42,12 @@ class Note {
   bool checklist;
   DateTime? deletedAt;
   DateTime? reminderAt;
+  bool archived;
+  double wallpaperDarkness;
+  double wallpaperBlur;
 
-  Map<String, dynamic> toJson() => {'id': id, 'title': title, 'body': body, 'updatedAt': updatedAt.toIso8601String(), 'color': color, 'pinned': pinned, 'wallpaper': wallpaper, 'customWallpaper': customWallpaper, 'textColor': textColor, 'font': font, 'favorite': favorite, 'folder': folder, 'tags': tags, 'checklist': checklist, 'deletedAt': deletedAt?.toIso8601String(), 'reminderAt': reminderAt?.toIso8601String()};
-  factory Note.fromJson(Map<String, dynamic> j) => Note(id: j['id'], title: j['title'] ?? '', body: j['body'] ?? '', updatedAt: DateTime.parse(j['updatedAt']), color: j['color'] ?? 0, pinned: j['pinned'] ?? false, wallpaper: j['wallpaper'] ?? 0, customWallpaper: j['customWallpaper'], textColor: j['textColor'] ?? 0, font: j['font'] ?? 0, favorite: j['favorite'] ?? false, folder: j['folder'] ?? 'Geral', tags: List<String>.from(j['tags'] ?? const []), checklist: j['checklist'] ?? false, deletedAt: j['deletedAt'] == null ? null : DateTime.parse(j['deletedAt']), reminderAt: j['reminderAt'] == null ? null : DateTime.parse(j['reminderAt']));
+  Map<String, dynamic> toJson() => {'id': id, 'title': title, 'body': body, 'updatedAt': updatedAt.toIso8601String(), 'color': color, 'pinned': pinned, 'wallpaper': wallpaper, 'customWallpaper': customWallpaper, 'textColor': textColor, 'font': font, 'favorite': favorite, 'folder': folder, 'tags': tags, 'checklist': checklist, 'deletedAt': deletedAt?.toIso8601String(), 'reminderAt': reminderAt?.toIso8601String(), 'archived': archived, 'wallpaperDarkness': wallpaperDarkness, 'wallpaperBlur': wallpaperBlur};
+  factory Note.fromJson(Map<String, dynamic> j) => Note(id: j['id'], title: j['title'] ?? '', body: j['body'] ?? '', updatedAt: DateTime.parse(j['updatedAt']), color: j['color'] ?? 0, pinned: j['pinned'] ?? false, wallpaper: j['wallpaper'] ?? 0, customWallpaper: j['customWallpaper'], textColor: j['textColor'] ?? 0, font: j['font'] ?? 0, favorite: j['favorite'] ?? false, folder: j['folder'] ?? 'Geral', tags: List<String>.from(j['tags'] ?? const []), checklist: j['checklist'] ?? false, deletedAt: j['deletedAt'] == null ? null : DateTime.parse(j['deletedAt']), reminderAt: j['reminderAt'] == null ? null : DateTime.parse(j['reminderAt']), archived: j['archived'] ?? false, wallpaperDarkness: (j['wallpaperDarkness'] ?? .38).toDouble(), wallpaperBlur: (j['wallpaperBlur'] ?? 0).toDouble());
 }
 
 ImageProvider? wallpaperFor(Note note) {
@@ -60,6 +66,10 @@ class AppStore extends ChangeNotifier {
   bool grid = true;
   int wallpaper = 0;
   String? customWallpaper;
+  double wallpaperDarkness = .25;
+  double wallpaperBlur = 0;
+  String? widgetNoteId;
+  bool onboardingDone = false;
   bool loaded = false;
 
   static const accents = [Color(0xFF7557D3), Color(0xFF25756D), Color(0xFFC05343), Color(0xFF3367B2), Color(0xFFB46A18)];
@@ -87,6 +97,10 @@ class AppStore extends ChangeNotifier {
     grid = p.getBool('grid') ?? true;
     wallpaper = p.getInt('wallpaper') ?? 0;
     customWallpaper = p.getString('customWallpaper');
+    wallpaperDarkness = p.getDouble('wallpaperDarkness') ?? .25;
+    wallpaperBlur = p.getDouble('wallpaperBlur') ?? 0;
+    widgetNoteId = p.getString('widgetNoteId');
+    onboardingDone = p.getBool('onboardingDone') ?? false;
     loaded = true;
     notifyListeners();
   }
@@ -99,10 +113,16 @@ class AppStore extends ChangeNotifier {
       p.setDouble('fontSize', fontSize), p.setBool('grid', grid),
       p.setInt('wallpaper', wallpaper),
       if (customWallpaper == null) p.remove('customWallpaper') else p.setString('customWallpaper', customWallpaper!),
+      p.setDouble('wallpaperDarkness', wallpaperDarkness), p.setDouble('wallpaperBlur', wallpaperBlur),
+      if (widgetNoteId == null) p.remove('widgetNoteId') else p.setString('widgetNoteId', widgetNoteId!),
+      p.setBool('onboardingDone', onboardingDone),
     ]);
     final active = notes.where((n) => n.deletedAt == null).toList()..sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
-    await HomeWidget.saveWidgetData<String>('note_title', active.isEmpty ? 'Noto' : (active.first.title.isEmpty ? 'Sem título' : active.first.title));
-    await HomeWidget.saveWidgetData<String>('note_body', active.isEmpty ? 'Toca para criar tua primeira nota' : active.first.body.replaceAll('[ ]', '☐').replaceAll('[x]', '☑'));
+    Note? chosen;
+    for (final note in active) { if (note.id == widgetNoteId) { chosen = note; break; } }
+    chosen ??= active.isEmpty ? null : active.first;
+    await HomeWidget.saveWidgetData<String>('note_title', chosen == null ? 'Noto' : (chosen.title.isEmpty ? 'Sem título' : chosen.title));
+    await HomeWidget.saveWidgetData<String>('note_body', chosen == null ? 'Toca para criar tua primeira nota' : chosen.body.replaceAll('[ ]', '☐').replaceAll('[x]', '☑'));
     await HomeWidget.updateWidget(name: 'NotoWidgetProvider', androidName: 'NotoWidgetProvider');
     notifyListeners();
   }
@@ -110,6 +130,9 @@ class AppStore extends ChangeNotifier {
   void delete(Note n) { n.deletedAt = DateTime.now(); save(); }
   void restore(Note n) { n.deletedAt = null; save(); }
   void deleteForever(Note n) { notes.remove(n); save(); }
+  void archive(Note n) { n.archived = true; save(); }
+  void unarchive(Note n) { n.archived = false; save(); }
+  void duplicate(Note n) { notes.add(Note(id: DateTime.now().microsecondsSinceEpoch.toString(), title: '${n.title} — cópia', body: n.body, updatedAt: DateTime.now(), color: n.color, wallpaper: n.wallpaper, customWallpaper: n.customWallpaper, textColor: n.textColor, font: n.font, favorite: n.favorite, folder: n.folder, tags: List.of(n.tags), checklist: n.checklist, wallpaperDarkness: n.wallpaperDarkness, wallpaperBlur: n.wallpaperBlur)); save(); }
   void togglePin(Note n) { n.pinned = !n.pinned; n.updatedAt = DateTime.now(); save(); }
 }
 
@@ -129,7 +152,7 @@ class _NotesAppState extends State<NotesApp> {
     final base = ThemeData(colorScheme: ColorScheme.fromSeed(seedColor: seed, brightness: b), useMaterial3: true, brightness: b);
     return base.copyWith(textTheme: themedText(base), scaffoldBackgroundColor: b == Brightness.light ? const Color(0xFFF8F6FA) : const Color(0xFF141217), cardTheme: const CardThemeData(elevation: 0, margin: EdgeInsets.zero));
   }
-  @override Widget build(BuildContext context) => AnimatedBuilder(animation: store, builder: (_, __) => MaterialApp(debugShowCheckedModeBanner: false, title: 'Noto', theme: theme(Brightness.light), darkTheme: theme(Brightness.dark), themeMode: store.mode, home: store.loaded ? WallpaperLayer(store: store, child: HomePage(store: store)) : const Scaffold(body: Center(child: CircularProgressIndicator()))));
+  @override Widget build(BuildContext context) => AnimatedBuilder(animation: store, builder: (_, __) => MaterialApp(debugShowCheckedModeBanner: false, title: 'Noto', theme: theme(Brightness.light), darkTheme: theme(Brightness.dark), themeMode: store.mode, home: store.loaded ? (store.onboardingDone ? WallpaperLayer(store: store, child: HomePage(store: store)) : OnboardingPage(store: store)) : const Scaffold(body: Center(child: CircularProgressIndicator()))));
 }
 
 class HomePage extends StatefulWidget {
@@ -145,7 +168,7 @@ class _HomePageState extends State<HomePage> {
   int sort = 0;
   List<Note> get visible {
     final q = query.toLowerCase();
-    final list = widget.store.notes.where((n) => n.deletedAt == null && (!favoritesOnly || n.favorite) && (folder == 'Todas' || n.folder == folder) && (n.title.toLowerCase().contains(q) || n.body.toLowerCase().contains(q) || n.tags.any((t) => t.toLowerCase().contains(q)))).toList();
+    final list = widget.store.notes.where((n) => n.deletedAt == null && !n.archived && (!favoritesOnly || n.favorite) && (folder == 'Todas' || n.folder == folder) && (n.title.toLowerCase().contains(q) || n.body.toLowerCase().contains(q) || n.tags.any((t) => t.toLowerCase().contains(q)))).toList();
     list.sort((a, b) {
       if (a.pinned != b.pinned) return a.pinned ? -1 : 1;
       if (sort == 1) return a.title.toLowerCase().compareTo(b.title.toLowerCase());
@@ -154,7 +177,7 @@ class _HomePageState extends State<HomePage> {
     });
     return list;
   }
-  List<String> get folders => ['Todas', ...{for (final n in widget.store.notes.where((n) => n.deletedAt == null)) n.folder}];
+  List<String> get folders => ['Todas', ...{for (final n in widget.store.notes.where((n) => n.deletedAt == null && !n.archived)) n.folder}];
   Future<void> open([Note? note, String template = 'normal']) async {
     final templates = <String, Map<String, dynamic>>{
       'normal': {'title': '', 'body': '', 'check': false},
@@ -176,9 +199,9 @@ class _HomePageState extends State<HomePage> {
     final hasGlobalWallpaper = widget.store.wallpaper > 0 || (custom != null && File(custom).existsSync());
     return Scaffold(
       backgroundColor: hasGlobalWallpaper ? Colors.transparent : null,
-      appBar: AppBar(title: Row(children: [ClipRRect(borderRadius: BorderRadius.circular(11), child: Image.asset('assets/app_icon.png', width: 40, height: 40)), const SizedBox(width: 10), const Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text('Noto', style: TextStyle(fontSize: 25, fontWeight: FontWeight.w900)), Text('Tuas ideias, do teu jeito', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w500))])]), actions: [PopupMenuButton<int>(tooltip: 'Ordenar', icon: const Icon(Icons.sort_rounded), onSelected: (v) => setState(() => sort = v), itemBuilder: (_) => const [PopupMenuItem(value: 0, child: Text('Mais recentes')), PopupMenuItem(value: 1, child: Text('Por nome')), PopupMenuItem(value: 2, child: Text('Mais antigas'))]), IconButton(tooltip: 'Lixeira', onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => TrashPage(store: widget.store))), icon: const Icon(Icons.delete_outline)), IconButton(tooltip: 'Personalizar', onPressed: () => showModalBottomSheet(context: context, isScrollControlled: true, builder: (_) => SettingsSheet(store: widget.store)), icon: const Icon(Icons.palette_outlined)), const SizedBox(width: 4)]),
+      appBar: AppBar(title: Row(children: [ClipRRect(borderRadius: BorderRadius.circular(11), child: Image.asset('assets/app_icon.png', width: 40, height: 40)), const SizedBox(width: 10), const Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text('Noto', style: TextStyle(fontSize: 25, fontWeight: FontWeight.w900)), Text('Tuas ideias, do teu jeito', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w500))])]), actions: [PopupMenuButton<int>(tooltip: 'Ordenar', icon: const Icon(Icons.sort_rounded), onSelected: (v) => setState(() => sort = v), itemBuilder: (_) => const [PopupMenuItem(value: 0, child: Text('Mais recentes')), PopupMenuItem(value: 1, child: Text('Por nome')), PopupMenuItem(value: 2, child: Text('Mais antigas'))]), PopupMenuButton<String>(icon: const Icon(Icons.more_vert), onSelected: (v) { if (v == 'archive') Navigator.push(context, MaterialPageRoute(builder: (_) => ArchivePage(store: widget.store))); if (v == 'trash') Navigator.push(context, MaterialPageRoute(builder: (_) => TrashPage(store: widget.store))); if (v == 'about') showAboutNoto(context); }, itemBuilder: (_) => const [PopupMenuItem(value: 'archive', child: ListTile(leading: Icon(Icons.archive_outlined), title: Text('Arquivadas'))), PopupMenuItem(value: 'trash', child: ListTile(leading: Icon(Icons.delete_outline), title: Text('Lixeira'))), PopupMenuItem(value: 'about', child: ListTile(leading: Icon(Icons.info_outline), title: Text('Sobre o Noto')))]), IconButton(tooltip: 'Personalizar', onPressed: () => showModalBottomSheet(context: context, isScrollControlled: true, builder: (_) => AdvancedSettingsSheet(store: widget.store)), icon: const Icon(Icons.palette_outlined)), const SizedBox(width: 4)]),
       body: SafeArea(child: Column(children: [
-        Padding(padding: const EdgeInsets.fromLTRB(16, 10, 16, 2), child: Row(children: [Expanded(child: _SummaryCard(icon: Icons.note_alt_outlined, value: widget.store.notes.where((n) => n.deletedAt == null).length.toString(), label: 'notas')), const SizedBox(width: 10), Expanded(child: _SummaryCard(icon: Icons.star_outline_rounded, value: widget.store.notes.where((n) => n.deletedAt == null && n.favorite).length.toString(), label: 'favoritas')), const SizedBox(width: 10), IconButton.filledTonal(tooltip: 'Fundo da tela inicial', onPressed: () => showModalBottomSheet(context: context, isScrollControlled: true, builder: (_) => WallpaperSheet(store: widget.store)), icon: const Icon(Icons.add_photo_alternate_outlined))])),
+        Padding(padding: const EdgeInsets.fromLTRB(16, 10, 16, 2), child: Row(children: [Expanded(child: _SummaryCard(icon: Icons.note_alt_outlined, value: widget.store.notes.where((n) => n.deletedAt == null && !n.archived).length.toString(), label: 'notas')), const SizedBox(width: 10), Expanded(child: _SummaryCard(icon: Icons.star_outline_rounded, value: widget.store.notes.where((n) => n.deletedAt == null && !n.archived && n.favorite).length.toString(), label: 'favoritas')), const SizedBox(width: 10), IconButton.filledTonal(tooltip: 'Fundo da tela inicial', onPressed: () => showModalBottomSheet(context: context, isScrollControlled: true, builder: (_) => WallpaperSheet(store: widget.store)), icon: const Icon(Icons.add_photo_alternate_outlined))])),
         Padding(padding: const EdgeInsets.fromLTRB(16, 8, 16, 14), child: SearchBar(hintText: 'Pesquisar nas notas...', leading: const Icon(Icons.search), elevation: const WidgetStatePropertyAll(0), backgroundColor: WidgetStatePropertyAll(cs.surfaceContainerHighest.withOpacity(.6)), onChanged: (v) => setState(() => query = v))),
         SizedBox(height: 42, child: ListView(scrollDirection: Axis.horizontal, padding: const EdgeInsets.symmetric(horizontal: 16), children: [FilterChip(label: const Text('Favoritas'), avatar: const Icon(Icons.star_rounded, size: 17), selected: favoritesOnly, onSelected: (v) => setState(() => favoritesOnly = v)), const SizedBox(width: 8), ...folders.map((f) => Padding(padding: const EdgeInsets.only(right: 8), child: ChoiceChip(label: Text(f), selected: folder == f, onSelected: (_) => setState(() => folder = f))))])),
         const SizedBox(height: 10),
@@ -212,6 +235,8 @@ class NoteCard extends StatelessWidget {
     final automatic = noteWallpaper != null ? Colors.white : (note.color == 0 ? Theme.of(context).colorScheme.onSurface : Colors.black87);
     final fg = note.textColor == 0 ? automatic : textColors[note.textColor];
     final family = AppStore.fontFamilies[note.font];
+    final checklistLines = note.body.split('\n').where((line) => line.trim().startsWith('[')).toList();
+    final checkedLines = checklistLines.where((line) => line.trim().startsWith('[x]')).length;
     return Card(
       clipBehavior: Clip.antiAlias,
       color: bg,
@@ -219,17 +244,18 @@ class NoteCard extends StatelessWidget {
       child: Ink(
         decoration: BoxDecoration(
           color: bg,
-          image: noteWallpaper == null ? null : DecorationImage(image: noteWallpaper, fit: BoxFit.cover, colorFilter: ColorFilter.mode(Colors.black.withValues(alpha: .34), BlendMode.darken)),
+          image: noteWallpaper == null ? null : DecorationImage(image: noteWallpaper, fit: BoxFit.cover, colorFilter: ColorFilter.mode(Colors.black.withValues(alpha: note.wallpaperDarkness), BlendMode.darken)),
         ),
         child: InkWell(
           onTap: onOpen,
-          onLongPress: () => showModalBottomSheet(context: context, builder: (_) => SafeArea(child: Wrap(children: [ListTile(leading: Icon(note.favorite ? Icons.star : Icons.star_outline), title: Text(note.favorite ? 'Remover dos favoritos' : 'Adicionar aos favoritos'), onTap: () { Navigator.pop(context); note.favorite = !note.favorite; store.save(); }), ListTile(leading: Icon(note.pinned ? Icons.push_pin_outlined : Icons.push_pin), title: Text(note.pinned ? 'Desafixar' : 'Fixar no topo'), onTap: () { Navigator.pop(context); store.togglePin(note); }), ListTile(leading: const Icon(Icons.delete_outline, color: Colors.red), title: const Text('Mover para a lixeira', style: TextStyle(color: Colors.red)), onTap: () { Navigator.pop(context); store.delete(note); })]))),
+          onLongPress: () => showModalBottomSheet(context: context, builder: (_) => SafeArea(child: Wrap(children: [ListTile(leading: Icon(note.favorite ? Icons.star : Icons.star_outline), title: Text(note.favorite ? 'Remover dos favoritos' : 'Adicionar aos favoritos'), onTap: () { Navigator.pop(context); note.favorite = !note.favorite; store.save(); }), ListTile(leading: Icon(note.pinned ? Icons.push_pin_outlined : Icons.push_pin), title: Text(note.pinned ? 'Desafixar' : 'Fixar no topo'), onTap: () { Navigator.pop(context); store.togglePin(note); }), ListTile(leading: const Icon(Icons.copy_outlined), title: const Text('Duplicar nota'), onTap: () { Navigator.pop(context); store.duplicate(note); }), ListTile(leading: const Icon(Icons.archive_outlined), title: const Text('Arquivar'), onTap: () { Navigator.pop(context); store.archive(note); }), ListTile(leading: const Icon(Icons.delete_outline, color: Colors.red), title: const Text('Mover para a lixeira', style: TextStyle(color: Colors.red)), onTap: () { Navigator.pop(context); store.delete(note); ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: const Text('Nota movida para a lixeira'), action: SnackBarAction(label: 'DESFAZER', onPressed: () => store.restore(note)))); })]))),
           child: Padding(
             padding: const EdgeInsets.all(17),
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Row(children: [Expanded(child: Text(note.title.trim().isEmpty ? 'Sem título' : note.title, maxLines: wide ? 1 : 2, overflow: TextOverflow.ellipsis, style: TextStyle(color: fg, fontFamily: family, fontWeight: FontWeight.w800, fontSize: 17))), if (note.favorite) Icon(Icons.star_rounded, size: 17, color: fg.withValues(alpha: .85)), if (note.pinned) Icon(Icons.push_pin, size: 17, color: fg.withValues(alpha: .7))]),
               const SizedBox(height: 9),
               Expanded(child: Text(note.body.trim().isEmpty ? 'Nota vazia' : note.body.replaceAll('[ ]', '☐').replaceAll('[x]', '☑'), maxLines: wide ? 2 : 7, overflow: TextOverflow.fade, style: TextStyle(color: fg.withValues(alpha: .9), fontFamily: family, height: 1.42))),
+              if (note.checklist && checklistLines.isNotEmpty) ...[const SizedBox(height: 6), Row(children: [Expanded(child: LinearProgressIndicator(value: checkedLines / checklistLines.length, minHeight: 5, borderRadius: BorderRadius.circular(6), color: fg.withValues(alpha: .85), backgroundColor: fg.withValues(alpha: .2))), const SizedBox(width: 7), Text('$checkedLines/${checklistLines.length}', style: TextStyle(color: fg, fontSize: 10, fontWeight: FontWeight.w800))])],
               const SizedBox(height: 10),
               Row(children: [Expanded(child: Text(note.folder, overflow: TextOverflow.ellipsis, style: TextStyle(color: fg.withValues(alpha: .72), fontSize: 10, fontWeight: FontWeight.w700))), Text(DateFormat('dd/MM • HH:mm').format(note.updatedAt), style: TextStyle(color: fg.withValues(alpha: .72), fontFamily: family, fontSize: 10, fontWeight: FontWeight.w600))]),
             ]),
@@ -289,15 +315,12 @@ class _EditorPageState extends State<EditorPage> {
       onPopInvokedWithResult: (didPop, result) {
         if (!didPop) finish();
       },
-      child: Container(
-        decoration: selectedWallpaper == null ? null : BoxDecoration(
-          image: DecorationImage(
-            image: selectedWallpaper,
-            fit: BoxFit.cover,
-            colorFilter: ColorFilter.mode(Colors.black.withValues(alpha: .38), BlendMode.darken),
-          ),
-        ),
-        child: Scaffold(
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+        if (selectedWallpaper != null) ImageFiltered(imageFilter: ImageFilter.blur(sigmaX: widget.note.wallpaperBlur, sigmaY: widget.note.wallpaperBlur), child: Image(image: selectedWallpaper, fit: BoxFit.cover)),
+        if (selectedWallpaper != null) ColoredBox(color: Colors.black.withValues(alpha: widget.note.wallpaperDarkness)),
+        Scaffold(
         backgroundColor: selectedWallpaper != null ? Colors.transparent : (widget.note.color == 0 ? null : color),
         appBar: AppBar(
           backgroundColor: Colors.transparent,
@@ -428,7 +451,7 @@ class _EditorPageState extends State<EditorPage> {
           ]),
         ),
         ),
-      ),
+      ]),
     );
   }
 }
@@ -472,9 +495,10 @@ class _ChecklistEditorState extends State<ChecklistEditor> {
   }
   @override void dispose() { input.dispose(); super.dispose(); }
   @override Widget build(BuildContext context) => Column(children: [
-    Expanded(child: items.isEmpty ? Center(child: Text('Adiciona o primeiro item da lista 👇', style: TextStyle(color: widget.textColor))) : ListView.builder(itemCount: items.length, itemBuilder: (_, i) {
+    Expanded(child: items.isEmpty ? Center(child: Text('Adiciona o primeiro item da lista 👇', style: TextStyle(color: widget.textColor))) : ReorderableListView.builder(itemCount: items.length, onReorder: (oldIndex, newIndex) => setState(() { if (newIndex > oldIndex) newIndex--; final item = items.removeAt(oldIndex); items.insert(newIndex, item); sync(); }), itemBuilder: (_, i) {
       final item = items[i];
       return CheckboxListTile(
+        key: ValueKey(item),
         value: item.checked,
         controlAffinity: ListTileControlAffinity.leading,
         contentPadding: EdgeInsets.zero,
@@ -488,6 +512,32 @@ class _ChecklistEditorState extends State<ChecklistEditor> {
   ]);
 }
 
+class OnboardingPage extends StatefulWidget {
+  const OnboardingPage({super.key, required this.store});
+  final AppStore store;
+  @override State<OnboardingPage> createState() => _OnboardingPageState();
+}
+
+class _OnboardingPageState extends State<OnboardingPage> {
+  final controller = PageController();
+  int page = 0;
+  static const pages = [
+    (Icons.auto_awesome_rounded, 'Teu espaço, tua cara', 'Notas com wallpapers, fontes, cores e estilos diferentes.'),
+    (Icons.checklist_rounded, 'Organiza sem sofrimento', 'Pastas, etiquetas, favoritos, checklists e lembretes no mesmo lugar.'),
+    (Icons.widgets_outlined, 'Sempre por perto', 'Widgets na tela inicial, backup e tudo salvo no teu aparelho.'),
+  ];
+  void next() { if (page < pages.length - 1) controller.nextPage(duration: const Duration(milliseconds: 300), curve: Curves.easeOut); else { widget.store.onboardingDone = true; widget.store.save(); } }
+  @override Widget build(BuildContext context) => Scaffold(body: SafeArea(child: Column(children: [Expanded(child: PageView.builder(controller: controller, itemCount: pages.length, onPageChanged: (v) => setState(() => page = v), itemBuilder: (_, i) { final data = pages[i]; return Padding(padding: const EdgeInsets.all(34), child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [ClipRRect(borderRadius: BorderRadius.circular(32), child: Image.asset('assets/app_icon.png', width: 132, height: 132)), const SizedBox(height: 38), Icon(data.$1, size: 42, color: Theme.of(context).colorScheme.primary), const SizedBox(height: 16), Text(data.$2, textAlign: TextAlign.center, style: Theme.of(context).textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.w900)), const SizedBox(height: 12), Text(data.$3, textAlign: TextAlign.center, style: Theme.of(context).textTheme.bodyLarge)])); })), Row(mainAxisAlignment: MainAxisAlignment.center, children: List.generate(pages.length, (i) => AnimatedContainer(duration: const Duration(milliseconds: 200), margin: const EdgeInsets.all(4), width: page == i ? 26 : 8, height: 8, decoration: BoxDecoration(color: page == i ? Theme.of(context).colorScheme.primary : Theme.of(context).colorScheme.outlineVariant, borderRadius: BorderRadius.circular(8))))), Padding(padding: const EdgeInsets.all(24), child: SizedBox(width: double.infinity, child: FilledButton.icon(onPressed: next, icon: Icon(page == pages.length - 1 ? Icons.check : Icons.arrow_forward), label: Text(page == pages.length - 1 ? 'Começar a usar' : 'Continuar'))))])));
+}
+
+void showAboutNoto(BuildContext context) => showAboutDialog(context: context, applicationName: 'Noto', applicationVersion: '0.4.5', applicationIcon: ClipRRect(borderRadius: BorderRadius.circular(18), child: Image.asset('assets/app_icon.png', width: 68, height: 68)), children: const [Text('Um bloco de notas que combina com cada ideia.'), SizedBox(height: 8), Text('Desenvolvido por Juan Timm 💜')]);
+
+class ArchivePage extends StatelessWidget {
+  const ArchivePage({super.key, required this.store});
+  final AppStore store;
+  @override Widget build(BuildContext context) => AnimatedBuilder(animation: store, builder: (_, __) { final archived = store.notes.where((n) => n.archived && n.deletedAt == null).toList(); return Scaffold(appBar: AppBar(title: const Text('Arquivadas', style: TextStyle(fontWeight: FontWeight.w800))), body: archived.isEmpty ? const Center(child: Text('Nenhuma nota arquivada')) : ListView.separated(padding: const EdgeInsets.all(16), itemCount: archived.length, separatorBuilder: (_, __) => const SizedBox(height: 8), itemBuilder: (_, i) { final note = archived[i]; return Card(child: ListTile(leading: const Icon(Icons.archive_outlined), title: Text(note.title.isEmpty ? 'Sem título' : note.title), subtitle: Text(note.folder), trailing: IconButton(tooltip: 'Desarquivar', icon: const Icon(Icons.unarchive_outlined), onPressed: () => store.unarchive(note)))); })); });
+}
+
 class TrashPage extends StatelessWidget {
   const TrashPage({super.key, required this.store});
   final AppStore store;
@@ -497,9 +547,81 @@ class TrashPage extends StatelessWidget {
   });
 }
 
+Future<void> exportBackup(BuildContext context, AppStore store) async {
+  final images = <String, String>{};
+  for (final note in store.notes) {
+    final path = note.customWallpaper;
+    if (path != null && await File(path).exists()) images['note_${note.id}'] = base64Encode(await File(path).readAsBytes());
+  }
+  if (store.customWallpaper != null && await File(store.customWallpaper!).exists()) images['global'] = base64Encode(await File(store.customWallpaper!).readAsBytes());
+  final data = {'format': 'noto-backup', 'version': 1, 'createdAt': DateTime.now().toIso8601String(), 'notes': store.notes.map((n) => n.toJson()).toList(), 'settings': {'mode': store.mode.index, 'accent': store.accent, 'font': store.font, 'fontSize': store.fontSize, 'grid': store.grid, 'wallpaper': store.wallpaper, 'wallpaperDarkness': store.wallpaperDarkness, 'wallpaperBlur': store.wallpaperBlur, 'widgetNoteId': store.widgetNoteId}, 'images': images};
+  final dir = await getTemporaryDirectory();
+  final file = File('${dir.path}/Noto-backup-${DateFormat('yyyy-MM-dd').format(DateTime.now())}.noto');
+  await file.writeAsString(jsonEncode(data));
+  await Share.shareXFiles([XFile(file.path)], text: 'Backup completo do Noto');
+}
+
+Future<void> importBackup(BuildContext context, AppStore store) async {
+  final picked = await FilePicker.platform.pickFiles(type: FileType.any, allowMultiple: false);
+  final path = picked?.files.single.path;
+  if (path == null || !context.mounted) return;
+  try {
+    final data = jsonDecode(await File(path).readAsString()) as Map<String, dynamic>;
+    if (data['format'] != 'noto-backup') throw const FormatException();
+    final notes = (data['notes'] as List).map((e) => Note.fromJson(Map<String, dynamic>.from(e))).toList();
+    final images = Map<String, dynamic>.from(data['images'] ?? {});
+    final dir = await getApplicationDocumentsDirectory();
+    for (final note in notes) {
+      final encoded = images['note_${note.id}'];
+      if (encoded != null) { final file = File('${dir.path}/restored_${note.id}.jpg'); await file.writeAsBytes(base64Decode(encoded)); note.customWallpaper = file.path; }
+    }
+    final settings = Map<String, dynamic>.from(data['settings'] ?? {});
+    if (!context.mounted) return;
+    final confirmed = await showDialog<bool>(context: context, builder: (dialogContext) => AlertDialog(title: const Text('Restaurar este backup?'), content: Text('As notas atuais serão substituídas pelas ${notes.length} notas deste arquivo.'), actions: [TextButton(onPressed: () => Navigator.pop(dialogContext, false), child: const Text('Cancelar')), FilledButton(onPressed: () => Navigator.pop(dialogContext, true), child: const Text('Restaurar'))]));
+    if (confirmed != true) return;
+    store.notes..clear()..addAll(notes);
+    store.mode = ThemeMode.values[(settings['mode'] as num? ?? 0).clamp(0, ThemeMode.values.length - 1).toInt()];
+    store.accent = (settings['accent'] as num? ?? 0).clamp(0, AppStore.accents.length - 1).toInt();
+    store.font = (settings['font'] as num? ?? 0).clamp(0, AppStore.fonts.length - 1).toInt();
+    store.fontSize = (settings['fontSize'] ?? 17).toDouble(); store.grid = settings['grid'] ?? true; store.wallpaper = settings['wallpaper'] ?? 0; store.wallpaperDarkness = (settings['wallpaperDarkness'] ?? .25).toDouble(); store.wallpaperBlur = (settings['wallpaperBlur'] ?? 0).toDouble(); store.widgetNoteId = settings['widgetNoteId'];
+    store.customWallpaper = null;
+    if (images['global'] != null) { final file = File('${dir.path}/restored_global.jpg'); await file.writeAsBytes(base64Decode(images['global'])); store.customWallpaper = file.path; }
+    await store.save();
+    if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('${notes.length} notas restauradas com sucesso.')));
+  } catch (_) { if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Esse arquivo não é um backup válido do Noto.'))); }
+}
+
 class SettingsSheet extends StatelessWidget {
   const SettingsSheet({super.key, required this.store}); final AppStore store;
   @override Widget build(BuildContext context) => AnimatedBuilder(animation: store, builder: (_, __) => SafeArea(child: Padding(padding: EdgeInsets.fromLTRB(22, 18, 22, 22 + MediaQuery.viewInsetsOf(context).bottom), child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [Center(child: Container(width: 42, height: 4, decoration: BoxDecoration(color: Theme.of(context).colorScheme.outlineVariant, borderRadius: BorderRadius.circular(4)))), const SizedBox(height: 20), Text('Deixa com a tua cara', style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w800)), const SizedBox(height: 20), const Text('APARÊNCIA', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700)), const SizedBox(height: 8), SegmentedButton<ThemeMode>(segments: const [ButtonSegment(value: ThemeMode.system, label: Text('Sistema')), ButtonSegment(value: ThemeMode.light, label: Text('Claro')), ButtonSegment(value: ThemeMode.dark, label: Text('Escuro'))], selected: {store.mode}, onSelectionChanged: (v) { store.mode = v.first; store.save(); }), const SizedBox(height: 20), const Text('COR PRINCIPAL', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700)), const SizedBox(height: 10), Wrap(spacing: 13, children: List.generate(AppStore.accents.length, (i) => InkWell(onTap: () { store.accent = i; store.save(); }, customBorder: const CircleBorder(), child: CircleAvatar(radius: 19, backgroundColor: AppStore.accents[i], child: store.accent == i ? const Icon(Icons.check, color: Colors.white) : null)))), const SizedBox(height: 20), const Text('FONTE', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700)), const SizedBox(height: 8), OutlinedButton.icon(icon: const Icon(Icons.font_download_outlined), label: Expanded(child: Text(AppStore.fonts[store.font], style: TextStyle(fontFamily: AppStore.fontFamilies[store.font]))), onPressed: () => showModalBottomSheet<int>(context: context, isScrollControlled: true, builder: (_) => FontPickerSheet(selected: store.font)).then((v) { if (v != null) { store.font = v; store.save(); } })), const SizedBox(height: 14), Row(children: [const Text('Tamanho do texto'), Expanded(child: Slider(value: store.fontSize, min: 14, max: 24, divisions: 5, label: store.fontSize.round().toString(), onChanged: (v) { store.fontSize = v; store.save(); })), SizedBox(width: 28, child: Text(store.fontSize.round().toString()))])]))));
+}
+
+class AdvancedSettingsSheet extends StatelessWidget {
+  const AdvancedSettingsSheet({super.key, required this.store});
+  final AppStore store;
+  @override Widget build(BuildContext context) => AnimatedBuilder(animation: store, builder: (_, __) {
+    final active = store.notes.where((n) => n.deletedAt == null && !n.archived).toList();
+    final selectedWidgetId = active.any((n) => n.id == store.widgetNoteId) ? store.widgetNoteId : null;
+    return SafeArea(child: SizedBox(height: MediaQuery.sizeOf(context).height * .9, child: Column(children: [
+      const SizedBox(height: 10), Container(width: 42, height: 4, decoration: BoxDecoration(color: Theme.of(context).colorScheme.outlineVariant, borderRadius: BorderRadius.circular(4))),
+      Expanded(child: ListView(padding: const EdgeInsets.fromLTRB(20, 18, 20, 28), children: [
+        Text('Personalizar o Noto', style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w900)),
+        const SizedBox(height: 20), const Text('APARÊNCIA', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800)), const SizedBox(height: 8),
+        SegmentedButton<ThemeMode>(segments: const [ButtonSegment(value: ThemeMode.system, label: Text('Sistema')), ButtonSegment(value: ThemeMode.light, label: Text('Claro')), ButtonSegment(value: ThemeMode.dark, label: Text('Escuro'))], selected: {store.mode}, onSelectionChanged: (v) { store.mode = v.first; store.save(); }),
+        const SizedBox(height: 18), Wrap(spacing: 12, children: List.generate(AppStore.accents.length, (i) => InkWell(onTap: () { store.accent = i; store.save(); }, customBorder: const CircleBorder(), child: CircleAvatar(radius: 20, backgroundColor: AppStore.accents[i], child: store.accent == i ? const Icon(Icons.check, color: Colors.white) : null)))),
+        const SizedBox(height: 18), OutlinedButton.icon(icon: const Icon(Icons.font_download_outlined), label: Text('Fonte: ${AppStore.fonts[store.font]}', style: TextStyle(fontFamily: AppStore.fontFamilies[store.font])), onPressed: () => showModalBottomSheet<int>(context: context, isScrollControlled: true, builder: (_) => FontPickerSheet(selected: store.font)).then((v) { if (v != null) { store.font = v; store.save(); } })),
+        Row(children: [const Text('Tamanho'), Expanded(child: Slider(value: store.fontSize, min: 14, max: 24, divisions: 5, label: store.fontSize.round().toString(), onChanged: (v) { store.fontSize = v; store.save(); }))]),
+        const Divider(height: 32), const Text('FUNDO DA TELA INICIAL', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800)),
+        Row(children: [const Icon(Icons.brightness_6_outlined), const SizedBox(width: 8), const Text('Escurecer'), Expanded(child: Slider(value: store.wallpaperDarkness, min: 0, max: .75, onChanged: (v) { store.wallpaperDarkness = v; store.save(); }))]),
+        Row(children: [const Icon(Icons.blur_on_outlined), const SizedBox(width: 8), const Text('Desfoque'), Expanded(child: Slider(value: store.wallpaperBlur, min: 0, max: 12, divisions: 12, onChanged: (v) { store.wallpaperBlur = v; store.save(); }))]),
+        const Divider(height: 32), const Text('WIDGET', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800)), const SizedBox(height: 8),
+        DropdownButtonFormField<String?>(value: selectedWidgetId, decoration: const InputDecoration(labelText: 'Nota exibida no widget', prefixIcon: Icon(Icons.widgets_outlined), border: OutlineInputBorder()), items: [const DropdownMenuItem<String?>(value: null, child: Text('Nota mais recente')), ...active.map((n) => DropdownMenuItem<String?>(value: n.id, child: Text(n.title.isEmpty ? 'Sem título' : n.title, overflow: TextOverflow.ellipsis)))], onChanged: (v) { store.widgetNoteId = v; store.save(); }),
+        const Divider(height: 32), const Text('BACKUP', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800)), const SizedBox(height: 8),
+        Row(children: [Expanded(child: FilledButton.tonalIcon(onPressed: () => exportBackup(context, store), icon: const Icon(Icons.cloud_upload_outlined), label: const Text('Criar backup'))), const SizedBox(width: 10), Expanded(child: FilledButton.tonalIcon(onPressed: () => importBackup(context, store), icon: const Icon(Icons.restore_outlined), label: const Text('Restaurar')))]),
+        const Divider(height: 32), ListTile(contentPadding: EdgeInsets.zero, leading: const Icon(Icons.slideshow_outlined), title: const Text('Ver apresentação novamente'), onTap: () { Navigator.pop(context); store.onboardingDone = false; store.save(); }), ListTile(contentPadding: EdgeInsets.zero, leading: const Icon(Icons.info_outline), title: const Text('Sobre o Noto'), onTap: () => showAboutNoto(context)),
+      ])),
+    ]));
+  });
 }
 
 class FontPickerSheet extends StatefulWidget {
@@ -573,8 +695,8 @@ class WallpaperLayer extends StatelessWidget {
     final hasCustom = customFile != null && customFile.existsSync();
     if (store.wallpaper == 0 && !hasCustom) return child;
     return Stack(fit: StackFit.expand, children: [
-      if (hasCustom) Image.file(customFile, fit: BoxFit.cover) else Image.asset(paths[store.wallpaper], fit: BoxFit.cover),
-      ColoredBox(color: Colors.black.withOpacity(.25)),
+      ImageFiltered(imageFilter: ImageFilter.blur(sigmaX: store.wallpaperBlur, sigmaY: store.wallpaperBlur), child: hasCustom ? Image.file(customFile, fit: BoxFit.cover) : Image.asset(paths[store.wallpaper], fit: BoxFit.cover)),
+      ColoredBox(color: Colors.black.withValues(alpha: store.wallpaperDarkness)),
       child,
     ]);
   }
@@ -607,7 +729,9 @@ class WallpaperSheet extends StatelessWidget {
   ];
 
   @override
-  Widget build(BuildContext context) => SafeArea(
+  Widget build(BuildContext context) => AnimatedBuilder(
+    animation: store,
+    builder: (_, __) => SafeArea(
     child: Padding(
       padding: const EdgeInsets.all(20),
       child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -622,6 +746,11 @@ class WallpaperSheet extends StatelessWidget {
             ),
           ),
         const SizedBox(height: 16),
+        if (note != null) ...[
+          Row(children: [const Icon(Icons.brightness_6_outlined, size: 20), const SizedBox(width: 8), const Text('Escurecer'), Expanded(child: Slider(value: note!.wallpaperDarkness, min: 0, max: .75, onChanged: (v) { note!.wallpaperDarkness = v; store.save(); }))]),
+          Row(children: [const Icon(Icons.blur_on_outlined, size: 20), const SizedBox(width: 8), const Text('Desfoque'), Expanded(child: Slider(value: note!.wallpaperBlur, min: 0, max: 12, divisions: 12, onChanged: (v) { note!.wallpaperBlur = v; store.save(); }))]),
+          const SizedBox(height: 6),
+        ],
         SizedBox(height: 190, child: ListView.separated(
           scrollDirection: Axis.horizontal,
           itemCount: names.length,
@@ -644,6 +773,7 @@ class WallpaperSheet extends StatelessWidget {
           ),
         )),
       ]),
+    ),
     ),
   );
 }
