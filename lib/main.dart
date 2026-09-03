@@ -562,7 +562,7 @@ Future<void> exportBackup(BuildContext context, AppStore store) async {
 }
 
 Future<void> importBackup(BuildContext context, AppStore store) async {
-  final picked = await FilePicker.platform.pickFiles(type: FileType.any, allowMultiple: false);
+  final picked = await FilePicker.pickFiles(type: FileType.any, allowMultiple: false);
   final path = picked?.files.single.path;
   if (path == null || !context.mounted) return;
   try {
