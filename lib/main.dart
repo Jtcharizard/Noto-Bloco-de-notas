@@ -127,9 +127,9 @@ class _NotesAppState extends State<NotesApp> {
   ThemeData theme(Brightness b) {
     final seed = AppStore.accents[store.accent];
     final base = ThemeData(colorScheme: ColorScheme.fromSeed(seedColor: seed, brightness: b), useMaterial3: true, brightness: b);
-    return base.copyWith(textTheme: themedText(base), scaffoldBackgroundColor: store.wallpaper == 0 && store.customWallpaper == null ? (b == Brightness.light ? const Color(0xFFF8F6FA) : const Color(0xFF141217)) : Colors.transparent, cardTheme: const CardThemeData(elevation: 0, margin: EdgeInsets.zero));
+    return base.copyWith(textTheme: themedText(base), scaffoldBackgroundColor: b == Brightness.light ? const Color(0xFFF8F6FA) : const Color(0xFF141217), cardTheme: const CardThemeData(elevation: 0, margin: EdgeInsets.zero));
   }
-  @override Widget build(BuildContext context) => AnimatedBuilder(animation: store, builder: (_, __) => MaterialApp(debugShowCheckedModeBanner: false, title: 'Noto', theme: theme(Brightness.light), darkTheme: theme(Brightness.dark), themeMode: store.mode, builder: (_, child) => WallpaperLayer(store: store, child: child!), home: store.loaded ? HomePage(store: store) : const Scaffold(body: Center(child: CircularProgressIndicator()))));
+  @override Widget build(BuildContext context) => AnimatedBuilder(animation: store, builder: (_, __) => MaterialApp(debugShowCheckedModeBanner: false, title: 'Noto', theme: theme(Brightness.light), darkTheme: theme(Brightness.dark), themeMode: store.mode, home: store.loaded ? WallpaperLayer(store: store, child: HomePage(store: store)) : const Scaffold(body: Center(child: CircularProgressIndicator()))));
 }
 
 class HomePage extends StatefulWidget {
@@ -172,7 +172,10 @@ class _HomePageState extends State<HomePage> {
   void createNote() => showModalBottomSheet(context: context, builder: (_) => SafeArea(child: Padding(padding: const EdgeInsets.all(18), child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [Text('O que vamos criar?', style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w800)), const SizedBox(height: 14), Wrap(spacing: 10, runSpacing: 10, children: [('normal', Icons.note_add_outlined, 'Nota'), ('checklist', Icons.checklist_rounded, 'Checklist'), ('estudo', Icons.school_outlined, 'Estudo'), ('rpg', Icons.auto_awesome_outlined, 'RPG'), ('diario', Icons.menu_book_outlined, 'Diário')].map((e) => ActionChip(avatar: Icon(e.$2, size: 19), label: Text(e.$3), onPressed: () { Navigator.pop(context); open(null, e.$1); })).toList())]))));
   @override Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
+    final custom = widget.store.customWallpaper;
+    final hasGlobalWallpaper = widget.store.wallpaper > 0 || (custom != null && File(custom).existsSync());
     return Scaffold(
+      backgroundColor: hasGlobalWallpaper ? Colors.transparent : null,
       appBar: AppBar(title: Row(children: [ClipRRect(borderRadius: BorderRadius.circular(11), child: Image.asset('assets/app_icon.png', width: 40, height: 40)), const SizedBox(width: 10), const Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text('Noto', style: TextStyle(fontSize: 25, fontWeight: FontWeight.w900)), Text('Tuas ideias, do teu jeito', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w500))])]), actions: [PopupMenuButton<int>(tooltip: 'Ordenar', icon: const Icon(Icons.sort_rounded), onSelected: (v) => setState(() => sort = v), itemBuilder: (_) => const [PopupMenuItem(value: 0, child: Text('Mais recentes')), PopupMenuItem(value: 1, child: Text('Por nome')), PopupMenuItem(value: 2, child: Text('Mais antigas'))]), IconButton(tooltip: 'Lixeira', onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => TrashPage(store: widget.store))), icon: const Icon(Icons.delete_outline)), IconButton(tooltip: 'Personalizar', onPressed: () => showModalBottomSheet(context: context, isScrollControlled: true, builder: (_) => SettingsSheet(store: widget.store)), icon: const Icon(Icons.palette_outlined)), const SizedBox(width: 4)]),
       body: SafeArea(child: Column(children: [
         Padding(padding: const EdgeInsets.fromLTRB(16, 10, 16, 2), child: Row(children: [Expanded(child: _SummaryCard(icon: Icons.note_alt_outlined, value: widget.store.notes.where((n) => n.deletedAt == null).length.toString(), label: 'notas')), const SizedBox(width: 10), Expanded(child: _SummaryCard(icon: Icons.star_outline_rounded, value: widget.store.notes.where((n) => n.deletedAt == null && n.favorite).length.toString(), label: 'favoritas')), const SizedBox(width: 10), IconButton.filledTonal(tooltip: 'Fundo da tela inicial', onPressed: () => showModalBottomSheet(context: context, isScrollControlled: true, builder: (_) => WallpaperSheet(store: widget.store)), icon: const Icon(Icons.add_photo_alternate_outlined))])),
@@ -280,13 +283,22 @@ class _EditorPageState extends State<EditorPage> {
   Widget build(BuildContext context) {
     final color = NoteCard.colors[widget.note.color];
     final selectedWallpaper = wallpaperFor(widget.note);
+    final editorTextColor = widget.note.textColor == 0 ? (selectedWallpaper != null ? Colors.white : null) : NoteCard.textColors[widget.note.textColor];
     return PopScope(
       canPop: false,
       onPopInvokedWithResult: (didPop, result) {
         if (!didPop) finish();
       },
-      child: Scaffold(
-        backgroundColor: widget.note.color == 0 ? null : color,
+      child: Container(
+        decoration: selectedWallpaper == null ? null : BoxDecoration(
+          image: DecorationImage(
+            image: selectedWallpaper,
+            fit: BoxFit.cover,
+            colorFilter: ColorFilter.mode(Colors.black.withValues(alpha: .38), BlendMode.darken),
+          ),
+        ),
+        child: Scaffold(
+        backgroundColor: selectedWallpaper != null ? Colors.transparent : (widget.note.color == 0 ? null : color),
         appBar: AppBar(
           backgroundColor: Colors.transparent,
           leading: IconButton(
@@ -369,20 +381,13 @@ class _EditorPageState extends State<EditorPage> {
             PopupMenuButton<String>(
               tooltip: 'Mais opções',
               icon: const Icon(Icons.more_vert),
-              onSelected: (v) { if (v == 'organize') organize(); if (v == 'reminder') chooseReminder(); if (v == 'share') shareNote(); if (v == 'export') shareNote(asFile: true); if (v == 'check') { final insert = body.text.isEmpty ? '[ ] ' : '\n[ ] '; body.text += insert; body.selection = TextSelection.collapsed(offset: body.text.length); setState(() => widget.note.checklist = true); } },
-              itemBuilder: (_) => [const PopupMenuItem(value: 'organize', child: ListTile(leading: Icon(Icons.folder_outlined), title: Text('Pasta e etiquetas'))), const PopupMenuItem(value: 'reminder', child: ListTile(leading: Icon(Icons.notifications_outlined), title: Text('Criar lembrete'))), const PopupMenuItem(value: 'check', child: ListTile(leading: Icon(Icons.check_box_outlined), title: Text('Adicionar item'))), const PopupMenuItem(value: 'share', child: ListTile(leading: Icon(Icons.share_outlined), title: Text('Compartilhar'))), const PopupMenuItem(value: 'export', child: ListTile(leading: Icon(Icons.file_download_outlined), title: Text('Exportar como TXT')))],
+              onSelected: (v) { if (v == 'organize') organize(); if (v == 'reminder') chooseReminder(); if (v == 'share') shareNote(); if (v == 'export') shareNote(asFile: true); if (v == 'check' && !widget.note.checklist) setState(() => widget.note.checklist = true); },
+              itemBuilder: (_) => [const PopupMenuItem(value: 'organize', child: ListTile(leading: Icon(Icons.folder_outlined), title: Text('Pasta e etiquetas'))), const PopupMenuItem(value: 'reminder', child: ListTile(leading: Icon(Icons.notifications_outlined), title: Text('Criar lembrete'))), if (!widget.note.checklist) const PopupMenuItem(value: 'check', child: ListTile(leading: Icon(Icons.check_box_outlined), title: Text('Transformar em checklist'))), const PopupMenuItem(value: 'share', child: ListTile(leading: Icon(Icons.share_outlined), title: Text('Compartilhar'))), const PopupMenuItem(value: 'export', child: ListTile(leading: Icon(Icons.file_download_outlined), title: Text('Exportar como TXT')))],
             ),
             const SizedBox(width: 6),
           ],
         ),
         body: Container(
-          decoration: selectedWallpaper == null ? null : BoxDecoration(
-            image: DecorationImage(
-              image: selectedWallpaper,
-              fit: BoxFit.cover,
-              colorFilter: ColorFilter.mode(Colors.black.withValues(alpha: .38), BlendMode.darken),
-            ),
-          ),
           padding: const EdgeInsets.fromLTRB(22, 10, 22, 20),
           child: Column(children: [
             TextField(
@@ -398,7 +403,13 @@ class _EditorPageState extends State<EditorPage> {
             if (widget.note.reminderAt != null) Align(alignment: Alignment.centerLeft, child: Chip(avatar: const Icon(Icons.notifications_active_outlined, size: 17), label: Text(DateFormat("dd/MM 'às' HH:mm").format(widget.note.reminderAt!)), onDeleted: () async { await notifications.cancel(widget.note.id.hashCode & 0x7fffffff); setState(() => widget.note.reminderAt = null); })),
             if (widget.note.tags.isNotEmpty) Align(alignment: Alignment.centerLeft, child: Wrap(spacing: 6, children: widget.note.tags.map((t) => Chip(label: Text('#$t'), visualDensity: VisualDensity.compact)).toList())),
             Expanded(
-              child: TextField(
+              child: widget.note.checklist ? ChecklistEditor(
+                controller: body,
+                fontFamily: AppStore.fontFamilies[widget.note.font],
+                fontSize: widget.store.fontSize,
+                textColor: editorTextColor,
+                onChanged: () => setState(() {}),
+              ) : TextField(
                 controller: body,
                 expands: true,
                 maxLines: null,
@@ -409,15 +420,72 @@ class _EditorPageState extends State<EditorPage> {
                   hintText: 'Escreve alguma coisa...',
                   border: InputBorder.none,
                 ),
-                style: TextStyle(fontSize: widget.store.fontSize, height: 1.55, fontFamily: AppStore.fontFamilies[widget.note.font], color: widget.note.textColor == 0 ? (selectedWallpaper != null ? Colors.white : null) : NoteCard.textColors[widget.note.textColor]),
+                onChanged: (_) => setState(() {}),
+                style: TextStyle(fontSize: widget.store.fontSize, height: 1.55, fontFamily: AppStore.fontFamilies[widget.note.font], color: editorTextColor),
               ),
             ),
             Align(alignment: Alignment.centerRight, child: Text('$words palavras • ${body.text.length} caracteres', style: Theme.of(context).textTheme.labelSmall)),
           ]),
         ),
+        ),
       ),
     );
   }
+}
+
+class _ChecklistItem {
+  _ChecklistItem(this.text, this.checked);
+  String text;
+  bool checked;
+}
+
+class ChecklistEditor extends StatefulWidget {
+  const ChecklistEditor({super.key, required this.controller, required this.fontFamily, required this.fontSize, required this.textColor, required this.onChanged});
+  final TextEditingController controller;
+  final String? fontFamily;
+  final double fontSize;
+  final Color? textColor;
+  final VoidCallback onChanged;
+  @override State<ChecklistEditor> createState() => _ChecklistEditorState();
+}
+
+class _ChecklistEditorState extends State<ChecklistEditor> {
+  final input = TextEditingController();
+  late final List<_ChecklistItem> items;
+  @override void initState() {
+    super.initState();
+    items = widget.controller.text.split('\n').where((line) => line.trim().isNotEmpty).map((line) {
+      final trimmed = line.trim();
+      if (trimmed.startsWith('[x]')) return _ChecklistItem(trimmed.substring(3).trim(), true);
+      if (trimmed.startsWith('[ ]')) return _ChecklistItem(trimmed.substring(3).trim(), false);
+      return _ChecklistItem(trimmed, false);
+    }).toList();
+  }
+  void sync() {
+    widget.controller.text = items.map((item) => '${item.checked ? '[x]' : '[ ]'} ${item.text}').join('\n');
+    widget.onChanged();
+  }
+  void add() {
+    final value = input.text.trim();
+    if (value.isEmpty) return;
+    setState(() { items.add(_ChecklistItem(value, false)); input.clear(); sync(); });
+  }
+  @override void dispose() { input.dispose(); super.dispose(); }
+  @override Widget build(BuildContext context) => Column(children: [
+    Expanded(child: items.isEmpty ? Center(child: Text('Adiciona o primeiro item da lista 👇', style: TextStyle(color: widget.textColor))) : ListView.builder(itemCount: items.length, itemBuilder: (_, i) {
+      final item = items[i];
+      return CheckboxListTile(
+        value: item.checked,
+        controlAffinity: ListTileControlAffinity.leading,
+        contentPadding: EdgeInsets.zero,
+        activeColor: Theme.of(context).colorScheme.primary,
+        title: Text(item.text, style: TextStyle(fontFamily: widget.fontFamily, fontSize: widget.fontSize, color: widget.textColor, decoration: item.checked ? TextDecoration.lineThrough : null, decorationColor: widget.textColor)),
+        secondary: IconButton(icon: const Icon(Icons.close_rounded, size: 19), tooltip: 'Remover item', onPressed: () => setState(() { items.removeAt(i); sync(); })),
+        onChanged: (value) => setState(() { item.checked = value ?? false; sync(); }),
+      );
+    })),
+    Container(padding: const EdgeInsets.fromLTRB(4, 8, 4, 4), decoration: BoxDecoration(color: Theme.of(context).colorScheme.surfaceContainerHighest.withValues(alpha: .82), borderRadius: BorderRadius.circular(18)), child: Row(children: [Expanded(child: TextField(controller: input, onSubmitted: (_) => add(), textCapitalization: TextCapitalization.sentences, decoration: const InputDecoration(hintText: 'Novo item...', prefixIcon: Icon(Icons.add_task_rounded), border: InputBorder.none))), IconButton.filled(onPressed: add, icon: const Icon(Icons.add_rounded))])),
+  ]);
 }
 
 class TrashPage extends StatelessWidget {
