@@ -1,22 +1,24 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 void main() => runApp(const NotesApp());
 
 class Note {
-  Note({required this.id, required this.title, required this.body, required this.updatedAt, this.color = 0, this.pinned = false});
+  Note({required this.id, required this.title, required this.body, required this.updatedAt, this.color = 0, this.pinned = false, this.wallpaper = 0, this.textColor = 0, this.font = 0});
   final String id;
   String title;
   String body;
   DateTime updatedAt;
   int color;
   bool pinned;
+  int wallpaper;
+  int textColor;
+  int font;
 
-  Map<String, dynamic> toJson() => {'id': id, 'title': title, 'body': body, 'updatedAt': updatedAt.toIso8601String(), 'color': color, 'pinned': pinned};
-  factory Note.fromJson(Map<String, dynamic> j) => Note(id: j['id'], title: j['title'] ?? '', body: j['body'] ?? '', updatedAt: DateTime.parse(j['updatedAt']), color: j['color'] ?? 0, pinned: j['pinned'] ?? false);
+  Map<String, dynamic> toJson() => {'id': id, 'title': title, 'body': body, 'updatedAt': updatedAt.toIso8601String(), 'color': color, 'pinned': pinned, 'wallpaper': wallpaper, 'textColor': textColor, 'font': font};
+  factory Note.fromJson(Map<String, dynamic> j) => Note(id: j['id'], title: j['title'] ?? '', body: j['body'] ?? '', updatedAt: DateTime.parse(j['updatedAt']), color: j['color'] ?? 0, pinned: j['pinned'] ?? false, wallpaper: j['wallpaper'] ?? 0, textColor: j['textColor'] ?? 0, font: j['font'] ?? 0);
 }
 
 class AppStore extends ChangeNotifier {
@@ -30,7 +32,8 @@ class AppStore extends ChangeNotifier {
   bool loaded = false;
 
   static const accents = [Color(0xFF7557D3), Color(0xFF25756D), Color(0xFFC05343), Color(0xFF3367B2), Color(0xFFB46A18)];
-  static const fonts = ['Inter', 'Lora', 'Poppins', 'Roboto Mono'];
+  static const fonts = ['Moderna', 'Livro', 'Poppins', 'Máquina'];
+  static const fontFamilies = [null, 'serif', 'Poppins', 'monospace'];
 
   Future<void> load() async {
     final p = await SharedPreferences.getInstance();
@@ -70,11 +73,7 @@ class _NotesAppState extends State<NotesApp> {
   final store = AppStore();
   @override void initState() { super.initState(); store.load(); }
   TextTheme themedText(ThemeData base) {
-    final name = AppStore.fonts[store.font];
-    if (name == 'Lora') return GoogleFonts.loraTextTheme(base.textTheme);
-    if (name == 'Poppins') return GoogleFonts.poppinsTextTheme(base.textTheme);
-    if (name == 'Roboto Mono') return GoogleFonts.robotoMonoTextTheme(base.textTheme);
-    return GoogleFonts.interTextTheme(base.textTheme);
+    return base.textTheme.apply(fontFamily: AppStore.fontFamilies[store.font]);
   }
   ThemeData theme(Brightness b) {
     final seed = AppStore.accents[store.accent];
@@ -126,10 +125,38 @@ class NoteCard extends StatelessWidget {
   const NoteCard({super.key, required this.note, required this.store, required this.onOpen, this.wide = false});
   final Note note; final AppStore store; final VoidCallback onOpen; final bool wide;
   static const colors = [Color(0x00000000), Color(0xFFFFE5AA), Color(0xFFCDEEE7), Color(0xFFE6D8FF), Color(0xFFFFD7D2), Color(0xFFD8E8FF)];
-  @override Widget build(BuildContext context) {
+  static const textColors = [Colors.transparent, Colors.white, Colors.black, Color(0xFFFFD54F), Color(0xFFFF8A80), Color(0xFF80DEEA), Color(0xFFCE93D8)];
+  @override
+  Widget build(BuildContext context) {
     final bg = note.color == 0 ? Theme.of(context).colorScheme.surfaceContainer : colors[note.color];
-    final fg = note.color == 0 ? Theme.of(context).colorScheme.onSurface : Colors.black87;
-    return Card(color: bg, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)), child: InkWell(borderRadius: BorderRadius.circular(22), onTap: onOpen, onLongPress: () => showModalBottomSheet(context: context, builder: (_) => SafeArea(child: Wrap(children: [ListTile(leading: Icon(note.pinned ? Icons.push_pin_outlined : Icons.push_pin), title: Text(note.pinned ? 'Desafixar' : 'Fixar no topo'), onTap: () { Navigator.pop(context); store.togglePin(note); }), ListTile(leading: const Icon(Icons.delete_outline, color: Colors.red), title: const Text('Excluir nota', style: TextStyle(color: Colors.red)), onTap: () { Navigator.pop(context); store.delete(note); })]))), child: Padding(padding: const EdgeInsets.all(17), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Row(children: [Expanded(child: Text(note.title.trim().isEmpty ? 'Sem título' : note.title, maxLines: wide ? 1 : 2, overflow: TextOverflow.ellipsis, style: TextStyle(color: fg, fontWeight: FontWeight.w800, fontSize: 17))), if (note.pinned) Icon(Icons.push_pin, size: 17, color: fg.withOpacity(.65))]), const SizedBox(height: 9), Expanded(child: Text(note.body.trim().isEmpty ? 'Nota vazia' : note.body, maxLines: wide ? 2 : 7, overflow: TextOverflow.fade, style: TextStyle(color: fg.withOpacity(.78), height: 1.42))), const SizedBox(height: 10), Text(DateFormat('dd/MM • HH:mm').format(note.updatedAt), style: TextStyle(color: fg.withOpacity(.52), fontSize: 11, fontWeight: FontWeight.w600))]))));
+    final automatic = note.wallpaper > 0 ? Colors.white : (note.color == 0 ? Theme.of(context).colorScheme.onSurface : Colors.black87);
+    final fg = note.textColor == 0 ? automatic : textColors[note.textColor];
+    final family = AppStore.fontFamilies[note.font];
+    return Card(
+      clipBehavior: Clip.antiAlias,
+      color: bg,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
+      child: Ink(
+        decoration: BoxDecoration(
+          color: bg,
+          image: note.wallpaper == 0 ? null : DecorationImage(image: AssetImage(WallpaperLayer.paths[note.wallpaper]), fit: BoxFit.cover, colorFilter: ColorFilter.mode(Colors.black.withValues(alpha: .34), BlendMode.darken)),
+        ),
+        child: InkWell(
+          onTap: onOpen,
+          onLongPress: () => showModalBottomSheet(context: context, builder: (_) => SafeArea(child: Wrap(children: [ListTile(leading: Icon(note.pinned ? Icons.push_pin_outlined : Icons.push_pin), title: Text(note.pinned ? 'Desafixar' : 'Fixar no topo'), onTap: () { Navigator.pop(context); store.togglePin(note); }), ListTile(leading: const Icon(Icons.delete_outline, color: Colors.red), title: const Text('Excluir nota', style: TextStyle(color: Colors.red)), onTap: () { Navigator.pop(context); store.delete(note); })]))),
+          child: Padding(
+            padding: const EdgeInsets.all(17),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Row(children: [Expanded(child: Text(note.title.trim().isEmpty ? 'Sem título' : note.title, maxLines: wide ? 1 : 2, overflow: TextOverflow.ellipsis, style: TextStyle(color: fg, fontFamily: family, fontWeight: FontWeight.w800, fontSize: 17))), if (note.pinned) Icon(Icons.push_pin, size: 17, color: fg.withValues(alpha: .7))]),
+              const SizedBox(height: 9),
+              Expanded(child: Text(note.body.trim().isEmpty ? 'Nota vazia' : note.body, maxLines: wide ? 2 : 7, overflow: TextOverflow.fade, style: TextStyle(color: fg.withValues(alpha: .9), fontFamily: family, height: 1.42))),
+              const SizedBox(height: 10),
+              Text(DateFormat('dd/MM • HH:mm').format(note.updatedAt), style: TextStyle(color: fg.withValues(alpha: .72), fontFamily: family, fontSize: 11, fontWeight: FontWeight.w600)),
+            ]),
+          ),
+        ),
+      ),
+    );
   }
 }
 
@@ -170,6 +197,47 @@ class _EditorPageState extends State<EditorPage> {
                 widget.note.pinned ? Icons.push_pin : Icons.push_pin_outlined,
               ),
             ),
+            IconButton(
+              tooltip: 'Wallpaper da nota',
+              onPressed: () => showModalBottomSheet(
+                context: context,
+                isScrollControlled: true,
+                builder: (_) => WallpaperSheet(store: widget.store, note: widget.note),
+              ).then((_) => setState(() {})),
+              icon: const Icon(Icons.wallpaper_outlined),
+            ),
+            PopupMenuButton<int>(
+              tooltip: 'Fonte da nota',
+              icon: const Icon(Icons.font_download_outlined),
+              onSelected: (v) => setState(() => widget.note.font = v),
+              itemBuilder: (_) => List.generate(
+                AppStore.fonts.length,
+                (i) => PopupMenuItem(
+                  value: i,
+                  child: Text(AppStore.fonts[i], style: TextStyle(fontFamily: AppStore.fontFamilies[i])),
+                ),
+              ),
+            ),
+            PopupMenuButton<int>(
+              tooltip: 'Cor do texto',
+              icon: const Icon(Icons.format_color_text),
+              onSelected: (v) => setState(() => widget.note.textColor = v),
+              itemBuilder: (_) => List.generate(
+                NoteCard.textColors.length,
+                (i) => PopupMenuItem(
+                  value: i,
+                  child: Row(children: [
+                    CircleAvatar(
+                      radius: 11,
+                      backgroundColor: i == 0 ? Theme.of(context).colorScheme.outline : NoteCard.textColors[i],
+                      child: widget.note.textColor == i ? const Icon(Icons.check, size: 15) : null,
+                    ),
+                    const SizedBox(width: 12),
+                    Text(i == 0 ? 'Automática' : 'Cor $i'),
+                  ]),
+                ),
+              ),
+            ),
             PopupMenuButton<int>(
               tooltip: 'Cor da nota',
               icon: const Icon(Icons.color_lens_outlined),
@@ -197,7 +265,14 @@ class _EditorPageState extends State<EditorPage> {
             const SizedBox(width: 6),
           ],
         ),
-        body: Padding(
+        body: Container(
+          decoration: widget.note.wallpaper == 0 ? null : BoxDecoration(
+            image: DecorationImage(
+              image: AssetImage(WallpaperLayer.paths[widget.note.wallpaper]),
+              fit: BoxFit.cover,
+              colorFilter: ColorFilter.mode(Colors.black.withValues(alpha: .38), BlendMode.darken),
+            ),
+          ),
           padding: const EdgeInsets.fromLTRB(22, 10, 22, 20),
           child: Column(children: [
             TextField(
@@ -208,7 +283,7 @@ class _EditorPageState extends State<EditorPage> {
                 hintText: 'Título',
                 border: InputBorder.none,
               ),
-              style: const TextStyle(fontSize: 27, fontWeight: FontWeight.w800),
+              style: TextStyle(fontSize: 27, fontWeight: FontWeight.w800, fontFamily: AppStore.fontFamilies[widget.note.font], color: widget.note.textColor == 0 ? (widget.note.wallpaper > 0 ? Colors.white : null) : NoteCard.textColors[widget.note.textColor]),
             ),
             Expanded(
               child: TextField(
@@ -222,7 +297,7 @@ class _EditorPageState extends State<EditorPage> {
                   hintText: 'Escreve alguma coisa...',
                   border: InputBorder.none,
                 ),
-                style: TextStyle(fontSize: widget.store.fontSize, height: 1.55),
+                style: TextStyle(fontSize: widget.store.fontSize, height: 1.55, fontFamily: AppStore.fontFamilies[widget.note.font], color: widget.note.textColor == 0 ? (widget.note.wallpaper > 0 ? Colors.white : null) : NoteCard.textColors[widget.note.textColor]),
               ),
             ),
           ]),
@@ -258,6 +333,11 @@ class WallpaperLayer extends StatelessWidget {
     'assets/wallpapers/eternum.png',
     'assets/wallpapers/overtake.png',
     'assets/wallpapers/pixel_valley.png',
+    'assets/wallpapers/moon_knight.png',
+    'assets/wallpapers/crystal_kingdom.png',
+    'assets/wallpapers/black_hole.png',
+    'assets/wallpapers/neon_city.png',
+    'assets/wallpapers/celestial_dragon.png',
   ];
 
   @override
@@ -272,12 +352,14 @@ class WallpaperLayer extends StatelessWidget {
 }
 
 class WallpaperSheet extends StatelessWidget {
-  const WallpaperSheet({super.key, required this.store});
+  const WallpaperSheet({super.key, required this.store, this.note});
   final AppStore store;
+  final Note? note;
   static const names = [
     'Sem foto', 'Estrelas', 'Floresta', 'Oceano', 'Flores',
     'Aurora', 'Cachoeira', 'Cerejeiras', 'Lago alpino', 'Chuva', 'Nebulosa',
     'Supercarro', 'Dragão de fogo', 'Eternum', 'Ultrapassagem', 'Vale pixelado',
+    'Cavaleiro lunar', 'Reino de cristal', 'Buraco negro', 'Cidade neon', 'Dragão celestial',
   ];
 
   @override
@@ -292,13 +374,13 @@ class WallpaperSheet extends StatelessWidget {
           itemCount: names.length,
           separatorBuilder: (_, __) => const SizedBox(width: 12),
           itemBuilder: (_, i) => GestureDetector(
-            onTap: () { store.wallpaper = i; store.save(); Navigator.pop(context); },
+            onTap: () { if (note != null) { note!.wallpaper = i; store.save(); } else { store.wallpaper = i; store.save(); } Navigator.pop(context); },
             child: SizedBox(width: 112, child: Column(children: [
               Expanded(child: Container(
                 decoration: BoxDecoration(
                   color: Theme.of(context).colorScheme.surfaceContainerHighest,
                   borderRadius: BorderRadius.circular(18),
-                  border: store.wallpaper == i ? Border.all(color: Theme.of(context).colorScheme.primary, width: 3) : null,
+                  border: (note?.wallpaper ?? store.wallpaper) == i ? Border.all(color: Theme.of(context).colorScheme.primary, width: 3) : null,
                   image: i == 0 ? null : DecorationImage(image: AssetImage(WallpaperLayer.paths[i]), fit: BoxFit.cover),
                 ),
                 child: i == 0 ? const Center(child: Icon(Icons.block, size: 34)) : null,

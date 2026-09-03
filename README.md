@@ -2,8 +2,8 @@
 
 App Flutter offline para Android/iOS. Permite criar, editar, pesquisar, colorir,
 fixar e excluir notas. Inclui grade/lista, modo claro/escuro/sistema, cinco cores
-principais, quatro famílias tipográficas, ajuste de tamanho do texto e quinze
-wallpapers originais embutidos para uso offline.
+principais, quatro famílias tipográficas, cores de texto, ajuste de tamanho e
+vinte wallpapers originais que podem ser escolhidos separadamente em cada nota.
 
 ## Rodar
 

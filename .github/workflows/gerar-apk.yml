@@ -18,11 +18,22 @@ jobs:
           channel: stable
           cache: true
 
+      - name: Instalar fontes do aplicativo
+        run: |
+          mkdir -p assets/fonts
+          curl -L https://raw.githubusercontent.com/google/fonts/main/ofl/poppins/Poppins-Regular.ttf -o assets/fonts/Poppins-Regular.ttf
+          curl -L https://raw.githubusercontent.com/google/fonts/main/ofl/poppins/Poppins-Bold.ttf -o assets/fonts/Poppins-Bold.ttf
+
       - name: Gerar estrutura Android
-        run: flutter create --platforms=android .
+        run: |
+          flutter create --platforms=android .
+          sed -i 's/android:label="bloco_personalizavel"/android:label="Noto"/' android/app/src/main/AndroidManifest.xml
 
       - name: Baixar dependencias
         run: flutter pub get
+
+      - name: Aplicar icone do Noto
+        run: dart run flutter_launcher_icons
 
       - name: Verificar codigo
         run: flutter analyze --no-fatal-infos
