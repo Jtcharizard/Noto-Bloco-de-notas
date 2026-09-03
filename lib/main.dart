@@ -40,11 +40,22 @@ class AppStore extends ChangeNotifier {
   double fontSize = 17;
   bool grid = true;
   int wallpaper = 0;
+  String? customWallpaper;
   bool loaded = false;
 
   static const accents = [Color(0xFF7557D3), Color(0xFF25756D), Color(0xFFC05343), Color(0xFF3367B2), Color(0xFFB46A18)];
-  static const fonts = ['Moderna', 'Livro', 'Poppins', 'Máquina'];
-  static const fontFamilies = [null, 'serif', 'Poppins', 'monospace'];
+  static const fonts = [
+    'Moderna', 'Livro', 'Poppins', 'Máquina', 'Montserrat', 'Playfair',
+    'Bebas Neue', 'Lobster', 'Pacifico', 'Caveat', 'Dancing Script',
+    'Oswald', 'Raleway', 'Lora', 'Nunito', 'Quicksand', 'Rubik',
+    'Cinzel', 'Bangers', 'Comfortaa',
+  ];
+  static const fontFamilies = [
+    null, 'serif', 'Poppins', 'monospace', 'Montserrat', 'Playfair',
+    'BebasNeue', 'Lobster', 'Pacifico', 'Caveat', 'DancingScript',
+    'Oswald', 'Raleway', 'Lora', 'Nunito', 'Quicksand', 'Rubik',
+    'Cinzel', 'Bangers', 'Comfortaa',
+  ];
 
   Future<void> load() async {
     final p = await SharedPreferences.getInstance();
@@ -56,6 +67,7 @@ class AppStore extends ChangeNotifier {
     fontSize = p.getDouble('fontSize') ?? 17;
     grid = p.getBool('grid') ?? true;
     wallpaper = p.getInt('wallpaper') ?? 0;
+    customWallpaper = p.getString('customWallpaper');
     loaded = true;
     notifyListeners();
   }
@@ -67,6 +79,7 @@ class AppStore extends ChangeNotifier {
       p.setInt('mode', mode.index), p.setInt('accent', accent), p.setInt('font', font),
       p.setDouble('fontSize', fontSize), p.setBool('grid', grid),
       p.setInt('wallpaper', wallpaper),
+      if (customWallpaper == null) p.remove('customWallpaper') else p.setString('customWallpaper', customWallpaper!),
     ]);
     notifyListeners();
   }
@@ -89,7 +102,7 @@ class _NotesAppState extends State<NotesApp> {
   ThemeData theme(Brightness b) {
     final seed = AppStore.accents[store.accent];
     final base = ThemeData(colorScheme: ColorScheme.fromSeed(seedColor: seed, brightness: b), useMaterial3: true, brightness: b);
-    return base.copyWith(textTheme: themedText(base), scaffoldBackgroundColor: store.wallpaper == 0 ? (b == Brightness.light ? const Color(0xFFF8F6FA) : const Color(0xFF141217)) : Colors.transparent, cardTheme: const CardThemeData(elevation: 0, margin: EdgeInsets.zero));
+    return base.copyWith(textTheme: themedText(base), scaffoldBackgroundColor: store.wallpaper == 0 && store.customWallpaper == null ? (b == Brightness.light ? const Color(0xFFF8F6FA) : const Color(0xFF141217)) : Colors.transparent, cardTheme: const CardThemeData(elevation: 0, margin: EdgeInsets.zero));
   }
   @override Widget build(BuildContext context) => AnimatedBuilder(animation: store, builder: (_, __) => MaterialApp(debugShowCheckedModeBanner: false, title: 'Noto', theme: theme(Brightness.light), darkTheme: theme(Brightness.dark), themeMode: store.mode, builder: (_, child) => WallpaperLayer(store: store, child: child!), home: store.loaded ? HomePage(store: store) : const Scaffold(body: Center(child: CircularProgressIndicator()))));
 }
@@ -219,17 +232,14 @@ class _EditorPageState extends State<EditorPage> {
               ).then((_) => setState(() {})),
               icon: const Icon(Icons.wallpaper_outlined),
             ),
-            PopupMenuButton<int>(
+            IconButton(
               tooltip: 'Fonte da nota',
               icon: const Icon(Icons.font_download_outlined),
-              onSelected: (v) => setState(() => widget.note.font = v),
-              itemBuilder: (_) => List.generate(
-                AppStore.fonts.length,
-                (i) => PopupMenuItem(
-                  value: i,
-                  child: Text(AppStore.fonts[i], style: TextStyle(fontFamily: AppStore.fontFamilies[i])),
-                ),
-              ),
+              onPressed: () => showModalBottomSheet<int>(
+                context: context,
+                isScrollControlled: true,
+                builder: (_) => FontPickerSheet(selected: widget.note.font),
+              ).then((value) { if (value != null) setState(() => widget.note.font = value); }),
             ),
             PopupMenuButton<int>(
               tooltip: 'Cor do texto',
@@ -322,7 +332,43 @@ class _EditorPageState extends State<EditorPage> {
 
 class SettingsSheet extends StatelessWidget {
   const SettingsSheet({super.key, required this.store}); final AppStore store;
-  @override Widget build(BuildContext context) => AnimatedBuilder(animation: store, builder: (_, __) => SafeArea(child: Padding(padding: EdgeInsets.fromLTRB(22, 18, 22, 22 + MediaQuery.viewInsetsOf(context).bottom), child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [Center(child: Container(width: 42, height: 4, decoration: BoxDecoration(color: Theme.of(context).colorScheme.outlineVariant, borderRadius: BorderRadius.circular(4)))), const SizedBox(height: 20), Text('Deixa com a tua cara', style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w800)), const SizedBox(height: 20), const Text('APARÊNCIA', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700)), const SizedBox(height: 8), SegmentedButton<ThemeMode>(segments: const [ButtonSegment(value: ThemeMode.system, label: Text('Sistema')), ButtonSegment(value: ThemeMode.light, label: Text('Claro')), ButtonSegment(value: ThemeMode.dark, label: Text('Escuro'))], selected: {store.mode}, onSelectionChanged: (v) { store.mode = v.first; store.save(); }), const SizedBox(height: 20), const Text('COR PRINCIPAL', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700)), const SizedBox(height: 10), Wrap(spacing: 13, children: List.generate(AppStore.accents.length, (i) => InkWell(onTap: () { store.accent = i; store.save(); }, customBorder: const CircleBorder(), child: CircleAvatar(radius: 19, backgroundColor: AppStore.accents[i], child: store.accent == i ? const Icon(Icons.check, color: Colors.white) : null)))), const SizedBox(height: 20), const Text('FONTE', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700)), DropdownButtonFormField<int>(value: store.font, decoration: const InputDecoration(border: OutlineInputBorder()), items: List.generate(AppStore.fonts.length, (i) => DropdownMenuItem(value: i, child: Text(AppStore.fonts[i]))), onChanged: (v) { store.font = v!; store.save(); }), const SizedBox(height: 14), Row(children: [const Text('Tamanho do texto'), Expanded(child: Slider(value: store.fontSize, min: 14, max: 24, divisions: 5, label: store.fontSize.round().toString(), onChanged: (v) { store.fontSize = v; store.save(); })), SizedBox(width: 28, child: Text(store.fontSize.round().toString()))])]))));
+  @override Widget build(BuildContext context) => AnimatedBuilder(animation: store, builder: (_, __) => SafeArea(child: Padding(padding: EdgeInsets.fromLTRB(22, 18, 22, 22 + MediaQuery.viewInsetsOf(context).bottom), child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [Center(child: Container(width: 42, height: 4, decoration: BoxDecoration(color: Theme.of(context).colorScheme.outlineVariant, borderRadius: BorderRadius.circular(4)))), const SizedBox(height: 20), Text('Deixa com a tua cara', style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w800)), const SizedBox(height: 20), const Text('APARÊNCIA', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700)), const SizedBox(height: 8), SegmentedButton<ThemeMode>(segments: const [ButtonSegment(value: ThemeMode.system, label: Text('Sistema')), ButtonSegment(value: ThemeMode.light, label: Text('Claro')), ButtonSegment(value: ThemeMode.dark, label: Text('Escuro'))], selected: {store.mode}, onSelectionChanged: (v) { store.mode = v.first; store.save(); }), const SizedBox(height: 20), const Text('COR PRINCIPAL', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700)), const SizedBox(height: 10), Wrap(spacing: 13, children: List.generate(AppStore.accents.length, (i) => InkWell(onTap: () { store.accent = i; store.save(); }, customBorder: const CircleBorder(), child: CircleAvatar(radius: 19, backgroundColor: AppStore.accents[i], child: store.accent == i ? const Icon(Icons.check, color: Colors.white) : null)))), const SizedBox(height: 20), const Text('FONTE', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700)), const SizedBox(height: 8), OutlinedButton.icon(icon: const Icon(Icons.font_download_outlined), label: Expanded(child: Text(AppStore.fonts[store.font], style: TextStyle(fontFamily: AppStore.fontFamilies[store.font]))), onPressed: () => showModalBottomSheet<int>(context: context, isScrollControlled: true, builder: (_) => FontPickerSheet(selected: store.font)).then((v) { if (v != null) { store.font = v; store.save(); } })), const SizedBox(height: 14), Row(children: [const Text('Tamanho do texto'), Expanded(child: Slider(value: store.fontSize, min: 14, max: 24, divisions: 5, label: store.fontSize.round().toString(), onChanged: (v) { store.fontSize = v; store.save(); })), SizedBox(width: 28, child: Text(store.fontSize.round().toString()))])]))));
+}
+
+class FontPickerSheet extends StatefulWidget {
+  const FontPickerSheet({super.key, required this.selected});
+  final int selected;
+  @override State<FontPickerSheet> createState() => _FontPickerSheetState();
+}
+
+class _FontPickerSheetState extends State<FontPickerSheet> {
+  String query = '';
+  @override
+  Widget build(BuildContext context) {
+    final indexes = List.generate(AppStore.fonts.length, (i) => i)
+        .where((i) => AppStore.fonts[i].toLowerCase().contains(query.toLowerCase())).toList();
+    return SafeArea(child: SizedBox(
+      height: MediaQuery.sizeOf(context).height * .78,
+      child: Padding(padding: const EdgeInsets.fromLTRB(20, 16, 20, 12), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Center(child: Container(width: 42, height: 4, decoration: BoxDecoration(color: Theme.of(context).colorScheme.outlineVariant, borderRadius: BorderRadius.circular(4)))),
+        const SizedBox(height: 18),
+        Text('Escolhe uma fonte', style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w800)),
+        const SizedBox(height: 12),
+        SearchBar(hintText: 'Pesquisar entre ${AppStore.fonts.length} fontes', leading: const Icon(Icons.search), elevation: const WidgetStatePropertyAll(0), onChanged: (v) => setState(() => query = v)),
+        const SizedBox(height: 10),
+        Expanded(child: ListView.builder(itemCount: indexes.length, itemBuilder: (_, position) {
+          final i = indexes[position];
+          return ListTile(
+            contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            title: Text(AppStore.fonts[i], style: TextStyle(fontFamily: AppStore.fontFamilies[i], fontSize: 21)),
+            subtitle: Text('A imaginação começa aqui', style: TextStyle(fontFamily: AppStore.fontFamilies[i])),
+            trailing: widget.selected == i ? Icon(Icons.check_circle, color: Theme.of(context).colorScheme.primary) : null,
+            onTap: () => Navigator.pop(context, i),
+          );
+        })),
+      ])),
+    ));
+  }
 }
 
 class WallpaperLayer extends StatelessWidget {
@@ -355,9 +401,12 @@ class WallpaperLayer extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (store.wallpaper == 0) return child;
+    final custom = store.customWallpaper;
+    final customFile = custom == null ? null : File(custom);
+    final hasCustom = customFile != null && customFile.existsSync();
+    if (store.wallpaper == 0 && !hasCustom) return child;
     return Stack(fit: StackFit.expand, children: [
-      Image.asset(paths[store.wallpaper], fit: BoxFit.cover),
+      if (hasCustom) Image.file(customFile, fit: BoxFit.cover) else Image.asset(paths[store.wallpaper], fit: BoxFit.cover),
       ColoredBox(color: Colors.black.withOpacity(.25)),
       child,
     ]);
@@ -369,13 +418,17 @@ class WallpaperSheet extends StatelessWidget {
   final AppStore store;
   final Note? note;
   Future<void> _pickCustom(BuildContext context) async {
-    if (note == null) return;
     final picked = await ImagePicker().pickImage(source: ImageSource.gallery, imageQuality: 88, maxWidth: 1800);
     if (picked == null || !context.mounted) return;
     final directory = await getApplicationDocumentsDirectory();
     final saved = await File(picked.path).copy('${directory.path}/noto_wallpaper_${DateTime.now().microsecondsSinceEpoch}.jpg');
-    note!.customWallpaper = saved.path;
-    note!.wallpaper = 0;
+    if (note != null) {
+      note!.customWallpaper = saved.path;
+      note!.wallpaper = 0;
+    } else {
+      store.customWallpaper = saved.path;
+      store.wallpaper = 0;
+    }
     await store.save();
     if (context.mounted) Navigator.pop(context);
   }
@@ -393,23 +446,21 @@ class WallpaperSheet extends StatelessWidget {
       child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
         Text('Escolhe teu fundo', style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w800)),
         const SizedBox(height: 16),
-        if (note != null) ...[
-          SizedBox(
+        SizedBox(
             width: double.infinity,
             child: FilledButton.icon(
               onPressed: () => _pickCustom(context),
               icon: const Icon(Icons.add_photo_alternate_outlined),
-              label: const Text('Usar foto da galeria'),
+              label: Text(note == null ? 'Usar foto na tela inicial' : 'Usar foto nesta nota'),
             ),
           ),
-          const SizedBox(height: 16),
-        ],
+        const SizedBox(height: 16),
         SizedBox(height: 190, child: ListView.separated(
           scrollDirection: Axis.horizontal,
           itemCount: names.length,
           separatorBuilder: (_, __) => const SizedBox(width: 12),
           itemBuilder: (_, i) => GestureDetector(
-            onTap: () { if (note != null) { note!.wallpaper = i; note!.customWallpaper = null; store.save(); } else { store.wallpaper = i; store.save(); } Navigator.pop(context); },
+            onTap: () { if (note != null) { note!.wallpaper = i; note!.customWallpaper = null; store.save(); } else { store.wallpaper = i; store.customWallpaper = null; store.save(); } Navigator.pop(context); },
             child: SizedBox(width: 112, child: Column(children: [
               Expanded(child: Container(
                 decoration: BoxDecoration(

@@ -23,6 +23,22 @@ jobs:
           mkdir -p assets/fonts
           curl -L https://raw.githubusercontent.com/google/fonts/main/ofl/poppins/Poppins-Regular.ttf -o assets/fonts/Poppins-Regular.ttf
           curl -L https://raw.githubusercontent.com/google/fonts/main/ofl/poppins/Poppins-Bold.ttf -o assets/fonts/Poppins-Bold.ttf
+          curl -fL 'https://raw.githubusercontent.com/google/fonts/main/ofl/montserrat/Montserrat%5Bwght%5D.ttf' -o assets/fonts/Montserrat.ttf
+          curl -fL 'https://raw.githubusercontent.com/google/fonts/main/ofl/playfairdisplay/PlayfairDisplay%5Bwght%5D.ttf' -o assets/fonts/PlayfairDisplay.ttf
+          curl -fL https://raw.githubusercontent.com/google/fonts/main/ofl/bebasneue/BebasNeue-Regular.ttf -o assets/fonts/BebasNeue-Regular.ttf
+          curl -fL https://raw.githubusercontent.com/google/fonts/main/ofl/lobster/Lobster-Regular.ttf -o assets/fonts/Lobster-Regular.ttf
+          curl -fL https://raw.githubusercontent.com/google/fonts/main/ofl/pacifico/Pacifico-Regular.ttf -o assets/fonts/Pacifico-Regular.ttf
+          curl -fL 'https://raw.githubusercontent.com/google/fonts/main/ofl/caveat/Caveat%5Bwght%5D.ttf' -o assets/fonts/Caveat.ttf
+          curl -fL 'https://raw.githubusercontent.com/google/fonts/main/ofl/dancingscript/DancingScript%5Bwght%5D.ttf' -o assets/fonts/DancingScript.ttf
+          curl -fL 'https://raw.githubusercontent.com/google/fonts/main/ofl/oswald/Oswald%5Bwght%5D.ttf' -o assets/fonts/Oswald.ttf
+          curl -fL 'https://raw.githubusercontent.com/google/fonts/main/ofl/raleway/Raleway%5Bwght%5D.ttf' -o assets/fonts/Raleway.ttf
+          curl -fL 'https://raw.githubusercontent.com/google/fonts/main/ofl/lora/Lora%5Bwght%5D.ttf' -o assets/fonts/Lora.ttf
+          curl -fL 'https://raw.githubusercontent.com/google/fonts/main/ofl/nunito/Nunito%5Bwght%5D.ttf' -o assets/fonts/Nunito.ttf
+          curl -fL 'https://raw.githubusercontent.com/google/fonts/main/ofl/quicksand/Quicksand%5Bwght%5D.ttf' -o assets/fonts/Quicksand.ttf
+          curl -fL 'https://raw.githubusercontent.com/google/fonts/main/ofl/rubik/Rubik%5Bwght%5D.ttf' -o assets/fonts/Rubik.ttf
+          curl -fL 'https://raw.githubusercontent.com/google/fonts/main/ofl/cinzel/Cinzel%5Bwght%5D.ttf' -o assets/fonts/Cinzel.ttf
+          curl -fL https://raw.githubusercontent.com/google/fonts/main/ofl/bangers/Bangers-Regular.ttf -o assets/fonts/Bangers-Regular.ttf
+          curl -fL 'https://raw.githubusercontent.com/google/fonts/main/ofl/comfortaa/Comfortaa%5Bwght%5D.ttf' -o assets/fonts/Comfortaa.ttf
 
       - name: Gerar estrutura Android
         run: |
