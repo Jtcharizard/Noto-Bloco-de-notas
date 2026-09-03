@@ -44,6 +44,18 @@ jobs:
         run: |
           flutter create --platforms=android .
           sed -i 's/android:label="bloco_personalizavel"/android:label="Noto"/' android/app/src/main/AndroidManifest.xml
+          sed -i '/<application/i\    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />' android/app/src/main/AndroidManifest.xml
+          sed -i '/<\/application>/i\        <receiver android:name=".NotoWidgetProvider" android:exported="true">\n            <intent-filter><action android:name="android.appwidget.action.APPWIDGET_UPDATE" /></intent-filter>\n            <meta-data android:name="android.appwidget.provider" android:resource="@xml/noto_widget_info" />\n        </receiver>\n        <receiver android:name=".NotoQuickWidgetProvider" android:exported="true">\n            <intent-filter><action android:name="android.appwidget.action.APPWIDGET_UPDATE" /></intent-filter>\n            <meta-data android:name="android.appwidget.provider" android:resource="@xml/noto_quick_widget_info" />\n        </receiver>' android/app/src/main/AndroidManifest.xml
+          mkdir -p android/app/src/main/res/layout android/app/src/main/res/xml android/app/src/main/res/drawable
+          cp android_widget/NotoWidgetProvider.kt android/app/src/main/kotlin/com/example/bloco_personalizavel/
+          cp android_widget/NotoQuickWidgetProvider.kt android/app/src/main/kotlin/com/example/bloco_personalizavel/
+          cp android_widget/noto_widget.xml android/app/src/main/res/layout/
+          cp android_widget/noto_quick_widget.xml android/app/src/main/res/layout/
+          cp android_widget/noto_widget_bg.xml android/app/src/main/res/drawable/
+          cp android_widget/noto_widget_info.xml android/app/src/main/res/xml/
+          cp android_widget/noto_quick_widget_info.xml android/app/src/main/res/xml/
+          sed -i '/compileOptions {/a\        isCoreLibraryDesugaringEnabled = true' android/app/build.gradle.kts
+          printf '\ndependencies {\n    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")\n}\n' >> android/app/build.gradle.kts
 
       - name: Baixar dependencias
         run: flutter pub get
