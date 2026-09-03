@@ -144,10 +144,91 @@ class _EditorPageState extends State<EditorPage> {
   late final TextEditingController body = TextEditingController(text: widget.note.body);
   bool get hasContent => title.text.trim().isNotEmpty || body.text.trim().isNotEmpty;
   void finish() { widget.note.title = title.text.trim(); widget.note.body = body.text; widget.note.updatedAt = DateTime.now(); Navigator.pop(context, hasContent); }
-  @override Widget build(BuildContext context) {
+  @override
+  Widget build(BuildContext context) {
     final color = NoteCard.colors[widget.note.color];
-    return PopScope(canPop: false, onPopInvokedWithResult: (didPop, result) { if (!didPop) finish(); }, child: Scaffold(backgroundColor: widget.note.color == 0 ? null : color, appBar: AppBar(backgroundColor: Colors.transparent, leading: IconButton(onPressed: finish, icon: const Icon(Icons.arrow_back)), actions: [IconButton(tooltip: 'Fixar', onPressed: () => setState(() => widget.note.pinned = !widget.note.pinned), icon: Icon(widget.note.pinned ? Icons.push_pin : Icons.push_pin_outlined)), PopupMenuButton<int>(tooltip: 'Cor da nota', icon: const Icon(Icons.color_lens_outlined), onSelected: (v) => setState(() => widget.note.color = v), itemBuilder: (_) => List.generate(NoteCard.colors.length, (i) => PopupMenuItem(value: i, child: Row(children: [CircleAvatar(radius: 12, backgroundColor: i == 0 ? Theme.of(context).colorScheme.surfaceContainerHighest : NoteCard.colors[i], child: widget.note.color == i ? const Icon(Icons.check, size: 15) : null), const SizedBox(width: 12), Text(i == 0 ? 'Padrão do tema' : 'Cor $i')]))), const SizedBox(width: 6)]), body: Padding(padding: const EdgeInsets.fromLTRB(22, 10, 22, 20), child: Column(children: [TextField(controller: title, maxLines: 2, textCapitalization: TextCapitalization.sentences, decoration: const InputDecoration(hintText: 'Título', border: InputBorder.none), style: const TextStyle(fontSize: 27, fontWeight: FontWeight.w800)), Expanded(child: TextField(controller: body, expands: true, maxLines: null, textAlignVertical: TextAlignVertical.top, keyboardType: TextInputType.multiline, textCapitalization: TextCapitalization.sentences, decoration: const InputDecoration(hintText: 'Escreve alguma coisa...', border: InputBorder.none), style: TextStyle(fontSize: widget.store.fontSize, height: 1.55)))])))));
-    // Fecha o PopScope externo.
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) {
+        if (!didPop) finish();
+      },
+      child: Scaffold(
+        backgroundColor: widget.note.color == 0 ? null : color,
+        appBar: AppBar(
+          backgroundColor: Colors.transparent,
+          leading: IconButton(
+            onPressed: finish,
+            icon: const Icon(Icons.arrow_back),
+          ),
+          actions: [
+            IconButton(
+              tooltip: 'Fixar',
+              onPressed: () => setState(
+                () => widget.note.pinned = !widget.note.pinned,
+              ),
+              icon: Icon(
+                widget.note.pinned ? Icons.push_pin : Icons.push_pin_outlined,
+              ),
+            ),
+            PopupMenuButton<int>(
+              tooltip: 'Cor da nota',
+              icon: const Icon(Icons.color_lens_outlined),
+              onSelected: (v) => setState(() => widget.note.color = v),
+              itemBuilder: (_) => List.generate(
+                NoteCard.colors.length,
+                (i) => PopupMenuItem(
+                  value: i,
+                  child: Row(children: [
+                    CircleAvatar(
+                      radius: 12,
+                      backgroundColor: i == 0
+                          ? Theme.of(context).colorScheme.surfaceContainerHighest
+                          : NoteCard.colors[i],
+                      child: widget.note.color == i
+                          ? const Icon(Icons.check, size: 15)
+                          : null,
+                    ),
+                    const SizedBox(width: 12),
+                    Text(i == 0 ? 'Padrão do tema' : 'Cor $i'),
+                  ]),
+                ),
+              ),
+            ),
+            const SizedBox(width: 6),
+          ],
+        ),
+        body: Padding(
+          padding: const EdgeInsets.fromLTRB(22, 10, 22, 20),
+          child: Column(children: [
+            TextField(
+              controller: title,
+              maxLines: 2,
+              textCapitalization: TextCapitalization.sentences,
+              decoration: const InputDecoration(
+                hintText: 'Título',
+                border: InputBorder.none,
+              ),
+              style: const TextStyle(fontSize: 27, fontWeight: FontWeight.w800),
+            ),
+            Expanded(
+              child: TextField(
+                controller: body,
+                expands: true,
+                maxLines: null,
+                textAlignVertical: TextAlignVertical.top,
+                keyboardType: TextInputType.multiline,
+                textCapitalization: TextCapitalization.sentences,
+                decoration: const InputDecoration(
+                  hintText: 'Escreve alguma coisa...',
+                  border: InputBorder.none,
+                ),
+                style: TextStyle(fontSize: widget.store.fontSize, height: 1.55),
+              ),
+            ),
+          ]),
+        ),
+      ),
+    );
   }
 }
 
