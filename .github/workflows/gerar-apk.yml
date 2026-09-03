@@ -1,0 +1,38 @@
+name: Gerar APK do Noto
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main, master]
+
+jobs:
+  android:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Baixar projeto
+        uses: actions/checkout@v4
+
+      - name: Preparar Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Gerar estrutura Android
+        run: flutter create --platforms=android .
+
+      - name: Baixar dependencias
+        run: flutter pub get
+
+      - name: Verificar codigo
+        run: flutter analyze
+
+      - name: Compilar APK
+        run: flutter build apk --release
+
+      - name: Disponibilizar APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: Noto-APK
+          path: build/app/outputs/flutter-apk/app-release.apk
+          retention-days: 30
