@@ -620,7 +620,7 @@ class AdvancedSettingsSheet extends StatelessWidget {
         Row(children: [Expanded(child: FilledButton.tonalIcon(onPressed: () => exportBackup(context, store), icon: const Icon(Icons.cloud_upload_outlined), label: const Text('Criar backup'))), const SizedBox(width: 10), Expanded(child: FilledButton.tonalIcon(onPressed: () => importBackup(context, store), icon: const Icon(Icons.restore_outlined), label: const Text('Restaurar')))]),
         const Divider(height: 32), ListTile(contentPadding: EdgeInsets.zero, leading: const Icon(Icons.slideshow_outlined), title: const Text('Ver apresentação novamente'), onTap: () { Navigator.pop(context); store.onboardingDone = false; store.save(); }), ListTile(contentPadding: EdgeInsets.zero, leading: const Icon(Icons.info_outline), title: const Text('Sobre o Noto'), onTap: () => showAboutNoto(context)),
       ])),
-    ]));
+    ])));
   });
 }
 
