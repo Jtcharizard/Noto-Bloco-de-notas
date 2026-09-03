@@ -1,12 +1,15 @@
 import 'dart:convert';
+import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 void main() => runApp(const NotesApp());
 
 class Note {
-  Note({required this.id, required this.title, required this.body, required this.updatedAt, this.color = 0, this.pinned = false, this.wallpaper = 0, this.textColor = 0, this.font = 0});
+  Note({required this.id, required this.title, required this.body, required this.updatedAt, this.color = 0, this.pinned = false, this.wallpaper = 0, this.customWallpaper, this.textColor = 0, this.font = 0});
   final String id;
   String title;
   String body;
@@ -14,11 +17,19 @@ class Note {
   int color;
   bool pinned;
   int wallpaper;
+  String? customWallpaper;
   int textColor;
   int font;
 
-  Map<String, dynamic> toJson() => {'id': id, 'title': title, 'body': body, 'updatedAt': updatedAt.toIso8601String(), 'color': color, 'pinned': pinned, 'wallpaper': wallpaper, 'textColor': textColor, 'font': font};
-  factory Note.fromJson(Map<String, dynamic> j) => Note(id: j['id'], title: j['title'] ?? '', body: j['body'] ?? '', updatedAt: DateTime.parse(j['updatedAt']), color: j['color'] ?? 0, pinned: j['pinned'] ?? false, wallpaper: j['wallpaper'] ?? 0, textColor: j['textColor'] ?? 0, font: j['font'] ?? 0);
+  Map<String, dynamic> toJson() => {'id': id, 'title': title, 'body': body, 'updatedAt': updatedAt.toIso8601String(), 'color': color, 'pinned': pinned, 'wallpaper': wallpaper, 'customWallpaper': customWallpaper, 'textColor': textColor, 'font': font};
+  factory Note.fromJson(Map<String, dynamic> j) => Note(id: j['id'], title: j['title'] ?? '', body: j['body'] ?? '', updatedAt: DateTime.parse(j['updatedAt']), color: j['color'] ?? 0, pinned: j['pinned'] ?? false, wallpaper: j['wallpaper'] ?? 0, customWallpaper: j['customWallpaper'], textColor: j['textColor'] ?? 0, font: j['font'] ?? 0);
+}
+
+ImageProvider? wallpaperFor(Note note) {
+  final custom = note.customWallpaper;
+  if (custom != null && File(custom).existsSync()) return FileImage(File(custom));
+  if (note.wallpaper > 0) return AssetImage(WallpaperLayer.paths[note.wallpaper]);
+  return null;
 }
 
 class AppStore extends ChangeNotifier {
@@ -129,7 +140,8 @@ class NoteCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final bg = note.color == 0 ? Theme.of(context).colorScheme.surfaceContainer : colors[note.color];
-    final automatic = note.wallpaper > 0 ? Colors.white : (note.color == 0 ? Theme.of(context).colorScheme.onSurface : Colors.black87);
+    final noteWallpaper = wallpaperFor(note);
+    final automatic = noteWallpaper != null ? Colors.white : (note.color == 0 ? Theme.of(context).colorScheme.onSurface : Colors.black87);
     final fg = note.textColor == 0 ? automatic : textColors[note.textColor];
     final family = AppStore.fontFamilies[note.font];
     return Card(
@@ -139,7 +151,7 @@ class NoteCard extends StatelessWidget {
       child: Ink(
         decoration: BoxDecoration(
           color: bg,
-          image: note.wallpaper == 0 ? null : DecorationImage(image: AssetImage(WallpaperLayer.paths[note.wallpaper]), fit: BoxFit.cover, colorFilter: ColorFilter.mode(Colors.black.withValues(alpha: .34), BlendMode.darken)),
+          image: noteWallpaper == null ? null : DecorationImage(image: noteWallpaper, fit: BoxFit.cover, colorFilter: ColorFilter.mode(Colors.black.withValues(alpha: .34), BlendMode.darken)),
         ),
         child: InkWell(
           onTap: onOpen,
@@ -174,6 +186,7 @@ class _EditorPageState extends State<EditorPage> {
   @override
   Widget build(BuildContext context) {
     final color = NoteCard.colors[widget.note.color];
+    final selectedWallpaper = wallpaperFor(widget.note);
     return PopScope(
       canPop: false,
       onPopInvokedWithResult: (didPop, result) {
@@ -266,9 +279,9 @@ class _EditorPageState extends State<EditorPage> {
           ],
         ),
         body: Container(
-          decoration: widget.note.wallpaper == 0 ? null : BoxDecoration(
+          decoration: selectedWallpaper == null ? null : BoxDecoration(
             image: DecorationImage(
-              image: AssetImage(WallpaperLayer.paths[widget.note.wallpaper]),
+              image: selectedWallpaper,
               fit: BoxFit.cover,
               colorFilter: ColorFilter.mode(Colors.black.withValues(alpha: .38), BlendMode.darken),
             ),
@@ -283,7 +296,7 @@ class _EditorPageState extends State<EditorPage> {
                 hintText: 'Título',
                 border: InputBorder.none,
               ),
-              style: TextStyle(fontSize: 27, fontWeight: FontWeight.w800, fontFamily: AppStore.fontFamilies[widget.note.font], color: widget.note.textColor == 0 ? (widget.note.wallpaper > 0 ? Colors.white : null) : NoteCard.textColors[widget.note.textColor]),
+              style: TextStyle(fontSize: 27, fontWeight: FontWeight.w800, fontFamily: AppStore.fontFamilies[widget.note.font], color: widget.note.textColor == 0 ? (selectedWallpaper != null ? Colors.white : null) : NoteCard.textColors[widget.note.textColor]),
             ),
             Expanded(
               child: TextField(
@@ -297,7 +310,7 @@ class _EditorPageState extends State<EditorPage> {
                   hintText: 'Escreve alguma coisa...',
                   border: InputBorder.none,
                 ),
-                style: TextStyle(fontSize: widget.store.fontSize, height: 1.55, fontFamily: AppStore.fontFamilies[widget.note.font], color: widget.note.textColor == 0 ? (widget.note.wallpaper > 0 ? Colors.white : null) : NoteCard.textColors[widget.note.textColor]),
+                style: TextStyle(fontSize: widget.store.fontSize, height: 1.55, fontFamily: AppStore.fontFamilies[widget.note.font], color: widget.note.textColor == 0 ? (selectedWallpaper != null ? Colors.white : null) : NoteCard.textColors[widget.note.textColor]),
               ),
             ),
           ]),
@@ -355,6 +368,17 @@ class WallpaperSheet extends StatelessWidget {
   const WallpaperSheet({super.key, required this.store, this.note});
   final AppStore store;
   final Note? note;
+  Future<void> _pickCustom(BuildContext context) async {
+    if (note == null) return;
+    final picked = await ImagePicker().pickImage(source: ImageSource.gallery, imageQuality: 88, maxWidth: 1800);
+    if (picked == null || !context.mounted) return;
+    final directory = await getApplicationDocumentsDirectory();
+    final saved = await File(picked.path).copy('${directory.path}/noto_wallpaper_${DateTime.now().microsecondsSinceEpoch}.jpg');
+    note!.customWallpaper = saved.path;
+    note!.wallpaper = 0;
+    await store.save();
+    if (context.mounted) Navigator.pop(context);
+  }
   static const names = [
     'Sem foto', 'Estrelas', 'Floresta', 'Oceano', 'Flores',
     'Aurora', 'Cachoeira', 'Cerejeiras', 'Lago alpino', 'Chuva', 'Nebulosa',
@@ -369,12 +393,23 @@ class WallpaperSheet extends StatelessWidget {
       child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
         Text('Escolhe teu fundo', style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w800)),
         const SizedBox(height: 16),
+        if (note != null) ...[
+          SizedBox(
+            width: double.infinity,
+            child: FilledButton.icon(
+              onPressed: () => _pickCustom(context),
+              icon: const Icon(Icons.add_photo_alternate_outlined),
+              label: const Text('Usar foto da galeria'),
+            ),
+          ),
+          const SizedBox(height: 16),
+        ],
         SizedBox(height: 190, child: ListView.separated(
           scrollDirection: Axis.horizontal,
           itemCount: names.length,
           separatorBuilder: (_, __) => const SizedBox(width: 12),
           itemBuilder: (_, i) => GestureDetector(
-            onTap: () { if (note != null) { note!.wallpaper = i; store.save(); } else { store.wallpaper = i; store.save(); } Navigator.pop(context); },
+            onTap: () { if (note != null) { note!.wallpaper = i; note!.customWallpaper = null; store.save(); } else { store.wallpaper = i; store.save(); } Navigator.pop(context); },
             child: SizedBox(width: 112, child: Column(children: [
               Expanded(child: Container(
                 decoration: BoxDecoration(
