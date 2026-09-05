@@ -36,15 +36,15 @@ class AppStore extends ChangeNotifier {
     }
 
     final modeIndex = prefs.getInt('mode') ?? 0;
-    mode = ThemeMode.values[modeIndex.clamp(0, ThemeMode.values.length - 1)];
-    accent = (prefs.getInt('accent') ?? 0).clamp(0, NotoAppearance.accents.length - 1);
-    font = (prefs.getInt('font') ?? 0).clamp(0, NotoAppearance.fonts.length - 1);
-    fontSize = (prefs.getDouble('fontSize') ?? 17).clamp(14, 26);
+    mode = ThemeMode.values[modeIndex.clamp(0, ThemeMode.values.length - 1).toInt()];
+    accent = (prefs.getInt('accent') ?? 0).clamp(0, NotoAppearance.accents.length - 1).toInt();
+    font = (prefs.getInt('font') ?? 0).clamp(0, NotoAppearance.fonts.length - 1).toInt();
+    fontSize = (prefs.getDouble('fontSize') ?? 17).clamp(14, 26).toDouble();
     grid = prefs.getBool('grid') ?? true;
-    wallpaper = (prefs.getInt('wallpaper') ?? 0).clamp(0, NotoAppearance.wallpaperPaths.length - 1);
+    wallpaper = (prefs.getInt('wallpaper') ?? 0).clamp(0, NotoAppearance.wallpaperPaths.length - 1).toInt();
     customWallpaper = prefs.getString('customWallpaper');
-    wallpaperDarkness = (prefs.getDouble('wallpaperDarkness') ?? .25).clamp(0, .8);
-    wallpaperBlur = (prefs.getDouble('wallpaperBlur') ?? 0).clamp(0, 16);
+    wallpaperDarkness = (prefs.getDouble('wallpaperDarkness') ?? .25).clamp(0, .8).toDouble();
+    wallpaperBlur = (prefs.getDouble('wallpaperBlur') ?? 0).clamp(0, 16).toDouble();
     widgetNoteId = prefs.getString('widgetNoteId');
     onboardingDone = prefs.getBool('onboardingDone') ?? false;
     loaded = true;
