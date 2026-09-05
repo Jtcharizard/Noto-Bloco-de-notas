@@ -1,4 +1,4 @@
-import 'package:bloco_personalizavel/main.dart';
+import 'package:bloco_personalizavel/noto_models.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
