@@ -1,4 +1,4 @@
-import 'dart:io';
+import 'dart:ui';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
@@ -32,7 +32,7 @@ class _EditorPageState extends State<EditorPage> {
   Color? get editorTextColor {
     final wallpaper = noteWallpaper(widget.note);
     if (widget.note.textColor == 0) return wallpaper == null ? null : Colors.white;
-    return NotoAppearance.textColors[widget.note.textColor.clamp(0, NotoAppearance.textColors.length - 1)];
+    return NotoAppearance.textColors[NotoAppearance.safeTextColorIndex(widget.note.textColor)];
   }
 
   Future<void> saveAndClose() async {
@@ -109,7 +109,7 @@ class _EditorPageState extends State<EditorPage> {
   @override
   Widget build(BuildContext context) {
     final selectedWallpaper = noteWallpaper(widget.note);
-    final noteColorIndex = widget.note.color.clamp(0, NotoAppearance.noteColors.length - 1);
+    final noteColorIndex = NotoAppearance.safeNoteColorIndex(widget.note.color);
     final noteColor = noteColorIndex == 0 ? null : NotoAppearance.noteColors[noteColorIndex];
     final family = NotoAppearance.familyAt(widget.note.font);
     final fg = editorTextColor;
@@ -325,13 +325,13 @@ class _NoteStyleSheetState extends State<NoteStyleSheet> {
               contentPadding: EdgeInsets.zero,
               leading: const Icon(Icons.font_download_outlined),
               title: const Text('Fonte da nota', style: TextStyle(fontWeight: FontWeight.w800)),
-              subtitle: Text(NotoAppearance.fonts[note.font.clamp(0, NotoAppearance.fonts.length - 1)].name),
+              subtitle: Text(NotoAppearance.fonts[NotoAppearance.safeFontIndex(note.font)].name),
               trailing: const Icon(Icons.chevron_right_rounded),
               onTap: () async {
                 final selected = await showModalBottomSheet<int>(
                   context: context,
                   isScrollControlled: true,
-                  builder: (_) => FontPickerSheet(selected: note.font.clamp(0, NotoAppearance.fonts.length - 1)),
+                  builder: (_) => FontPickerSheet(selected: NotoAppearance.safeFontIndex(note.font)),
                 );
                 if (selected != null) {
                   setState(() => note.font = selected);
