@@ -7,7 +7,7 @@ import 'noto_models.dart';
 import 'noto_store.dart';
 
 ThemeData notoTheme(AppStore store, Brightness brightness) {
-  final accent = NotoAppearance.accents[store.accent.clamp(0, NotoAppearance.accents.length - 1)].color;
+  final accent = NotoAppearance.accents[NotoAppearance.safeAccentIndex(store.accent)].color;
   final scheme = ColorScheme.fromSeed(seedColor: accent, brightness: brightness);
   final dark = brightness == Brightness.dark;
   final base = ThemeData(
