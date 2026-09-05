@@ -233,5 +233,9 @@ class NotoAppearance {
     'Dragão celestial',
   ];
 
-  static String? familyAt(int index) => fonts[index.clamp(0, fonts.length - 1)].family;
+  static int safeFontIndex(int index) => index.clamp(0, fonts.length - 1).toInt();
+  static int safeAccentIndex(int index) => index.clamp(0, accents.length - 1).toInt();
+  static int safeNoteColorIndex(int index) => index.clamp(0, noteColors.length - 1).toInt();
+  static int safeTextColorIndex(int index) => index.clamp(0, textColors.length - 1).toInt();
+  static String? familyAt(int index) => fonts[safeFontIndex(index)].family;
 }
