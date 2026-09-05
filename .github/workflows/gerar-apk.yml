@@ -48,13 +48,13 @@ jobs:
           curl -fL https://raw.githubusercontent.com/google/fonts/main/ofl/abrilfatface/AbrilFatface-Regular.ttf -o assets/fonts/AbrilFatface-Regular.ttf
           curl -fL 'https://raw.githubusercontent.com/google/fonts/main/ofl/fredoka/Fredoka%5Bwdth,wght%5D.ttf' -o assets/fonts/Fredoka.ttf
           curl -fL https://raw.githubusercontent.com/google/fonts/main/ofl/kalam/Kalam-Regular.ttf -o assets/fonts/Kalam-Regular.ttf
-          curl -fL https://raw.githubusercontent.com/google/fonts/main/ofl/satisfy/Satisfy-Regular.ttf -o assets/fonts/Satisfy-Regular.ttf
+          curl -fL https://raw.githubusercontent.com/google/fonts/main/apache/satisfy/Satisfy-Regular.ttf -o assets/fonts/Satisfy-Regular.ttf
           curl -fL https://raw.githubusercontent.com/google/fonts/main/ofl/righteous/Righteous-Regular.ttf -o assets/fonts/Righteous-Regular.ttf
           curl -fL 'https://raw.githubusercontent.com/google/fonts/main/ofl/spacegrotesk/SpaceGrotesk%5Bwght%5D.ttf' -o assets/fonts/SpaceGrotesk.ttf
           curl -fL 'https://raw.githubusercontent.com/google/fonts/main/ofl/manrope/Manrope%5Bwght%5D.ttf' -o assets/fonts/Manrope.ttf
           curl -fL 'https://raw.githubusercontent.com/google/fonts/main/ofl/urbanist/Urbanist%5Bwght%5D.ttf' -o assets/fonts/Urbanist.ttf
           curl -fL https://raw.githubusercontent.com/google/fonts/main/ofl/dmserifdisplay/DMSerifDisplay-Regular.ttf -o assets/fonts/DMSerifDisplay-Regular.ttf
-          curl -fL https://raw.githubusercontent.com/google/fonts/main/ofl/librebaskerville/LibreBaskerville-Regular.ttf -o assets/fonts/LibreBaskerville-Regular.ttf
+          curl -fL 'https://raw.githubusercontent.com/google/fonts/main/ofl/librebaskerville/LibreBaskerville%5Bwght%5D.ttf' -o assets/fonts/LibreBaskerville-Regular.ttf
 
       - name: Gerar estrutura Android
         run: |
