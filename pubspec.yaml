@@ -1,7 +1,7 @@
 name: bloco_personalizavel
 description: Bloco de notas offline com temas e fontes personalizaveis.
 publish_to: none
-version: 1.4.5+6
+version: 1.5.0+7
 
 environment:
   sdk: '>=3.3.0 <4.0.0'
@@ -84,6 +84,48 @@ flutter:
     - family: Comfortaa
       fonts:
         - asset: assets/fonts/Comfortaa.ttf
+    - family: Inter
+      fonts:
+        - asset: assets/fonts/Inter.ttf
+    - family: FiraSans
+      fonts:
+        - asset: assets/fonts/FiraSans-Regular.ttf
+    - family: FiraCode
+      fonts:
+        - asset: assets/fonts/FiraCode.ttf
+    - family: JosefinSans
+      fonts:
+        - asset: assets/fonts/JosefinSans.ttf
+    - family: AbrilFatface
+      fonts:
+        - asset: assets/fonts/AbrilFatface-Regular.ttf
+    - family: Fredoka
+      fonts:
+        - asset: assets/fonts/Fredoka.ttf
+    - family: Kalam
+      fonts:
+        - asset: assets/fonts/Kalam-Regular.ttf
+    - family: Satisfy
+      fonts:
+        - asset: assets/fonts/Satisfy-Regular.ttf
+    - family: Righteous
+      fonts:
+        - asset: assets/fonts/Righteous-Regular.ttf
+    - family: SpaceGrotesk
+      fonts:
+        - asset: assets/fonts/SpaceGrotesk.ttf
+    - family: Manrope
+      fonts:
+        - asset: assets/fonts/Manrope.ttf
+    - family: Urbanist
+      fonts:
+        - asset: assets/fonts/Urbanist.ttf
+    - family: DMSerifDisplay
+      fonts:
+        - asset: assets/fonts/DMSerifDisplay-Regular.ttf
+    - family: LibreBaskerville
+      fonts:
+        - asset: assets/fonts/LibreBaskerville-Regular.ttf
 
 flutter_launcher_icons:
   android: true

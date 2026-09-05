@@ -4,6 +4,8 @@ on:
   workflow_dispatch:
   push:
     branches: [main, master]
+  pull_request:
+    branches: [main, master]
 
 jobs:
   android:
@@ -21,8 +23,8 @@ jobs:
       - name: Instalar fontes do aplicativo
         run: |
           mkdir -p assets/fonts
-          curl -L https://raw.githubusercontent.com/google/fonts/main/ofl/poppins/Poppins-Regular.ttf -o assets/fonts/Poppins-Regular.ttf
-          curl -L https://raw.githubusercontent.com/google/fonts/main/ofl/poppins/Poppins-Bold.ttf -o assets/fonts/Poppins-Bold.ttf
+          curl -fL https://raw.githubusercontent.com/google/fonts/main/ofl/poppins/Poppins-Regular.ttf -o assets/fonts/Poppins-Regular.ttf
+          curl -fL https://raw.githubusercontent.com/google/fonts/main/ofl/poppins/Poppins-Bold.ttf -o assets/fonts/Poppins-Bold.ttf
           curl -fL 'https://raw.githubusercontent.com/google/fonts/main/ofl/montserrat/Montserrat%5Bwght%5D.ttf' -o assets/fonts/Montserrat.ttf
           curl -fL 'https://raw.githubusercontent.com/google/fonts/main/ofl/playfairdisplay/PlayfairDisplay%5Bwght%5D.ttf' -o assets/fonts/PlayfairDisplay.ttf
           curl -fL https://raw.githubusercontent.com/google/fonts/main/ofl/bebasneue/BebasNeue-Regular.ttf -o assets/fonts/BebasNeue-Regular.ttf
@@ -39,6 +41,20 @@ jobs:
           curl -fL 'https://raw.githubusercontent.com/google/fonts/main/ofl/cinzel/Cinzel%5Bwght%5D.ttf' -o assets/fonts/Cinzel.ttf
           curl -fL https://raw.githubusercontent.com/google/fonts/main/ofl/bangers/Bangers-Regular.ttf -o assets/fonts/Bangers-Regular.ttf
           curl -fL 'https://raw.githubusercontent.com/google/fonts/main/ofl/comfortaa/Comfortaa%5Bwght%5D.ttf' -o assets/fonts/Comfortaa.ttf
+          curl -fL 'https://raw.githubusercontent.com/google/fonts/main/ofl/inter/Inter%5Bopsz,wght%5D.ttf' -o assets/fonts/Inter.ttf
+          curl -fL https://raw.githubusercontent.com/google/fonts/main/ofl/firasans/FiraSans-Regular.ttf -o assets/fonts/FiraSans-Regular.ttf
+          curl -fL 'https://raw.githubusercontent.com/google/fonts/main/ofl/firacode/FiraCode%5Bwght%5D.ttf' -o assets/fonts/FiraCode.ttf
+          curl -fL 'https://raw.githubusercontent.com/google/fonts/main/ofl/josefinsans/JosefinSans%5Bwght%5D.ttf' -o assets/fonts/JosefinSans.ttf
+          curl -fL https://raw.githubusercontent.com/google/fonts/main/ofl/abrilfatface/AbrilFatface-Regular.ttf -o assets/fonts/AbrilFatface-Regular.ttf
+          curl -fL 'https://raw.githubusercontent.com/google/fonts/main/ofl/fredoka/Fredoka%5Bwdth,wght%5D.ttf' -o assets/fonts/Fredoka.ttf
+          curl -fL https://raw.githubusercontent.com/google/fonts/main/ofl/kalam/Kalam-Regular.ttf -o assets/fonts/Kalam-Regular.ttf
+          curl -fL https://raw.githubusercontent.com/google/fonts/main/apache/satisfy/Satisfy-Regular.ttf -o assets/fonts/Satisfy-Regular.ttf
+          curl -fL https://raw.githubusercontent.com/google/fonts/main/ofl/righteous/Righteous-Regular.ttf -o assets/fonts/Righteous-Regular.ttf
+          curl -fL 'https://raw.githubusercontent.com/google/fonts/main/ofl/spacegrotesk/SpaceGrotesk%5Bwght%5D.ttf' -o assets/fonts/SpaceGrotesk.ttf
+          curl -fL 'https://raw.githubusercontent.com/google/fonts/main/ofl/manrope/Manrope%5Bwght%5D.ttf' -o assets/fonts/Manrope.ttf
+          curl -fL 'https://raw.githubusercontent.com/google/fonts/main/ofl/urbanist/Urbanist%5Bwght%5D.ttf' -o assets/fonts/Urbanist.ttf
+          curl -fL https://raw.githubusercontent.com/google/fonts/main/ofl/dmserifdisplay/DMSerifDisplay-Regular.ttf -o assets/fonts/DMSerifDisplay-Regular.ttf
+          curl -fL 'https://raw.githubusercontent.com/google/fonts/main/ofl/librebaskerville/LibreBaskerville%5Bwght%5D.ttf' -o assets/fonts/LibreBaskerville-Regular.ttf
 
       - name: Gerar estrutura Android
         run: |
