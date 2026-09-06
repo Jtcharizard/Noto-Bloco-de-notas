@@ -7,14 +7,13 @@ import 'noto_models.dart';
 import 'noto_store.dart';
 
 class NotoPalette {
-  static const ink = Color(0xFF17120F);
-  static const inkSoft = Color(0xFF231A16);
-  static const cocoa = Color(0xFF33241C);
-  static const paper = Color(0xFFF7F0E8);
-  static const paperSoft = Color(0xFFFFFBF6);
-  static const paperDeep = Color(0xFFECE0D3);
-  static const ember = Color(0xFFE7762D);
-  static const emberSoft = Color(0xFFFFC49C);
+  static const ink = Color(0xFF181512);
+  static const inkSoft = Color(0xFF2B2723);
+  static const paper = Color(0xFFF7F3ED);
+  static const paperSoft = Color(0xFFFCFAF6);
+  static const paperDeep = Color(0xFFE8E1D7);
+  static const ember = Color(0xFFE66F25);
+  static const emberSoft = Color(0xFFF3A16D);
 }
 
 ThemeData notoTheme(AppStore store, Brightness brightness) {
@@ -22,31 +21,29 @@ ThemeData notoTheme(AppStore store, Brightness brightness) {
       .accents[NotoAppearance.safeAccentIndex(store.accent)]
       .color;
   final dark = brightness == Brightness.dark;
-  final baseScheme = ColorScheme.fromSeed(
-    seedColor: accent,
-    brightness: brightness,
-  );
+  final surface = dark ? const Color(0xFF181614) : NotoPalette.paper;
+  final raised = dark ? const Color(0xFF211F1C) : NotoPalette.paperSoft;
+  final text = dark ? const Color(0xFFF3EEE8) : NotoPalette.ink;
+  final muted = dark ? const Color(0xFFAFA69D) : const Color(0xFF6F6861);
+  final line = dark ? const Color(0xFF393530) : const Color(0xFFDCD5CC);
 
-  final scheme = baseScheme.copyWith(
+  final scheme = ColorScheme(
+    brightness: brightness,
     primary: accent,
     onPrimary: Colors.white,
-    secondary: dark ? NotoPalette.emberSoft : NotoPalette.ember,
-    onSecondary: dark ? NotoPalette.ink : Colors.white,
-    surface: dark ? NotoPalette.inkSoft : NotoPalette.paperSoft,
-    onSurface: dark ? const Color(0xFFFFF8F2) : NotoPalette.ink,
-    surfaceContainerLowest:
-        dark ? const Color(0xFF110E0C) : const Color(0xFFFFFDF9),
-    surfaceContainerLow:
-        dark ? const Color(0xFF191411) : const Color(0xFFFBF5EE),
-    surfaceContainer:
-        dark ? const Color(0xFF211916) : const Color(0xFFF6EEE5),
-    surfaceContainerHigh:
-        dark ? const Color(0xFF2A201B) : const Color(0xFFF0E5D9),
-    surfaceContainerHighest:
-        dark ? const Color(0xFF352821) : const Color(0xFFE8D9CB),
-    outline: dark ? const Color(0xFF70594C) : const Color(0xFF9A7C6C),
-    outlineVariant:
-        dark ? const Color(0xFF45372F) : const Color(0xFFD9C5B7),
+    secondary: accent,
+    onSecondary: Colors.white,
+    error: const Color(0xFFB3261E),
+    onError: Colors.white,
+    surface: surface,
+    onSurface: text,
+    outline: muted,
+    outlineVariant: line,
+    surfaceContainerLowest: surface,
+    surfaceContainerLow: surface,
+    surfaceContainer: raised,
+    surfaceContainerHigh: raised,
+    surfaceContainerHighest: raised,
   );
 
   final base = ThemeData(
@@ -57,105 +54,102 @@ ThemeData notoTheme(AppStore store, Brightness brightness) {
   );
 
   return base.copyWith(
-    scaffoldBackgroundColor: dark ? NotoPalette.ink : NotoPalette.paper,
-    canvasColor: dark ? NotoPalette.ink : NotoPalette.paper,
+    scaffoldBackgroundColor: surface,
+    canvasColor: surface,
     appBarTheme: AppBarTheme(
-      backgroundColor: Colors.transparent,
+      backgroundColor: surface,
       surfaceTintColor: Colors.transparent,
       elevation: 0,
+      scrolledUnderElevation: 0,
       centerTitle: false,
-      foregroundColor: scheme.onSurface,
+      foregroundColor: text,
       titleTextStyle: TextStyle(
-        color: scheme.onSurface,
-        fontSize: 22,
-        fontWeight: FontWeight.w900,
-        letterSpacing: -.5,
+        color: text,
+        fontSize: 21,
+        fontWeight: FontWeight.w800,
+        letterSpacing: -.4,
       ),
     ),
     cardTheme: CardThemeData(
       elevation: 0,
       margin: EdgeInsets.zero,
-      color: dark ? const Color(0xFF211916) : NotoPalette.paperSoft,
+      color: Colors.transparent,
       surfaceTintColor: Colors.transparent,
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(26),
-        side: BorderSide(
-          color: scheme.outlineVariant.withValues(alpha: dark ? .42 : .62),
-        ),
+        borderRadius: BorderRadius.circular(10),
+        side: BorderSide(color: line),
       ),
     ),
     dividerTheme: DividerThemeData(
-      color: scheme.outlineVariant.withValues(alpha: .55),
+      color: line,
       thickness: 1,
       space: 1,
     ),
     inputDecorationTheme: InputDecorationTheme(
-      filled: true,
-      fillColor: dark
-          ? const Color(0xFF211916).withValues(alpha: .94)
-          : NotoPalette.paperSoft,
-      hintStyle: TextStyle(color: scheme.onSurface.withValues(alpha: .46)),
-      labelStyle: TextStyle(color: scheme.onSurface.withValues(alpha: .66)),
-      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-      border: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(20),
-        borderSide: BorderSide.none,
-      ),
-      enabledBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(20),
-        borderSide: BorderSide(
-          color: scheme.outlineVariant.withValues(alpha: .55),
-        ),
-      ),
-      focusedBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(20),
-        borderSide: BorderSide(color: scheme.primary, width: 1.5),
+      filled: false,
+      hintStyle: TextStyle(color: muted),
+      labelStyle: TextStyle(color: muted),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 0, vertical: 12),
+      border: UnderlineInputBorder(borderSide: BorderSide(color: line)),
+      enabledBorder: UnderlineInputBorder(borderSide: BorderSide(color: line)),
+      focusedBorder: UnderlineInputBorder(
+        borderSide: BorderSide(color: accent, width: 1.6),
       ),
     ),
     chipTheme: base.chipTheme.copyWith(
-      backgroundColor: scheme.surfaceContainer,
-      selectedColor: scheme.primary.withValues(alpha: .16),
-      side: BorderSide(color: scheme.outlineVariant.withValues(alpha: .6)),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
+      backgroundColor: Colors.transparent,
+      selectedColor: accent.withValues(alpha: .10),
+      side: BorderSide(color: line),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(7)),
+      padding: const EdgeInsets.symmetric(horizontal: 4),
       labelStyle: TextStyle(
-        color: scheme.onSurface,
+        color: text,
         fontSize: 12,
-        fontWeight: FontWeight.w700,
+        fontWeight: FontWeight.w600,
+      ),
+    ),
+    textButtonTheme: TextButtonThemeData(
+      style: TextButton.styleFrom(
+        foregroundColor: accent,
+        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+        textStyle: const TextStyle(fontWeight: FontWeight.w700),
       ),
     ),
     filledButtonTheme: FilledButtonThemeData(
       style: FilledButton.styleFrom(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
-        textStyle: const TextStyle(fontWeight: FontWeight.w900),
+        backgroundColor: accent,
+        foregroundColor: Colors.white,
+        elevation: 0,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
+        textStyle: const TextStyle(fontWeight: FontWeight.w700),
       ),
     ),
     floatingActionButtonTheme: FloatingActionButtonThemeData(
-      elevation: 8,
+      elevation: 1,
       foregroundColor: Colors.white,
       backgroundColor: accent,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
     ),
     bottomSheetTheme: BottomSheetThemeData(
-      showDragHandle: true,
-      backgroundColor: dark ? const Color(0xFF1B1512) : NotoPalette.paperSoft,
-      modalBackgroundColor:
-          dark ? const Color(0xFF1B1512) : NotoPalette.paperSoft,
+      showDragHandle: false,
+      backgroundColor: raised,
+      modalBackgroundColor: raised,
       surfaceTintColor: Colors.transparent,
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(32)),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(14)),
       ),
     ),
     dialogTheme: DialogThemeData(
-      backgroundColor: dark ? const Color(0xFF1B1512) : NotoPalette.paperSoft,
+      backgroundColor: raised,
       surfaceTintColor: Colors.transparent,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
     ),
     snackBarTheme: SnackBarThemeData(
       behavior: SnackBarBehavior.floating,
-      backgroundColor: dark ? const Color(0xFF3A2A22) : NotoPalette.ink,
-      contentTextStyle: const TextStyle(color: Colors.white),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+      backgroundColor: dark ? const Color(0xFFEAE3DB) : NotoPalette.ink,
+      contentTextStyle: TextStyle(color: dark ? NotoPalette.ink : Colors.white),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
     ),
   );
 }
@@ -216,40 +210,35 @@ class GlobalWallpaper extends StatelessWidget {
 }
 
 class NotoMark extends StatelessWidget {
-  const NotoMark({super.key, this.size = 46});
+  const NotoMark({super.key, this.size = 38});
   final double size;
 
   @override
   Widget build(BuildContext context) {
     final primary = Theme.of(context).colorScheme.primary;
-    return Container(
+    return SizedBox(
       width: size,
       height: size,
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [primary, Color.lerp(primary, NotoPalette.emberSoft, .45)!],
-        ),
-        borderRadius: BorderRadius.circular(size * .31),
-        boxShadow: [
-          BoxShadow(
-            color: primary.withValues(alpha: .24),
-            blurRadius: size * .45,
-            offset: Offset(0, size * .16),
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          Positioned(
+            left: 0,
+            top: size * .16,
+            bottom: size * .16,
+            child: Container(width: 3, color: primary),
+          ),
+          Text(
+            'N',
+            style: TextStyle(
+              color: Theme.of(context).colorScheme.onSurface,
+              fontSize: size * .58,
+              fontWeight: FontWeight.w900,
+              height: 1,
+              letterSpacing: -1.4,
+            ),
           ),
         ],
-      ),
-      alignment: Alignment.center,
-      child: Text(
-        'N',
-        style: TextStyle(
-          color: Colors.white,
-          fontSize: size * .47,
-          fontWeight: FontWeight.w900,
-          height: 1,
-          letterSpacing: -1,
-        ),
       ),
     );
   }
@@ -259,7 +248,7 @@ class NotoSurface extends StatelessWidget {
   const NotoSurface({
     super.key,
     required this.child,
-    this.padding = const EdgeInsets.all(18),
+    this.padding = const EdgeInsets.symmetric(vertical: 14),
     this.onTap,
   });
 
@@ -269,25 +258,17 @@ class NotoSurface extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    return Material(
-      color: cs.surfaceContainerLow.withValues(alpha: .96),
-      borderRadius: BorderRadius.circular(26),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(26),
-        onTap: onTap,
-        child: Container(
-          padding: padding,
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(26),
-            border: Border.all(
-              color: cs.outlineVariant.withValues(alpha: .48),
-            ),
-          ),
-          child: child,
-        ),
+    final line = Theme.of(context).colorScheme.outlineVariant;
+    final content = Container(
+      width: double.infinity,
+      padding: padding,
+      decoration: BoxDecoration(
+        border: Border(bottom: BorderSide(color: line)),
       ),
+      child: child,
     );
+    if (onTap == null) return content;
+    return InkWell(onTap: onTap, child: content);
   }
 }
 
@@ -298,15 +279,19 @@ class SectionTitle extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Padding(
-        padding: const EdgeInsets.fromLTRB(4, 4, 4, 10),
+        padding: const EdgeInsets.only(bottom: 8),
         child: Row(
           children: [
             Expanded(
               child: Text(
-                title,
-                style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.w900,
-                      letterSpacing: -.25,
+                title.toUpperCase(),
+                style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 1.1,
+                      color: Theme.of(context)
+                          .colorScheme
+                          .onSurface
+                          .withValues(alpha: .62),
                     ),
               ),
             ),
@@ -337,41 +322,40 @@ class NotoTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    return NotoSurface(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+    return InkWell(
       onTap: onTap,
-      child: Row(
-        children: [
-          Container(
-            width: 42,
-            height: 42,
-            decoration: BoxDecoration(
-              color: (iconColor ?? cs.primary).withValues(alpha: .13),
-              borderRadius: BorderRadius.circular(14),
-            ),
-            child: Icon(icon, color: iconColor ?? cs.primary),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(title, style: const TextStyle(fontWeight: FontWeight.w900)),
-                if (subtitle != null) ...[
-                  const SizedBox(height: 2),
-                  Text(subtitle!, style: Theme.of(context).textTheme.bodySmall),
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 13),
+        decoration: BoxDecoration(
+          border: Border(bottom: BorderSide(color: cs.outlineVariant)),
+        ),
+        child: Row(
+          children: [
+            Icon(icon, size: 20, color: iconColor ?? cs.onSurface.withValues(alpha: .70)),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(title, style: const TextStyle(fontWeight: FontWeight.w700)),
+                  if (subtitle != null) ...[
+                    const SizedBox(height: 2),
+                    Text(
+                      subtitle!,
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            color: cs.onSurface.withValues(alpha: .58),
+                          ),
+                    ),
+                  ],
                 ],
-              ],
+              ),
             ),
-          ),
-          if (trailing != null)
-            trailing!
-          else
-            Icon(
-              Icons.chevron_right_rounded,
-              color: cs.onSurface.withValues(alpha: .5),
-            ),
-        ],
+            if (trailing != null)
+              trailing!
+            else
+              Icon(Icons.chevron_right_rounded, size: 19, color: cs.onSurface.withValues(alpha: .38)),
+          ],
+        ),
       ),
     );
   }
