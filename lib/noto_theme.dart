@@ -9,6 +9,7 @@ import 'noto_store.dart';
 class NotoPalette {
   static const ink = Color(0xFF181512);
   static const inkSoft = Color(0xFF2B2723);
+  static const cocoa = Color(0xFF33241C);
   static const paper = Color(0xFFF7F3ED);
   static const paperSoft = Color(0xFFFCFAF6);
   static const paperDeep = Color(0xFFE8E1D7);
