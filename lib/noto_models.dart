@@ -12,6 +12,8 @@ class Note {
     this.customWallpaper,
     this.textColor = 0,
     this.font = 0,
+    this.titleFont,
+    this.bodyFont,
     this.favorite = false,
     this.folder = 'Geral',
     this.tags = const [],
@@ -21,6 +23,11 @@ class Note {
     this.archived = false,
     this.wallpaperDarkness = .38,
     this.wallpaperBlur = 0,
+    this.emoji = '',
+    this.coverImage,
+    this.cardOpacity = 1,
+    this.priority = 0,
+    this.dueAt,
   });
 
   final String id;
@@ -33,6 +40,8 @@ class Note {
   String? customWallpaper;
   int textColor;
   int font;
+  int? titleFont;
+  int? bodyFont;
   bool favorite;
   String folder;
   List<String> tags;
@@ -42,6 +51,11 @@ class Note {
   bool archived;
   double wallpaperDarkness;
   double wallpaperBlur;
+  String emoji;
+  String? coverImage;
+  double cardOpacity;
+  int priority;
+  DateTime? dueAt;
 
   Map<String, dynamic> toJson() => {
         'id': id,
@@ -54,6 +68,8 @@ class Note {
         'customWallpaper': customWallpaper,
         'textColor': textColor,
         'font': font,
+        'titleFont': titleFont,
+        'bodyFont': bodyFont,
         'favorite': favorite,
         'folder': folder,
         'tags': tags,
@@ -63,6 +79,11 @@ class Note {
         'archived': archived,
         'wallpaperDarkness': wallpaperDarkness,
         'wallpaperBlur': wallpaperBlur,
+        'emoji': emoji,
+        'coverImage': coverImage,
+        'cardOpacity': cardOpacity,
+        'priority': priority,
+        'dueAt': dueAt?.toIso8601String(),
       };
 
   factory Note.fromJson(Map<String, dynamic> json) => Note(
@@ -76,6 +97,8 @@ class Note {
         customWallpaper: json['customWallpaper'],
         textColor: json['textColor'] ?? 0,
         font: json['font'] ?? 0,
+        titleFont: json['titleFont'] is int ? json['titleFont'] as int : null,
+        bodyFont: json['bodyFont'] is int ? json['bodyFont'] as int : null,
         favorite: json['favorite'] ?? false,
         folder: json['folder'] ?? 'Geral',
         tags: List<String>.from(json['tags'] ?? const []),
@@ -85,6 +108,47 @@ class Note {
         archived: json['archived'] ?? false,
         wallpaperDarkness: (json['wallpaperDarkness'] ?? .38).toDouble(),
         wallpaperBlur: (json['wallpaperBlur'] ?? 0).toDouble(),
+        emoji: json['emoji']?.toString() ?? '',
+        coverImage: json['coverImage']?.toString(),
+        cardOpacity: (json['cardOpacity'] ?? 1).toDouble().clamp(.35, 1),
+        priority: (json['priority'] ?? 0).toInt().clamp(0, 3),
+        dueAt: json['dueAt'] == null ? null : DateTime.tryParse(json['dueAt']),
+      );
+}
+
+class NotoTemplate {
+  NotoTemplate({
+    required this.id,
+    required this.name,
+    this.title = '',
+    this.body = '',
+    this.checklist = false,
+    this.emoji = '',
+  });
+
+  final String id;
+  String name;
+  String title;
+  String body;
+  bool checklist;
+  String emoji;
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'name': name,
+        'title': title,
+        'body': body,
+        'checklist': checklist,
+        'emoji': emoji,
+      };
+
+  factory NotoTemplate.fromJson(Map<String, dynamic> json) => NotoTemplate(
+        id: json['id']?.toString() ?? DateTime.now().microsecondsSinceEpoch.toString(),
+        name: json['name']?.toString() ?? 'Modelo',
+        title: json['title']?.toString() ?? '',
+        body: json['body']?.toString() ?? '',
+        checklist: json['checklist'] ?? false,
+        emoji: json['emoji']?.toString() ?? '',
       );
 }
 
