@@ -22,10 +22,13 @@ class AppStore extends ChangeNotifier {
   final Map<String, _SavedNoteContent> _savedContent = {};
 
   ThemeMode mode = ThemeMode.system;
-  int accent = 0;
+  int accent = 9;
   int font = 0;
   double fontSize = 17;
-  bool grid = true;
+
+  /// 0 = grade, 1 = lista, 2 = compacta.
+  int layoutMode = 0;
+
   int wallpaper = 0;
   String? customWallpaper;
   double wallpaperDarkness = .25;
@@ -34,12 +37,14 @@ class AppStore extends ChangeNotifier {
   bool onboardingDone = false;
   bool loaded = false;
 
+  bool homeShowToday = true;
   bool homeShowPulse = true;
-  bool homeShowFolders = true;
-  bool homeShowTags = true;
-  bool homeShowSummary = true;
+  bool homeShowRecents = true;
 
   bool _skipRevisionCapture = false;
+
+  bool get grid => layoutMode == 0;
+  set grid(bool value) => layoutMode = value ? 0 : 1;
 
   Future<void> load() async {
     final prefs = await SharedPreferences.getInstance();
@@ -48,7 +53,9 @@ class AppStore extends ChangeNotifier {
       try {
         notes
           ..clear()
-          ..addAll((jsonDecode(raw) as List).map((e) => Note.fromJson(Map<String, dynamic>.from(e))));
+          ..addAll((jsonDecode(raw) as List).map(
+            (e) => Note.fromJson(Map<String, dynamic>.from(e)),
+          ));
       } catch (_) {}
     }
 
@@ -68,24 +75,51 @@ class AppStore extends ChangeNotifier {
 
     _savedContent
       ..clear()
-      ..addEntries(notes.map((note) => MapEntry(note.id, _SavedNoteContent(note.title, note.body))));
+      ..addEntries(notes.map(
+        (note) => MapEntry(note.id, _SavedNoteContent(note.title, note.body)),
+      ));
 
     final modeIndex = prefs.getInt('mode') ?? 0;
-    mode = ThemeMode.values[modeIndex.clamp(0, ThemeMode.values.length - 1).toInt()];
-    accent = (prefs.getInt('accent') ?? 0).clamp(0, NotoAppearance.accents.length - 1).toInt();
-    font = (prefs.getInt('font') ?? 0).clamp(0, NotoAppearance.fonts.length - 1).toInt();
+    mode = ThemeMode.values[
+      modeIndex.clamp(0, ThemeMode.values.length - 1).toInt()
+    ];
+
+    final brandMigrated = prefs.getBool('notoBrandMigrated') ?? false;
+    if (!brandMigrated) {
+      accent = 9;
+      await prefs.setInt('accent', accent);
+      await prefs.setBool('notoBrandMigrated', true);
+    } else {
+      accent = (prefs.getInt('accent') ?? 9)
+          .clamp(0, NotoAppearance.accents.length - 1)
+          .toInt();
+    }
+
+    font = (prefs.getInt('font') ?? 0)
+        .clamp(0, NotoAppearance.fonts.length - 1)
+        .toInt();
     fontSize = (prefs.getDouble('fontSize') ?? 17).clamp(14, 26).toDouble();
-    grid = prefs.getBool('grid') ?? true;
-    wallpaper = (prefs.getInt('wallpaper') ?? 0).clamp(0, NotoAppearance.wallpaperPaths.length - 1).toInt();
+
+    final oldGrid = prefs.getBool('grid') ?? true;
+    layoutMode = (prefs.getInt('layoutMode') ?? (oldGrid ? 0 : 1))
+        .clamp(0, 2)
+        .toInt();
+
+    wallpaper = (prefs.getInt('wallpaper') ?? 0)
+        .clamp(0, NotoAppearance.wallpaperPaths.length - 1)
+        .toInt();
     customWallpaper = prefs.getString('customWallpaper');
-    wallpaperDarkness = (prefs.getDouble('wallpaperDarkness') ?? .25).clamp(0, .8).toDouble();
-    wallpaperBlur = (prefs.getDouble('wallpaperBlur') ?? 0).clamp(0, 16).toDouble();
+    wallpaperDarkness =
+        (prefs.getDouble('wallpaperDarkness') ?? .25).clamp(0, .8).toDouble();
+    wallpaperBlur =
+        (prefs.getDouble('wallpaperBlur') ?? 0).clamp(0, 16).toDouble();
     widgetNoteId = prefs.getString('widgetNoteId');
     onboardingDone = prefs.getBool('onboardingDone') ?? false;
+
+    homeShowToday = prefs.getBool('homeShowToday') ?? true;
     homeShowPulse = prefs.getBool('homeShowPulse') ?? true;
-    homeShowFolders = prefs.getBool('homeShowFolders') ?? true;
-    homeShowTags = prefs.getBool('homeShowTags') ?? true;
-    homeShowSummary = prefs.getBool('homeShowSummary') ?? true;
+    homeShowRecents = prefs.getBool('homeShowRecents') ?? true;
+
     loaded = true;
     notifyListeners();
   }
@@ -99,15 +133,21 @@ class AppStore extends ChangeNotifier {
     }
 
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('notes', jsonEncode(notes.map((e) => e.toJson()).toList()));
+    await prefs.setString(
+      'notes',
+      jsonEncode(notes.map((e) => e.toJson()).toList()),
+    );
     await prefs.setString(
       'noteHistories',
-      jsonEncode(histories.map((key, value) => MapEntry(key, value.map((e) => e.toJson()).toList()))),
+      jsonEncode(histories.map(
+        (key, value) => MapEntry(key, value.map((e) => e.toJson()).toList()),
+      )),
     );
     await prefs.setInt('mode', mode.index);
     await prefs.setInt('accent', accent);
     await prefs.setInt('font', font);
     await prefs.setDouble('fontSize', fontSize);
+    await prefs.setInt('layoutMode', layoutMode);
     await prefs.setBool('grid', grid);
     await prefs.setInt('wallpaper', wallpaper);
     if (customWallpaper == null) {
@@ -123,10 +163,9 @@ class AppStore extends ChangeNotifier {
       await prefs.setString('widgetNoteId', widgetNoteId!);
     }
     await prefs.setBool('onboardingDone', onboardingDone);
+    await prefs.setBool('homeShowToday', homeShowToday);
     await prefs.setBool('homeShowPulse', homeShowPulse);
-    await prefs.setBool('homeShowFolders', homeShowFolders);
-    await prefs.setBool('homeShowTags', homeShowTags);
-    await prefs.setBool('homeShowSummary', homeShowSummary);
+    await prefs.setBool('homeShowRecents', homeShowRecents);
 
     await _syncWidget();
     notifyListeners();
@@ -135,7 +174,8 @@ class AppStore extends ChangeNotifier {
   void _captureRevisions() {
     for (final note in notes) {
       final previous = _savedContent[note.id];
-      if (previous != null && (previous.title != note.title || previous.body != note.body)) {
+      if (previous != null &&
+          (previous.title != note.title || previous.body != note.body)) {
         _addRevision(
           note.id,
           NoteRevision(
@@ -152,22 +192,33 @@ class AppStore extends ChangeNotifier {
   void _refreshSavedContent() {
     _savedContent
       ..clear()
-      ..addEntries(notes.map((note) => MapEntry(note.id, _SavedNoteContent(note.title, note.body))));
+      ..addEntries(notes.map(
+        (note) => MapEntry(note.id, _SavedNoteContent(note.title, note.body)),
+      ));
   }
 
   void _addRevision(String noteId, NoteRevision revision) {
     final list = histories.putIfAbsent(noteId, () => <NoteRevision>[]);
-    if (list.isNotEmpty && list.first.title == revision.title && list.first.body == revision.body) return;
+    if (list.isNotEmpty &&
+        list.first.title == revision.title &&
+        list.first.body == revision.body) {
+      return;
+    }
     list.insert(0, revision);
     if (list.length > 20) list.removeRange(20, list.length);
   }
 
-  List<NoteRevision> historyFor(Note note) => List.unmodifiable(histories[note.id] ?? const <NoteRevision>[]);
+  List<NoteRevision> historyFor(Note note) =>
+      List.unmodifiable(histories[note.id] ?? const <NoteRevision>[]);
 
   Future<void> restoreRevision(Note note, NoteRevision revision) async {
     _addRevision(
       note.id,
-      NoteRevision(title: note.title, body: note.body, savedAt: DateTime.now()),
+      NoteRevision(
+        title: note.title,
+        body: note.body,
+        savedAt: DateTime.now(),
+      ),
     );
     note.title = revision.title;
     note.body = revision.body;
@@ -195,7 +246,9 @@ class AppStore extends ChangeNotifier {
 
     await HomeWidget.saveWidgetData<String>(
       'note_title',
-      selected == null ? 'Noto' : (selected.title.trim().isEmpty ? 'Sem título' : selected.title),
+      selected == null
+          ? 'Noto'
+          : (selected.title.trim().isEmpty ? 'Sem título' : selected.title),
     );
     await HomeWidget.saveWidgetData<String>(
       'note_body',
@@ -203,7 +256,10 @@ class AppStore extends ChangeNotifier {
           ? 'Toca para criar tua primeira nota'
           : selected.body.replaceAll('[ ]', '☐').replaceAll('[x]', '☑'),
     );
-    await HomeWidget.updateWidget(name: 'NotoWidgetProvider', androidName: 'NotoWidgetProvider');
+    await HomeWidget.updateWidget(
+      name: 'NotoWidgetProvider',
+      androidName: 'NotoWidgetProvider',
+    );
   }
 
   void delete(Note note) {
