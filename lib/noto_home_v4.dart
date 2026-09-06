@@ -573,6 +573,17 @@ class _HomeShellV4State extends State<HomeShellV4> {
                 ),
                 const SizedBox(width: 6),
               ],
+              bottom: PreferredSize(
+                preferredSize: const Size.fromHeight(52),
+                child: _TopLibraryActions(
+                  archived: archived,
+                  trash: trash,
+                  onArchive: _openArchive,
+                  onTrash: _openTrash,
+                  onCreateFolder: _createFolder,
+                  onCreateTag: _createTag,
+                ),
+              ),
             ),
             body: SafeArea(
               top: false,
@@ -592,14 +603,6 @@ class _HomeShellV4State extends State<HomeShellV4> {
                     _TodayLine(snapshot: snapshot, inbox: inbox),
                   if (widget.store.homeShowPulse && insights.isNotEmpty)
                     _PulseLine(insight: insights.first),
-                  _LibraryShelf(
-                    archived: archived,
-                    trash: trash,
-                    onArchive: _openArchive,
-                    onTrash: _openTrash,
-                    onCreateFolder: _createFolder,
-                    onCreateTag: _createTag,
-                  ),
                   Padding(
                     padding: const EdgeInsets.fromLTRB(20, 14, 20, 8),
                     child: Row(
@@ -691,8 +694,8 @@ class _HomeShellV4State extends State<HomeShellV4> {
       );
 }
 
-class _LibraryShelf extends StatelessWidget {
-  const _LibraryShelf({
+class _TopLibraryActions extends StatelessWidget {
+  const _TopLibraryActions({
     required this.archived,
     required this.trash,
     required this.onArchive,
@@ -709,94 +712,86 @@ class _LibraryShelf extends StatelessWidget {
   final VoidCallback onCreateTag;
 
   @override
-  Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    return Container(
-      margin: const EdgeInsets.only(top: 14),
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
-      decoration: BoxDecoration(
-        color: cs.surface.withValues(alpha: .72),
-        border: Border(
-          top: BorderSide(color: cs.outlineVariant.withValues(alpha: .55)),
-          bottom: BorderSide(color: cs.outlineVariant.withValues(alpha: .55)),
+  Widget build(BuildContext context) => Padding(
+        padding: const EdgeInsets.fromLTRB(14, 0, 14, 8),
+        child: Row(
+          children: [
+            Expanded(
+              child: _TopAction(
+                icon: Icons.archive_outlined,
+                label: 'Arquivadas',
+                count: archived,
+                onTap: onArchive,
+              ),
+            ),
+            Expanded(
+              child: _TopAction(
+                icon: Icons.delete_outline_rounded,
+                label: 'Lixeira',
+                count: trash,
+                onTap: onTrash,
+              ),
+            ),
+            Expanded(
+              child: _TopAction(
+                icon: Icons.create_new_folder_outlined,
+                label: 'Pasta',
+                prefixPlus: true,
+                onTap: onCreateFolder,
+              ),
+            ),
+            Expanded(
+              child: _TopAction(
+                icon: Icons.new_label_outlined,
+                label: 'Tag',
+                prefixPlus: true,
+                onTap: onCreateTag,
+              ),
+            ),
+          ],
         ),
-      ),
-      child: Row(
-        children: [
-          Expanded(
-            child: _ShelfAction(
-              icon: Icons.archive_outlined,
-              label: 'Arquivadas',
-              detail: '$archived',
-              onTap: onArchive,
-            ),
-          ),
-          Expanded(
-            child: _ShelfAction(
-              icon: Icons.delete_outline_rounded,
-              label: 'Lixeira',
-              detail: '$trash',
-              onTap: onTrash,
-            ),
-          ),
-          Expanded(
-            child: _ShelfAction(
-              icon: Icons.create_new_folder_outlined,
-              label: 'Pasta',
-              detail: 'nova',
-              onTap: onCreateFolder,
-            ),
-          ),
-          Expanded(
-            child: _ShelfAction(
-              icon: Icons.new_label_outlined,
-              label: 'Tag',
-              detail: 'nova',
-              onTap: onCreateTag,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
+      );
 }
 
-class _ShelfAction extends StatelessWidget {
-  const _ShelfAction({
+class _TopAction extends StatelessWidget {
+  const _TopAction({
     required this.icon,
     required this.label,
-    required this.detail,
     required this.onTap,
+    this.count,
+    this.prefixPlus = false,
   });
 
   final IconData icon;
   final String label;
-  final String detail;
   final VoidCallback onTap;
+  final int? count;
+  final bool prefixPlus;
 
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(10),
+      borderRadius: BorderRadius.circular(8),
       child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 5, horizontal: 2),
-        child: Column(
+        padding: const EdgeInsets.symmetric(vertical: 7, horizontal: 3),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(icon, size: 20, color: cs.onSurface.withValues(alpha: .76)),
-            const SizedBox(height: 4),
-            Text(
-              label,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(fontSize: 10.5, fontWeight: FontWeight.w700),
-            ),
-            Text(
-              detail,
-              style: TextStyle(
-                fontSize: 9,
-                color: cs.onSurface.withValues(alpha: .48),
+            Icon(icon, size: 17, color: cs.onSurface.withValues(alpha: .72)),
+            const SizedBox(width: 5),
+            Flexible(
+              child: Text(
+                '${prefixPlus ? '+ ' : ''}$label${count == null ? '' : ' $count'}',
+                maxLines: 1,
+                overflow: TextOverflow.fade,
+                softWrap: false,
+                style: TextStyle(
+                  color: cs.onSurface.withValues(alpha: .78),
+                  fontSize: 10.5,
+                  fontWeight: FontWeight.w700,
+                ),
               ),
             ),
           ],
@@ -901,8 +896,16 @@ class _NoteCard extends StatelessWidget {
       NotoAppearance.safeNoteColorIndex(note.color)
     ];
     final background = note.color == 0 ? cs.surfaceContainerLow : noteColor;
-    final foreground = hasWallpaper ? Colors.white : cs.onSurface;
-    final secondary =
+    final fontFamily = NotoAppearance.familyAt(note.font);
+    final customTextColor = note.textColor == 0
+        ? null
+        : NotoAppearance.textColors[
+            NotoAppearance.safeTextColorIndex(note.textColor)
+          ];
+    final contentColor =
+        customTextColor ?? (hasWallpaper ? Colors.white : cs.onSurface);
+    final contentSecondary = contentColor.withValues(alpha: .72);
+    final metadataColor =
         hasWallpaper ? Colors.white70 : cs.onSurface.withValues(alpha: .58);
     final preview = note.body
         .replaceAll('[ ]', '☐')
@@ -957,7 +960,8 @@ class _NoteCard extends StatelessWidget {
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
                         style: TextStyle(
-                          color: foreground,
+                          color: contentColor,
+                          fontFamily: fontFamily,
                           fontSize: 16,
                           height: 1.15,
                           fontWeight: FontWeight.w800,
@@ -965,13 +969,18 @@ class _NoteCard extends StatelessWidget {
                       ),
                     ),
                     if (note.pinned)
-                      Icon(Icons.push_pin_outlined, size: 15, color: secondary),
+                      Icon(
+                        Icons.push_pin_outlined,
+                        size: 15,
+                        color: contentSecondary,
+                      ),
                     if (note.favorite) ...[
                       const SizedBox(width: 5),
                       Icon(
                         Icons.star_rounded,
                         size: 15,
-                        color: hasWallpaper ? Colors.white : cs.primary,
+                        color: customTextColor ??
+                            (hasWallpaper ? Colors.white : cs.primary),
                       ),
                     ],
                   ],
@@ -983,7 +992,8 @@ class _NoteCard extends StatelessWidget {
                     maxLines: 4,
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
-                      color: secondary,
+                      color: contentSecondary,
+                      fontFamily: fontFamily,
                       fontSize: 12,
                       height: 1.35,
                     ),
@@ -994,7 +1004,8 @@ class _NoteCard extends StatelessWidget {
                   Text(
                     '$pending pendentes',
                     style: TextStyle(
-                      color: hasWallpaper ? Colors.white : cs.primary,
+                      color: customTextColor ??
+                          (hasWallpaper ? Colors.white : cs.primary),
                       fontSize: 10,
                       fontWeight: FontWeight.w800,
                     ),
@@ -1009,7 +1020,7 @@ class _NoteCard extends StatelessWidget {
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
-                    color: secondary,
+                    color: metadataColor,
                     fontSize: 9.5,
                     fontWeight: FontWeight.w600,
                   ),
