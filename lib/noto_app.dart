@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import 'noto_home.dart';
+import 'noto_home_v2.dart';
 import 'noto_store.dart';
 import 'noto_theme.dart';
 
@@ -32,7 +32,10 @@ class _NotoAppState extends State<NotoApp> {
           home: !store.loaded
               ? const Scaffold(body: Center(child: CircularProgressIndicator()))
               : store.onboardingDone
-                  ? GlobalWallpaper(store: store, child: HomeShell(store: store))
+                  ? GlobalWallpaper(
+                      store: store,
+                      child: HomeShellV2(store: store),
+                    )
                   : OnboardingPage(store: store),
         ),
       );
@@ -51,14 +54,29 @@ class _OnboardingPageState extends State<OnboardingPage> {
   int page = 0;
 
   static const pages = [
-    (Icons.edit_note_rounded, 'Anota sem atrito', 'Abre, escreve e pronto. O essencial fica sempre a um toque.'),
-    (Icons.palette_outlined, 'Deixa com a tua cara', 'Cores, fontes e fundos continuam aqui — só que sem poluir a interface.'),
-    (Icons.folder_copy_outlined, 'Organiza quando precisar', 'Pastas, favoritos, busca, checklist, lembretes, backup e widget.'),
+    (
+      Icons.edit_note_rounded,
+      'Tira da cabeça. Joga no Noto.',
+      'Captura rápida manda a ideia pra Entrada. Tu organiza quando tiver tempo.'
+    ),
+    (
+      Icons.bolt_rounded,
+      'O Pulse presta atenção.',
+      'Ele encontra tarefas, lembretes e padrões sem mandar teus textos pra lugar nenhum.'
+    ),
+    (
+      Icons.auto_awesome_outlined,
+      'Agora ele tem cara própria.',
+      'Papel quente, tinta escura, laranja Noto e liberdade pra mudar fonte, cor e fundo.'
+    ),
   ];
 
   void next() {
     if (page < pages.length - 1) {
-      controller.nextPage(duration: const Duration(milliseconds: 260), curve: Curves.easeOutCubic);
+      controller.nextPage(
+        duration: const Duration(milliseconds: 260),
+        curve: Curves.easeOutCubic,
+      );
       return;
     }
     widget.store.onboardingDone = true;
@@ -82,28 +100,42 @@ class _OnboardingPageState extends State<OnboardingPage> {
                       child: Column(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          ClipRRect(
-                            borderRadius: BorderRadius.circular(30),
-                            child: Image.asset('assets/app_icon.png', width: 118, height: 118),
-                          ),
-                          const SizedBox(height: 32),
+                          const NotoMark(size: 116),
+                          const SizedBox(height: 34),
                           Container(
                             width: 62,
                             height: 62,
                             decoration: BoxDecoration(
-                              color: Theme.of(context).colorScheme.primaryContainer,
+                              color: Theme.of(context)
+                                  .colorScheme
+                                  .primary
+                                  .withValues(alpha: .13),
                               borderRadius: BorderRadius.circular(20),
                             ),
-                            child: Icon(item.$1, size: 31, color: Theme.of(context).colorScheme.onPrimaryContainer),
+                            child: Icon(
+                              item.$1,
+                              size: 31,
+                              color: Theme.of(context).colorScheme.primary,
+                            ),
                           ),
                           const SizedBox(height: 22),
                           Text(
                             item.$2,
                             textAlign: TextAlign.center,
-                            style: Theme.of(context).textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.w900),
+                            style: Theme.of(context)
+                                .textTheme
+                                .headlineMedium
+                                ?.copyWith(
+                                  fontWeight: FontWeight.w900,
+                                  letterSpacing: -.8,
+                                ),
                           ),
                           const SizedBox(height: 10),
-                          Text(item.$3, textAlign: TextAlign.center, style: Theme.of(context).textTheme.bodyLarge),
+                          Text(
+                            item.$3,
+                            textAlign: TextAlign.center,
+                            style: Theme.of(context).textTheme.bodyLarge,
+                          ),
                         ],
                       ),
                     );
@@ -120,7 +152,9 @@ class _OnboardingPageState extends State<OnboardingPage> {
                     width: page == index ? 24 : 8,
                     height: 8,
                     decoration: BoxDecoration(
-                      color: page == index ? Theme.of(context).colorScheme.primary : Theme.of(context).colorScheme.outlineVariant,
+                      color: page == index
+                          ? Theme.of(context).colorScheme.primary
+                          : Theme.of(context).colorScheme.outlineVariant,
                       borderRadius: BorderRadius.circular(8),
                     ),
                   ),
@@ -132,8 +166,14 @@ class _OnboardingPageState extends State<OnboardingPage> {
                   width: double.infinity,
                   child: FilledButton.icon(
                     onPressed: next,
-                    icon: Icon(page == pages.length - 1 ? Icons.check_rounded : Icons.arrow_forward_rounded),
-                    label: Text(page == pages.length - 1 ? 'Começar' : 'Continuar'),
+                    icon: Icon(
+                      page == pages.length - 1
+                          ? Icons.check_rounded
+                          : Icons.arrow_forward_rounded,
+                    ),
+                    label: Text(
+                      page == pages.length - 1 ? 'Entrar no Noto' : 'Continuar',
+                    ),
                   ),
                 ),
               ),
