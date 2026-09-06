@@ -24,7 +24,7 @@ class NoteRevision {
       );
 }
 
-enum PulseKind { checklist, stale, folder, links, momentum }
+enum PulseKind { checklist, stale, folder, links, momentum, reminder }
 
 class PulseInsight {
   const PulseInsight({
@@ -36,6 +36,54 @@ class PulseInsight {
   final PulseKind kind;
   final String title;
   final String detail;
+}
+
+class TodaySnapshot {
+  const TodaySnapshot({
+    required this.touched,
+    required this.remindersToday,
+    required this.overdueReminders,
+    required this.pendingTasks,
+  });
+
+  final int touched;
+  final int remindersToday;
+  final int overdueReminders;
+  final int pendingTasks;
+}
+
+bool _sameDay(DateTime a, DateTime b) =>
+    a.year == b.year && a.month == b.month && a.day == b.day;
+
+TodaySnapshot buildTodaySnapshot(List<Note> allNotes, {DateTime? now}) {
+  final today = now ?? DateTime.now();
+  final notes = allNotes.where((n) => n.deletedAt == null && !n.archived).toList();
+  var touched = 0;
+  var remindersToday = 0;
+  var overdueReminders = 0;
+  var pendingTasks = 0;
+
+  for (final note in notes) {
+    if (_sameDay(note.updatedAt, today)) touched++;
+    final reminder = note.reminderAt;
+    if (reminder != null) {
+      if (_sameDay(reminder, today)) remindersToday++;
+      if (reminder.isBefore(today) && !_sameDay(reminder, today)) overdueReminders++;
+    }
+    if (note.checklist) {
+      pendingTasks += note.body
+          .split('\n')
+          .where((line) => line.trim().startsWith('[ ]'))
+          .length;
+    }
+  }
+
+  return TodaySnapshot(
+    touched: touched,
+    remindersToday: remindersToday,
+    overdueReminders: overdueReminders,
+    pendingTasks: pendingTasks,
+  );
 }
 
 List<String> extractWikiLinks(String body) {
@@ -89,6 +137,15 @@ List<PulseInsight> buildPulseInsights(List<Note> allNotes, {DateTime? now}) {
   }
 
   final insights = <PulseInsight>[];
+  final snapshot = buildTodaySnapshot(notes, now: today);
+
+  if (snapshot.overdueReminders > 0) {
+    insights.add(PulseInsight(
+      kind: PulseKind.reminder,
+      title: '${snapshot.overdueReminders} ${snapshot.overdueReminders == 1 ? 'lembrete atrasado' : 'lembretes atrasados'}',
+      detail: 'Tem coisa marcada que já passou da hora. Vale revisar antes de esquecer de vez.',
+    ));
+  }
 
   var unfinishedLists = 0;
   var pendingItems = 0;
