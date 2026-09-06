@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import 'noto_home_v3.dart';
+import 'noto_home_v4.dart';
 import 'noto_store.dart';
 import 'noto_theme.dart';
 
@@ -34,7 +34,7 @@ class _NotoAppState extends State<NotoApp> {
               : store.onboardingDone
                   ? GlobalWallpaper(
                       store: store,
-                      child: HomeShellV3(store: store),
+                      child: HomeShellV4(store: store),
                     )
                   : OnboardingPage(store: store),
         ),
