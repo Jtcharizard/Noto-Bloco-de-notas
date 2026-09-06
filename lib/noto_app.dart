@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import 'noto_home_v2.dart';
+import 'noto_home_v3.dart';
 import 'noto_store.dart';
 import 'noto_theme.dart';
 
@@ -34,151 +34,95 @@ class _NotoAppState extends State<NotoApp> {
               : store.onboardingDone
                   ? GlobalWallpaper(
                       store: store,
-                      child: HomeShellV2(store: store),
+                      child: HomeShellV3(store: store),
                     )
                   : OnboardingPage(store: store),
         ),
       );
 }
 
-class OnboardingPage extends StatefulWidget {
+class OnboardingPage extends StatelessWidget {
   const OnboardingPage({super.key, required this.store});
+
   final AppStore store;
 
   @override
-  State<OnboardingPage> createState() => _OnboardingPageState();
-}
-
-class _OnboardingPageState extends State<OnboardingPage> {
-  final controller = PageController();
-  int page = 0;
-
-  static const pages = [
-    (
-      Icons.edit_note_rounded,
-      'Tira da cabeça. Joga no Noto.',
-      'Captura rápida manda a ideia pra Entrada. Tu organiza quando tiver tempo.'
-    ),
-    (
-      Icons.bolt_rounded,
-      'O Pulse presta atenção.',
-      'Ele encontra tarefas, lembretes e padrões sem mandar teus textos pra lugar nenhum.'
-    ),
-    (
-      Icons.auto_awesome_outlined,
-      'Agora ele tem cara própria.',
-      'Papel quente, tinta escura, laranja Noto e liberdade pra mudar fonte, cor e fundo.'
-    ),
-  ];
-
-  void next() {
-    if (page < pages.length - 1) {
-      controller.nextPage(
-        duration: const Duration(milliseconds: 260),
-        curve: Curves.easeOutCubic,
-      );
-      return;
-    }
-    widget.store.onboardingDone = true;
-    widget.store.save();
-  }
-
-  @override
-  Widget build(BuildContext context) => Scaffold(
-        body: SafeArea(
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    return Scaffold(
+      body: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(28, 28, 28, 24),
           child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Expanded(
-                child: PageView.builder(
-                  controller: controller,
-                  itemCount: pages.length,
-                  onPageChanged: (value) => setState(() => page = value),
-                  itemBuilder: (_, index) {
-                    final item = pages[index];
-                    return Padding(
-                      padding: const EdgeInsets.fromLTRB(30, 28, 30, 12),
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          const NotoMark(size: 116),
-                          const SizedBox(height: 34),
-                          Container(
-                            width: 62,
-                            height: 62,
-                            decoration: BoxDecoration(
-                              color: Theme.of(context)
-                                  .colorScheme
-                                  .primary
-                                  .withValues(alpha: .13),
-                              borderRadius: BorderRadius.circular(20),
-                            ),
-                            child: Icon(
-                              item.$1,
-                              size: 31,
-                              color: Theme.of(context).colorScheme.primary,
-                            ),
-                          ),
-                          const SizedBox(height: 22),
-                          Text(
-                            item.$2,
-                            textAlign: TextAlign.center,
-                            style: Theme.of(context)
-                                .textTheme
-                                .headlineMedium
-                                ?.copyWith(
-                                  fontWeight: FontWeight.w900,
-                                  letterSpacing: -.8,
-                                ),
-                          ),
-                          const SizedBox(height: 10),
-                          Text(
-                            item.$3,
-                            textAlign: TextAlign.center,
-                            style: Theme.of(context).textTheme.bodyLarge,
-                          ),
-                        ],
-                      ),
-                    );
+              const NotoMark(size: 58),
+              const Spacer(),
+              Text(
+                'Noto',
+                style: Theme.of(context).textTheme.displaySmall?.copyWith(
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: -1.8,
+                    ),
+              ),
+              const SizedBox(height: 10),
+              Text(
+                'Um lugar simples pra escrever, guardar e achar depois.',
+                style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      height: 1.35,
+                      color: cs.onSurface.withValues(alpha: .68),
+                    ),
+              ),
+              const SizedBox(height: 34),
+              const _IntroLine('Captura rápida quando tu só quer tirar algo da cabeça.'),
+              const _IntroLine('Pastas, tags e busca quando realmente precisar organizar.'),
+              const _IntroLine('Teus textos ficam no aparelho; o Pulse trabalha localmente.'),
+              const Spacer(),
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton(
+                  onPressed: () {
+                    store.onboardingDone = true;
+                    store.save();
                   },
-                ),
-              ),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: List.generate(
-                  pages.length,
-                  (index) => AnimatedContainer(
-                    duration: const Duration(milliseconds: 180),
-                    margin: const EdgeInsets.all(4),
-                    width: page == index ? 24 : 8,
-                    height: 8,
-                    decoration: BoxDecoration(
-                      color: page == index
-                          ? Theme.of(context).colorScheme.primary
-                          : Theme.of(context).colorScheme.outlineVariant,
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                  ),
-                ),
-              ),
-              Padding(
-                padding: const EdgeInsets.all(22),
-                child: SizedBox(
-                  width: double.infinity,
-                  child: FilledButton.icon(
-                    onPressed: next,
-                    icon: Icon(
-                      page == pages.length - 1
-                          ? Icons.check_rounded
-                          : Icons.arrow_forward_rounded,
-                    ),
-                    label: Text(
-                      page == pages.length - 1 ? 'Entrar no Noto' : 'Continuar',
-                    ),
-                  ),
+                  child: const Text('Começar'),
                 ),
               ),
             ],
           ),
         ),
-      );
+      ),
+    );
+  }
+}
+
+class _IntroLine extends StatelessWidget {
+  const _IntroLine(this.text);
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 18),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 16,
+            height: 2,
+            margin: const EdgeInsets.only(top: 9, right: 12),
+            color: cs.primary,
+          ),
+          Expanded(
+            child: Text(
+              text,
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(height: 1.45),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }
