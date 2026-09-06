@@ -18,6 +18,7 @@ class _SavedNoteContent {
 
 class AppStore extends ChangeNotifier {
   final List<Note> notes = [];
+  final List<NotoTemplate> templates = [];
   final Map<String, List<NoteRevision>> histories = {};
   final Map<String, _SavedNoteContent> _savedContent = {};
 
@@ -25,10 +26,7 @@ class AppStore extends ChangeNotifier {
   int accent = 9;
   int font = 0;
   double fontSize = 17;
-
-  /// 0 = grade, 1 = lista, 2 = compacta.
   int layoutMode = 0;
-
   int wallpaper = 0;
   String? customWallpaper;
   double wallpaperDarkness = .25;
@@ -36,11 +34,9 @@ class AppStore extends ChangeNotifier {
   String? widgetNoteId;
   bool onboardingDone = false;
   bool loaded = false;
-
   bool homeShowToday = true;
   bool homeShowPulse = true;
   bool homeShowRecents = true;
-
   bool _skipRevisionCapture = false;
 
   bool get grid => layoutMode == 0;
@@ -56,6 +52,16 @@ class AppStore extends ChangeNotifier {
           ..addAll((jsonDecode(raw) as List).map(
             (e) => Note.fromJson(Map<String, dynamic>.from(e)),
           ));
+      } catch (_) {}
+    }
+
+    templates.clear();
+    final templateRaw = prefs.getString('notoTemplates');
+    if (templateRaw != null) {
+      try {
+        templates.addAll((jsonDecode(templateRaw) as List).map(
+          (e) => NotoTemplate.fromJson(Map<String, dynamic>.from(e)),
+        ));
       } catch (_) {}
     }
 
@@ -99,12 +105,10 @@ class AppStore extends ChangeNotifier {
         .clamp(0, NotoAppearance.fonts.length - 1)
         .toInt();
     fontSize = (prefs.getDouble('fontSize') ?? 17).clamp(14, 26).toDouble();
-
     final oldGrid = prefs.getBool('grid') ?? true;
     layoutMode = (prefs.getInt('layoutMode') ?? (oldGrid ? 0 : 1))
         .clamp(0, 2)
         .toInt();
-
     wallpaper = (prefs.getInt('wallpaper') ?? 0)
         .clamp(0, NotoAppearance.wallpaperPaths.length - 1)
         .toInt();
@@ -115,7 +119,6 @@ class AppStore extends ChangeNotifier {
         (prefs.getDouble('wallpaperBlur') ?? 0).clamp(0, 16).toDouble();
     widgetNoteId = prefs.getString('widgetNoteId');
     onboardingDone = prefs.getBool('onboardingDone') ?? false;
-
     homeShowToday = prefs.getBool('homeShowToday') ?? true;
     homeShowPulse = prefs.getBool('homeShowPulse') ?? true;
     homeShowRecents = prefs.getBool('homeShowRecents') ?? true;
@@ -136,6 +139,10 @@ class AppStore extends ChangeNotifier {
     await prefs.setString(
       'notes',
       jsonEncode(notes.map((e) => e.toJson()).toList()),
+    );
+    await prefs.setString(
+      'notoTemplates',
+      jsonEncode(templates.map((e) => e.toJson()).toList()),
     );
     await prefs.setString(
       'noteHistories',
@@ -232,6 +239,40 @@ class AppStore extends ChangeNotifier {
     await save();
   }
 
+  Future<void> addTemplateFromNote(Note note, String name) async {
+    templates.insert(
+      0,
+      NotoTemplate(
+        id: DateTime.now().microsecondsSinceEpoch.toString(),
+        name: name.trim().isEmpty ? 'Modelo' : name.trim(),
+        title: note.title,
+        body: note.body,
+        checklist: note.checklist,
+        emoji: note.emoji,
+      ),
+    );
+    if (templates.length > 30) templates.removeRange(30, templates.length);
+    await save();
+  }
+
+  Future<void> deleteTemplate(NotoTemplate template) async {
+    templates.remove(template);
+    await save();
+  }
+
+  Note noteFromTemplate(NotoTemplate template, {String folder = 'Geral', List<String> tags = const []}) =>
+      Note(
+        id: DateTime.now().microsecondsSinceEpoch.toString(),
+        title: template.title,
+        body: template.body,
+        updatedAt: DateTime.now(),
+        checklist: template.checklist,
+        emoji: template.emoji,
+        folder: folder,
+        tags: List.of(tags),
+        font: font,
+      );
+
   Future<void> _syncWidget() async {
     final active = notes.where((n) => n.deletedAt == null && !n.archived).toList()
       ..sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
@@ -306,12 +347,19 @@ class AppStore extends ChangeNotifier {
       customWallpaper: note.customWallpaper,
       textColor: note.textColor,
       font: note.font,
+      titleFont: note.titleFont,
+      bodyFont: note.bodyFont,
       favorite: note.favorite,
       folder: note.folder,
       tags: List.of(note.tags),
       checklist: note.checklist,
       wallpaperDarkness: note.wallpaperDarkness,
       wallpaperBlur: note.wallpaperBlur,
+      emoji: note.emoji,
+      coverImage: note.coverImage,
+      cardOpacity: note.cardOpacity,
+      priority: note.priority,
+      dueAt: note.dueAt,
     ));
     save();
   }
