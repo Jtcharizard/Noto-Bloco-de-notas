@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'noto_rich_editor.dart';
+import 'noto_settings.dart' as settings;
 
 import 'dart:ui';
 
@@ -453,7 +454,7 @@ class _EditorPageV2State extends State<EditorPageV2>
     final index = await showModalBottomSheet<int>(
       context: context,
       isScrollControlled: true,
-      builder: (_) => legacy.FontPickerSheet(
+      builder: (_) => settings.FontPickerSheet(
         selected: widget.note.bodyFont ?? widget.note.font,
       ),
     );

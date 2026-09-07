@@ -18,10 +18,13 @@ class NotoPalette {
 }
 
 ThemeData notoTheme(AppStore store, Brightness brightness) {
-  final accent = NotoAppearance
+  final selectedAccent = NotoAppearance
       .accents[NotoAppearance.safeAccentIndex(store.accent)]
       .color;
   final dark = brightness == Brightness.dark;
+  final accent = dark
+      ? Color.lerp(selectedAccent, Colors.white, .25)!
+      : selectedAccent;
   final surface = dark ? const Color(0xFF171023) : NotoPalette.paper;
   final raised = dark ? const Color(0xFF261B38) : NotoPalette.paperSoft;
   final text = dark ? const Color(0xFFF7F0FF) : NotoPalette.ink;
@@ -31,9 +34,7 @@ ThemeData notoTheme(AppStore store, Brightness brightness) {
   final scheme = ColorScheme(
     brightness: brightness,
     primary: accent,
-    onPrimary: accent.computeLuminance() > .42
-        ? const Color(0xFF211536)
-        : Colors.white,
+    onPrimary: accent.computeLuminance() > .179 ? Colors.black : Colors.white,
     primaryContainer: dark ? const Color(0xFF49316D) : const Color(0xFFE8DAFF),
     onPrimaryContainer: dark
         ? const Color(0xFFF7EEFF)

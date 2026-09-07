@@ -53,6 +53,14 @@ class NotoRichController extends TextEditingController {
       inherited.addAll(typingStyle);
       if (newEnd > a) {
         for (final entry in inherited.entries) {
+          dynamic current;
+          for (final mark in marks) {
+            if (mark['key'] == entry.key &&
+                (mark['start'] as int) <= a &&
+                (mark['end'] as int) >= newEnd)
+              current = mark['value'];
+          }
+          if (current == entry.value) continue;
           marks.add({
             'start': a,
             'end': newEnd,
