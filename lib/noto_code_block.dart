@@ -133,25 +133,26 @@ class _NotoCodeBlockState extends State<NotoCodeBlock> {
                   child: Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      SizedBox(
-                        width: 36,
-                        child: Padding(
-                          padding: const EdgeInsets.only(top: 12),
-                          child: Text(
-                            List.generate(
-                              lines.length,
-                              (i) => '${i + 1}',
-                            ).join('\n'),
-                            textAlign: TextAlign.right,
-                            style: TextStyle(
-                              fontFamily: 'FiraCode',
-                              fontSize: 14,
-                              height: 1.5,
-                              color: cs.onSurfaceVariant,
+                      if (!wrap)
+                        SizedBox(
+                          width: 36,
+                          child: Padding(
+                            padding: const EdgeInsets.only(top: 12),
+                            child: Text(
+                              List.generate(
+                                lines.length,
+                                (i) => '${i + 1}',
+                              ).join('\n'),
+                              textAlign: TextAlign.right,
+                              style: TextStyle(
+                                fontFamily: 'FiraCode',
+                                fontSize: 14,
+                                height: 1.5,
+                                color: cs.onSurfaceVariant,
+                              ),
                             ),
                           ),
                         ),
-                      ),
                       const SizedBox(width: 10),
                       Expanded(
                         child: TextField(

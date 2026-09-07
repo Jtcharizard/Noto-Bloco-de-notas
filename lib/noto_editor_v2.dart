@@ -969,6 +969,50 @@ class _EditorPageV2State extends State<EditorPageV2>
     }
   }
 
+  Future<void> _showAttachments() async {
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, update) => SizedBox(
+          height: MediaQuery.sizeOf(ctx).height * .75,
+          child: ListView(
+            padding: EdgeInsets.fromLTRB(
+              16,
+              12,
+              16,
+              MediaQuery.viewInsetsOf(ctx).bottom + 16,
+            ),
+            children: [
+              const ListTile(title: Text('Tabelas e código')),
+              for (final code in codeBlocks)
+                NotoCodeBlock(
+                  key: ValueKey(code['id']),
+                  data: code,
+                  onChanged: _editorChanged,
+                  onDelete: () {
+                    update(() => codeBlocks.remove(code));
+                    _editorChanged();
+                  },
+                ),
+              for (final table in tables)
+                VisualNoteTable(
+                  key: ValueKey(table.id),
+                  table: table,
+                  onChanged: _editorChanged,
+                  onDelete: () {
+                    update(() => tables.remove(table));
+                    _editorChanged();
+                  },
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   void _insertCodeBlock() {
     codeBlocks.add({
       'id': DateTime.now().microsecondsSinceEpoch.toString(),
@@ -1940,12 +1984,26 @@ class _EditorPageV2State extends State<EditorPageV2>
                     SizedBox(height: focusMode ? 18 : 12),
                     Expanded(
                       child: widget.note.checklist
-                          ? legacy.ChecklistEditor(
-                              controller: body,
-                              family: bodyFamily,
-                              fontSize: widget.store.fontSize,
-                              textColor: fg,
-                              onChanged: () => setState(() {}),
+                          ? Column(
+                              children: [
+                                Expanded(
+                                  child: legacy.ChecklistEditor(
+                                    controller: body,
+                                    family: bodyFamily,
+                                    fontSize: widget.store.fontSize,
+                                    textColor: fg,
+                                    onChanged: () => setState(() {}),
+                                  ),
+                                ),
+                                if (tables.isNotEmpty || codeBlocks.isNotEmpty)
+                                  TextButton.icon(
+                                    onPressed: _showAttachments,
+                                    icon: const Icon(Icons.attachment),
+                                    label: Text(
+                                      'Tabelas e código (${tables.length + codeBlocks.length})',
+                                    ),
+                                  ),
+                              ],
                             )
                           : ListView(
                               controller: editorScroll,
