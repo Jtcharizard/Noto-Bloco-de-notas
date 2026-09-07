@@ -5,23 +5,28 @@ class NoteRevision {
     required this.title,
     required this.body,
     required this.savedAt,
+    this.editor = const {},
   });
 
   final String title;
   final String body;
   final DateTime savedAt;
+  final Map<String, dynamic> editor;
 
   Map<String, dynamic> toJson() => {
-        'title': title,
-        'body': body,
-        'savedAt': savedAt.toIso8601String(),
-      };
+    'title': title,
+    'body': body,
+    'savedAt': savedAt.toIso8601String(),
+    'editor': editor,
+  };
 
   factory NoteRevision.fromJson(Map<String, dynamic> json) => NoteRevision(
-        title: json['title']?.toString() ?? '',
-        body: json['body']?.toString() ?? '',
-        savedAt: DateTime.tryParse(json['savedAt']?.toString() ?? '') ?? DateTime.now(),
-      );
+    title: json['title']?.toString() ?? '',
+    body: json['body']?.toString() ?? '',
+    editor: Map<String, dynamic>.from(json['editor'] ?? const {}),
+    savedAt:
+        DateTime.tryParse(json['savedAt']?.toString() ?? '') ?? DateTime.now(),
+  );
 }
 
 enum PulseKind { checklist, stale, folder, links, momentum, reminder }
@@ -57,7 +62,9 @@ bool _sameDay(DateTime a, DateTime b) =>
 
 TodaySnapshot buildTodaySnapshot(List<Note> allNotes, {DateTime? now}) {
   final today = now ?? DateTime.now();
-  final notes = allNotes.where((n) => n.deletedAt == null && !n.archived).toList();
+  final notes = allNotes
+      .where((n) => n.deletedAt == null && !n.archived)
+      .toList();
   var touched = 0;
   var remindersToday = 0;
   var overdueReminders = 0;
@@ -68,7 +75,8 @@ TodaySnapshot buildTodaySnapshot(List<Note> allNotes, {DateTime? now}) {
     final reminder = note.reminderAt;
     if (reminder != null) {
       if (_sameDay(reminder, today)) remindersToday++;
-      if (reminder.isBefore(today) && !_sameDay(reminder, today)) overdueReminders++;
+      if (reminder.isBefore(today) && !_sameDay(reminder, today))
+        overdueReminders++;
     }
     if (note.checklist) {
       pendingTasks += note.body
@@ -115,7 +123,8 @@ List<Note> backlinksFor(Note target, List<Note> notes) {
   final result = <Note>[];
   for (final note in notes) {
     if (identical(note, target) || note.deletedAt != null) continue;
-    if (extractWikiLinks(note.body).any((link) => link.toLowerCase() == wanted)) {
+    if (extractWikiLinks(note.body)
+        .any((link) => link.toLowerCase() == wanted)) {
       result.add(note);
     }
   }
@@ -125,13 +134,16 @@ List<Note> backlinksFor(Note target, List<Note> notes) {
 
 List<PulseInsight> buildPulseInsights(List<Note> allNotes, {DateTime? now}) {
   final today = now ?? DateTime.now();
-  final notes = allNotes.where((n) => n.deletedAt == null && !n.archived).toList();
+  final notes = allNotes
+      .where((n) => n.deletedAt == null && !n.archived)
+      .toList();
   if (notes.isEmpty) {
     return const [
       PulseInsight(
         kind: PulseKind.momentum,
         title: 'O Pulse acorda contigo',
-        detail: 'Cria algumas notas e eu começo a apontar padrões úteis por aqui.',
+        detail:
+            'Cria algumas notas e eu começo a apontar padrões úteis por aqui.',
       ),
     ];
   }
@@ -140,11 +152,14 @@ List<PulseInsight> buildPulseInsights(List<Note> allNotes, {DateTime? now}) {
   final snapshot = buildTodaySnapshot(notes, now: today);
 
   if (snapshot.overdueReminders > 0) {
-    insights.add(PulseInsight(
-      kind: PulseKind.reminder,
-      title: '${snapshot.overdueReminders} ${snapshot.overdueReminders == 1 ? 'lembrete atrasado' : 'lembretes atrasados'}',
-      detail: 'Tem coisa marcada que já passou da hora. Vale revisar antes de esquecer de vez.',
-    ));
+    insights.add(
+      PulseInsight(
+        kind: PulseKind.reminder,
+        title:
+            '${snapshot.overdueReminders} ${snapshot.overdueReminders == 1 ? 'lembrete atrasado' : 'lembretes atrasados'}',
+        detail: 'Tem coisa marcada que já passou da hora. Vale revisar antes de esquecer de vez.',
+      ),
+    );
   }
 
   var unfinishedLists = 0;
@@ -158,20 +173,28 @@ List<PulseInsight> buildPulseInsights(List<Note> allNotes, {DateTime? now}) {
     }
   }
   if (unfinishedLists > 0) {
-    insights.add(PulseInsight(
-      kind: PulseKind.checklist,
-      title: '$pendingItems ${pendingItems == 1 ? 'tarefa pendente' : 'tarefas pendentes'}',
-      detail: 'Espalhadas em $unfinishedLists ${unfinishedLists == 1 ? 'checklist' : 'checklists'}.',
-    ));
+    insights.add(
+      PulseInsight(
+        kind: PulseKind.checklist,
+        title:
+            '$pendingItems ${pendingItems == 1 ? 'tarefa pendente' : 'tarefas pendentes'}',
+        detail:
+            'Espalhadas em $unfinishedLists ${unfinishedLists == 1 ? 'checklist' : 'checklists'}.',
+      ),
+    );
   }
 
-  final stale = notes.where((note) => today.difference(note.updatedAt).inDays >= 45).length;
+  final stale = notes
+      .where((note) => today.difference(note.updatedAt).inDays >= 45)
+      .length;
   if (stale > 0) {
-    insights.add(PulseInsight(
-      kind: PulseKind.stale,
-      title: '$stale ${stale == 1 ? 'nota esquecida' : 'notas esquecidas'}',
-      detail: 'Sem edição há pelo menos 45 dias. Talvez seja hora de arquivar ou revisitar.',
-    ));
+    insights.add(
+      PulseInsight(
+        kind: PulseKind.stale,
+        title: '$stale ${stale == 1 ? 'nota esquecida' : 'notas esquecidas'}',
+        detail: 'Sem edição há pelo menos 45 dias. Talvez seja hora de arquivar ou revisitar.',
+      ),
+    );
   }
 
   final folderCounts = <String, int>{};
@@ -179,39 +202,54 @@ List<PulseInsight> buildPulseInsights(List<Note> allNotes, {DateTime? now}) {
     final value = note.folder.trim().isEmpty ? 'Geral' : note.folder.trim();
     folderCounts[value] = (folderCounts[value] ?? 0) + 1;
   }
-  final folders = folderCounts.entries.toList()..sort((a, b) => b.value.compareTo(a.value));
+  final folders = folderCounts.entries.toList()
+    ..sort((a, b) => b.value.compareTo(a.value));
   if (folders.isNotEmpty && folders.first.value >= 2) {
-    insights.add(PulseInsight(
-      kind: PulseKind.folder,
-      title: '${folders.first.key} domina teu Noto',
-      detail: '${folders.first.value} notas estão nessa pasta${folders.first.key.contains('/') ? ' ou subpasta' : ''}.',
-    ));
+    insights.add(
+      PulseInsight(
+        kind: PulseKind.folder,
+        title: '${folders.first.key} domina teu Noto',
+        detail:
+            '${folders.first.value} notas estão nessa pasta${folders.first.key.contains('/') ? ' ou subpasta' : ''}.',
+      ),
+    );
   }
 
-  final linked = notes.where((note) => extractWikiLinks(note.body).isNotEmpty).length;
+  final linked = notes
+      .where((note) => extractWikiLinks(note.body).isNotEmpty)
+      .length;
   if (linked > 0) {
-    insights.add(PulseInsight(
-      kind: PulseKind.links,
-      title: '$linked ${linked == 1 ? 'nota conectada' : 'notas conectadas'}',
-      detail: 'Tu já está criando uma rede com links no formato [[Nome da nota]].',
-    ));
+    insights.add(
+      PulseInsight(
+        kind: PulseKind.links,
+        title: '$linked ${linked == 1 ? 'nota conectada' : 'notas conectadas'}',
+        detail: 'Tu já está criando uma rede com links no formato [[Nome da nota]].',
+      ),
+    );
   }
 
-  final recent = notes.where((note) => today.difference(note.updatedAt).inDays < 7).length;
+  final recent = notes
+      .where((note) => today.difference(note.updatedAt).inDays < 7)
+      .length;
   if (recent >= 3) {
-    insights.add(PulseInsight(
-      kind: PulseKind.momentum,
-      title: 'Semana movimentada',
-      detail: '$recent notas receberam atenção nos últimos 7 dias.',
-    ));
+    insights.add(
+      PulseInsight(
+        kind: PulseKind.momentum,
+        title: 'Semana movimentada',
+        detail: '$recent notas receberam atenção nos últimos 7 dias.',
+      ),
+    );
   }
 
   if (insights.isEmpty) {
-    insights.add(PulseInsight(
-      kind: PulseKind.momentum,
-      title: 'Tudo sob controle',
-      detail: '${notes.length} ${notes.length == 1 ? 'nota ativa' : 'notas ativas'} e nenhum padrão chato forte por enquanto.',
-    ));
+    insights.add(
+      PulseInsight(
+        kind: PulseKind.momentum,
+        title: 'Tudo sob controle',
+        detail:
+            '${notes.length} ${notes.length == 1 ? 'nota ativa' : 'notas ativas'} e nenhum padrão chato forte por enquanto.',
+      ),
+    );
   }
   return insights.take(4).toList();
 }

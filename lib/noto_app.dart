@@ -22,23 +22,25 @@ class _NotoAppState extends State<NotoApp> {
 
   @override
   Widget build(BuildContext context) => AnimatedBuilder(
-        animation: store,
-        builder: (_, __) => MaterialApp(
-          debugShowCheckedModeBanner: false,
-          title: 'Noto',
-          theme: notoTheme(store, Brightness.light),
-          darkTheme: notoTheme(store, Brightness.dark),
-          themeMode: store.mode,
-          home: !store.loaded
-              ? const Scaffold(body: Center(child: CircularProgressIndicator()))
-              : store.onboardingDone
-                  ? GlobalWallpaper(
-                      store: store,
-                      child: HomeShellV4(store: store),
-                    )
-                  : OnboardingPage(store: store),
-        ),
-      );
+    animation: store,
+    builder: (_, __) => MaterialApp(
+      debugShowCheckedModeBanner: false,
+      title: 'Noto',
+      builder: (context, child) =>
+          NotoSafeFrame(child: child ?? const SizedBox()),
+      theme: notoTheme(store, Brightness.light),
+      darkTheme: notoTheme(store, Brightness.dark),
+      themeMode: store.mode,
+      home: !store.loaded
+          ? const Scaffold(body: Center(child: CircularProgressIndicator()))
+          : store.onboardingDone
+          ? GlobalWallpaper(
+              store: store,
+              child: HomeShellV4(store: store),
+            )
+          : OnboardingPage(store: store),
+    ),
+  );
 }
 
 class OnboardingPage extends StatelessWidget {
@@ -61,22 +63,28 @@ class OnboardingPage extends StatelessWidget {
               Text(
                 'Noto',
                 style: Theme.of(context).textTheme.displaySmall?.copyWith(
-                      fontWeight: FontWeight.w900,
-                      letterSpacing: -1.8,
-                    ),
+                  fontWeight: FontWeight.w900,
+                  letterSpacing: -1.8,
+                ),
               ),
               const SizedBox(height: 10),
               Text(
                 'Um lugar simples pra escrever, guardar e achar depois.',
                 style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      height: 1.35,
-                      color: cs.onSurface.withValues(alpha: .68),
-                    ),
+                  height: 1.35,
+                  color: cs.onSurface.withValues(alpha: .68),
+                ),
               ),
               const SizedBox(height: 34),
-              const _IntroLine('Captura rápida quando tu só quer tirar algo da cabeça.'),
-              const _IntroLine('Pastas, tags e busca quando realmente precisar organizar.'),
-              const _IntroLine('Teus textos ficam no aparelho; o Pulse trabalha localmente.'),
+              const _IntroLine(
+                'Captura rápida quando tu só quer tirar algo da cabeça.',
+              ),
+              const _IntroLine(
+                'Pastas, tags e busca quando realmente precisar organizar.',
+              ),
+              const _IntroLine(
+                'Teus textos ficam no aparelho; o Pulse trabalha localmente.',
+              ),
               const Spacer(),
               SizedBox(
                 width: double.infinity,
@@ -118,7 +126,8 @@ class _IntroLine extends StatelessWidget {
           Expanded(
             child: Text(
               text,
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(height: 1.45),
+              style: Theme.of(context).textTheme.bodyMedium
+                  ?.copyWith(height: 1.45),
             ),
           ),
         ],

@@ -7,13 +7,15 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'noto_features.dart';
 import 'noto_models.dart';
+import 'noto_rich_editor.dart';
 
 final notifications = FlutterLocalNotificationsPlugin();
 
 class _SavedNoteContent {
-  const _SavedNoteContent(this.title, this.body);
+  const _SavedNoteContent(this.title, this.body, this.editor);
   final String title;
   final String body;
+  final Map<String, dynamic> editor;
 }
 
 class AppStore extends ChangeNotifier {
@@ -23,7 +25,7 @@ class AppStore extends ChangeNotifier {
   final Map<String, _SavedNoteContent> _savedContent = {};
 
   ThemeMode mode = ThemeMode.system;
-  int accent = 9;
+  int accent = 0;
   int font = 0;
   double fontSize = 17;
   int layoutMode = 0;
@@ -49,9 +51,11 @@ class AppStore extends ChangeNotifier {
       try {
         notes
           ..clear()
-          ..addAll((jsonDecode(raw) as List).map(
-            (e) => Note.fromJson(Map<String, dynamic>.from(e)),
-          ));
+          ..addAll(
+            (jsonDecode(raw) as List).map(
+              (e) => Note.fromJson(Map<String, dynamic>.from(e)),
+            ),
+          );
       } catch (_) {}
     }
 
@@ -59,9 +63,11 @@ class AppStore extends ChangeNotifier {
     final templateRaw = prefs.getString('notoTemplates');
     if (templateRaw != null) {
       try {
-        templates.addAll((jsonDecode(templateRaw) as List).map(
-          (e) => NotoTemplate.fromJson(Map<String, dynamic>.from(e)),
-        ));
+        templates.addAll(
+          (jsonDecode(templateRaw) as List).map(
+            (e) => NotoTemplate.fromJson(Map<String, dynamic>.from(e)),
+          ),
+        );
       } catch (_) {}
     }
 
@@ -72,7 +78,10 @@ class AppStore extends ChangeNotifier {
         final decoded = Map<String, dynamic>.from(jsonDecode(historyRaw));
         for (final entry in decoded.entries) {
           final list = (entry.value as List? ?? const [])
-              .map((item) => NoteRevision.fromJson(Map<String, dynamic>.from(item)))
+              .map(
+                (item) =>
+                    NoteRevision.fromJson(Map<String, dynamic>.from(item)),
+              )
               .toList();
           if (list.isNotEmpty) histories[entry.key] = list;
         }
@@ -81,22 +90,26 @@ class AppStore extends ChangeNotifier {
 
     _savedContent
       ..clear()
-      ..addEntries(notes.map(
-        (note) => MapEntry(note.id, _SavedNoteContent(note.title, note.body)),
-      ));
+      ..addEntries(
+        notes.map(
+          (note) => MapEntry(
+            note.id,
+            _SavedNoteContent(note.title, note.body, copyEditor(note.editor)),
+          ),
+        ),
+      );
 
     final modeIndex = prefs.getInt('mode') ?? 0;
-    mode = ThemeMode.values[
-      modeIndex.clamp(0, ThemeMode.values.length - 1).toInt()
-    ];
+    mode = ThemeMode
+        .values[modeIndex.clamp(0, ThemeMode.values.length - 1).toInt()];
 
-    final brandMigrated = prefs.getBool('notoBrandMigrated') ?? false;
+    final brandMigrated = prefs.getBool('notoVioletBrandMigrated') ?? false;
     if (!brandMigrated) {
-      accent = 9;
+      accent = 0;
       await prefs.setInt('accent', accent);
-      await prefs.setBool('notoBrandMigrated', true);
+      await prefs.setBool('notoVioletBrandMigrated', true);
     } else {
-      accent = (prefs.getInt('accent') ?? 9)
+      accent = (prefs.getInt('accent') ?? 0)
           .clamp(0, NotoAppearance.accents.length - 1)
           .toInt();
     }
@@ -113,21 +126,65 @@ class AppStore extends ChangeNotifier {
         .clamp(0, NotoAppearance.wallpaperPaths.length - 1)
         .toInt();
     customWallpaper = prefs.getString('customWallpaper');
-    wallpaperDarkness =
-        (prefs.getDouble('wallpaperDarkness') ?? .25).clamp(0, .8).toDouble();
-    wallpaperBlur =
-        (prefs.getDouble('wallpaperBlur') ?? 0).clamp(0, 16).toDouble();
+    wallpaperDarkness = (prefs.getDouble('wallpaperDarkness') ?? .25)
+        .clamp(0, .8)
+        .toDouble();
+    wallpaperBlur = (prefs.getDouble('wallpaperBlur') ?? 0)
+        .clamp(0, 16)
+        .toDouble();
     widgetNoteId = prefs.getString('widgetNoteId');
     onboardingDone = prefs.getBool('onboardingDone') ?? false;
     homeShowToday = prefs.getBool('homeShowToday') ?? true;
     homeShowPulse = prefs.getBool('homeShowPulse') ?? true;
     homeShowRecents = prefs.getBool('homeShowRecents') ?? true;
 
+    // A journal written before the first debounced save can recover a new note.
+    for (final key in prefs.getKeys().where(
+      (key) => key.startsWith('editor.draft.'),
+    )) {
+      try {
+        final id = key.substring('editor.draft.'.length);
+        if (notes.any((note) => note.id == id)) continue;
+        final draft = Map<String, dynamic>.from(
+          jsonDecode(prefs.getString(key)!) as Map,
+        );
+        final data = Map<String, dynamic>.from(
+          jsonDecode(draft['snapshot'] as String) as Map,
+        );
+        notes.add(
+          Note(
+            id: id,
+            title: data['title'] as String,
+            checklist: data['checklist'] as bool? ?? false,
+            body: data['body'] as String,
+            updatedAt:
+                DateTime.tryParse(draft['at'] as String) ?? DateTime.now(),
+            editor: {
+              'code': data['code'] ?? [],
+              'styles': data['styles'],
+              'tables': data['tables'],
+              'align': data['align'],
+            },
+          ),
+        );
+      } catch (_) {
+        /* A damaged journal must not block opening saved notes. */
+      }
+    }
+
     loaded = true;
     notifyListeners();
   }
 
-  Future<void> save() async {
+  Future<void> _saveQueue = Future<void>.value();
+
+  Future<void> save() {
+    final next = _saveQueue.then((_) => _saveNow());
+    _saveQueue = next.catchError((Object _) {});
+    return next;
+  }
+
+  Future<void> _saveNow() async {
     if (_skipRevisionCapture) {
       _skipRevisionCapture = false;
       _refreshSavedContent();
@@ -146,9 +203,11 @@ class AppStore extends ChangeNotifier {
     );
     await prefs.setString(
       'noteHistories',
-      jsonEncode(histories.map(
-        (key, value) => MapEntry(key, value.map((e) => e.toJson()).toList()),
-      )),
+      jsonEncode(
+        histories.map(
+          (key, value) => MapEntry(key, value.map((e) => e.toJson()).toList()),
+        ),
+      ),
     );
     await prefs.setInt('mode', mode.index);
     await prefs.setInt('accent', accent);
@@ -182,12 +241,15 @@ class AppStore extends ChangeNotifier {
     for (final note in notes) {
       final previous = _savedContent[note.id];
       if (previous != null &&
-          (previous.title != note.title || previous.body != note.body)) {
+          (previous.title != note.title ||
+              previous.body != note.body ||
+              jsonEncode(previous.editor) != jsonEncode(note.editor))) {
         _addRevision(
           note.id,
           NoteRevision(
             title: previous.title,
             body: previous.body,
+            editor: copyEditor(previous.editor),
             savedAt: DateTime.now(),
           ),
         );
@@ -199,16 +261,22 @@ class AppStore extends ChangeNotifier {
   void _refreshSavedContent() {
     _savedContent
       ..clear()
-      ..addEntries(notes.map(
-        (note) => MapEntry(note.id, _SavedNoteContent(note.title, note.body)),
-      ));
+      ..addEntries(
+        notes.map(
+          (note) => MapEntry(
+            note.id,
+            _SavedNoteContent(note.title, note.body, copyEditor(note.editor)),
+          ),
+        ),
+      );
   }
 
   void _addRevision(String noteId, NoteRevision revision) {
     final list = histories.putIfAbsent(noteId, () => <NoteRevision>[]);
     if (list.isNotEmpty &&
         list.first.title == revision.title &&
-        list.first.body == revision.body) {
+        list.first.body == revision.body &&
+        jsonEncode(list.first.editor) == jsonEncode(revision.editor)) {
       return;
     }
     list.insert(0, revision);
@@ -224,11 +292,13 @@ class AppStore extends ChangeNotifier {
       NoteRevision(
         title: note.title,
         body: note.body,
+        editor: copyEditor(note.editor),
         savedAt: DateTime.now(),
       ),
     );
     note.title = revision.title;
     note.body = revision.body;
+    note.editor = copyEditor(revision.editor);
     note.updatedAt = DateTime.now();
     _skipRevisionCapture = true;
     await save();
@@ -247,6 +317,7 @@ class AppStore extends ChangeNotifier {
         name: name.trim().isEmpty ? 'Modelo' : name.trim(),
         title: note.title,
         body: note.body,
+        editor: copyEditor(note.editor),
         checklist: note.checklist,
         emoji: note.emoji,
       ),
@@ -260,22 +331,27 @@ class AppStore extends ChangeNotifier {
     await save();
   }
 
-  Note noteFromTemplate(NotoTemplate template, {String folder = 'Geral', List<String> tags = const []}) =>
-      Note(
-        id: DateTime.now().microsecondsSinceEpoch.toString(),
-        title: template.title,
-        body: template.body,
-        updatedAt: DateTime.now(),
-        checklist: template.checklist,
-        emoji: template.emoji,
-        folder: folder,
-        tags: List.of(tags),
-        font: font,
-      );
+  Note noteFromTemplate(
+    NotoTemplate template, {
+    String folder = 'Geral',
+    List<String> tags = const [],
+  }) => Note(
+    id: DateTime.now().microsecondsSinceEpoch.toString(),
+    title: template.title,
+    body: template.body,
+    editor: copyEditor(template.editor),
+    updatedAt: DateTime.now(),
+    checklist: template.checklist,
+    emoji: template.emoji,
+    folder: folder,
+    tags: List.of(tags),
+    font: font,
+  );
 
   Future<void> _syncWidget() async {
-    final active = notes.where((n) => n.deletedAt == null && !n.archived).toList()
-      ..sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
+    final active =
+        notes.where((n) => n.deletedAt == null && !n.archived).toList()
+          ..sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
     Note? selected;
     for (final note in active) {
       if (note.id == widgetNoteId) {
@@ -337,30 +413,33 @@ class AppStore extends ChangeNotifier {
   }
 
   void duplicate(Note note) {
-    notes.add(Note(
-      id: DateTime.now().microsecondsSinceEpoch.toString(),
-      title: '${note.title} — cópia',
-      body: note.body,
-      updatedAt: DateTime.now(),
-      color: note.color,
-      wallpaper: note.wallpaper,
-      customWallpaper: note.customWallpaper,
-      textColor: note.textColor,
-      font: note.font,
-      titleFont: note.titleFont,
-      bodyFont: note.bodyFont,
-      favorite: note.favorite,
-      folder: note.folder,
-      tags: List.of(note.tags),
-      checklist: note.checklist,
-      wallpaperDarkness: note.wallpaperDarkness,
-      wallpaperBlur: note.wallpaperBlur,
-      emoji: note.emoji,
-      coverImage: note.coverImage,
-      cardOpacity: note.cardOpacity,
-      priority: note.priority,
-      dueAt: note.dueAt,
-    ));
+    notes.add(
+      Note(
+        id: DateTime.now().microsecondsSinceEpoch.toString(),
+        title: '${note.title} — cópia',
+        body: note.body,
+        editor: copyEditor(note.editor),
+        updatedAt: DateTime.now(),
+        color: note.color,
+        wallpaper: note.wallpaper,
+        customWallpaper: note.customWallpaper,
+        textColor: note.textColor,
+        font: note.font,
+        titleFont: note.titleFont,
+        bodyFont: note.bodyFont,
+        favorite: note.favorite,
+        folder: note.folder,
+        tags: List.of(note.tags),
+        checklist: note.checklist,
+        wallpaperDarkness: note.wallpaperDarkness,
+        wallpaperBlur: note.wallpaperBlur,
+        emoji: note.emoji,
+        coverImage: note.coverImage,
+        cardOpacity: note.cardOpacity,
+        priority: note.priority,
+        dueAt: note.dueAt,
+      ),
+    );
     save();
   }
 }

@@ -10,7 +10,7 @@
   [![Flutter](https://img.shields.io/badge/Flutter-3.x-02569B?logo=flutter&logoColor=white)](https://flutter.dev/)
   [![Dart](https://img.shields.io/badge/Dart-3.x-0175C2?logo=dart&logoColor=white)](https://dart.dev/)
   [![Android](https://img.shields.io/badge/Android-APK-3DDC84?logo=android&logoColor=white)](https://github.com/Jtcharizard/Noto-Bloco-de-notas/actions/workflows/gerar-apk.yml)
-  [![Versão](https://img.shields.io/badge/versão-0.4.5-F28C28)](https://github.com/Jtcharizard/Noto-Bloco-de-notas)
+  [![Versão](https://img.shields.io/badge/versão-1.9.0-8B5CF6)](https://github.com/Jtcharizard/Noto-Bloco-de-notas)
   [![Build APK](https://github.com/Jtcharizard/Noto-Bloco-de-notas/actions/workflows/gerar-apk.yml/badge.svg)](https://github.com/Jtcharizard/Noto-Bloco-de-notas/actions/workflows/gerar-apk.yml)
 </div>
 
@@ -42,6 +42,35 @@ O app funciona sem conta e sem internet. As notas e preferências ficam armazena
 - Compartilhamento e exportação em TXT
 - Apresentação inicial e tela Sobre
 - Salvamento local e funcionamento totalmente offline
+
+## Novidades da v1.9.0
+
+- Texto comum e tarefas com checkbox agora convivem na mesma nota.
+- Cada linha pode virar texto ou tarefa, ser reordenada e removida pelo menu da linha.
+- Barra do editor mais limpa, com ações reunidas em **Inserir**, **Formatar** e **Ferramentas**.
+- Ícones voltam a respeitar contraste e cores do tema.
+- Calendário inicializa corretamente em português, sem abrir uma tela em branco.
+
+## Novidades da v1.8.0
+
+- Barras e painéis respeitam a navegação do Android com margem adicional.
+- Botões e controles tonais seguem a cor escolhida em Aparência.
+- Checklist volta a exibir caixas clicáveis; notas formadas por tarefas Markdown são reconhecidas automaticamente. O menu permite alternar checklist/texto.
+- Código em painel editável com linguagem, números de linha (sem quebra), copiar, quebra de linha e exclusão confirmada. Blocos antigos delimitados por três crases são convertidos ao abrir.
+- Ordenação por título A–Z/Z–A ou data recente/antiga, mantendo fixadas no topo.
+- Segure uma nota para selecionar várias e mover, favoritar ou arquivar em lote.
+- Prévia de fontes com uma frase editável.
+
+## Novidades da v1.7.0
+
+- Tabelas visuais com células editáveis, rolagem horizontal e inclusão/remoção de linhas e colunas. Tabelas Markdown anteriores são convertidas ao abrir a nota.
+- Desfazer/refazer, buscar/substituir (incluindo tabelas em substituir tudo), alinhamento do texto e cor/marca-texto no trecho selecionado.
+- 10 fontes adicionais disponíveis offline: Roboto Slab, Merriweather, Ubuntu, PT Sans, Inconsolata, Dosis, Anton, Shadows Into Light, Amatic SC e Indie Flower.
+- Paleta violeta da logo e 8 cores vivas opcionais em Aparência.
+- Salvamento automático com indicador, diário de rascunhos para recuperação, última posição do cursor e rolagem, fechar teclado, contagem da seleção, copiar nota, aviso de título repetido, atalhos fixados na barra, preferências de foco/atalhos e confirmação ao apagar tabelas preenchidas.
+- Dados de tabelas e formatação incluídos em backup, duplicação, modelos e histórico.
+
+As tabelas ficam abaixo do texto da nota. Toque em uma célula para editar. O menu da tabela insere e remove linhas/colunas a partir da célula selecionada. O alinhamento aplica-se ao texto da nota; cores, fontes e marca-texto podem ser aplicados à seleção. TXT e Markdown preservam os textos e as tabelas; o backup Noto preserva também os estilos.
 
 ## Novidades da v0.4.5
 

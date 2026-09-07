@@ -28,6 +28,7 @@ class Note {
     this.cardOpacity = 1,
     this.priority = 0,
     this.dueAt,
+    this.editor = const {},
   });
 
   final String id;
@@ -56,64 +57,73 @@ class Note {
   double cardOpacity;
   int priority;
   DateTime? dueAt;
+  Map<String, dynamic> editor;
 
   Map<String, dynamic> toJson() => {
-        'id': id,
-        'title': title,
-        'body': body,
-        'updatedAt': updatedAt.toIso8601String(),
-        'color': color,
-        'pinned': pinned,
-        'wallpaper': wallpaper,
-        'customWallpaper': customWallpaper,
-        'textColor': textColor,
-        'font': font,
-        'titleFont': titleFont,
-        'bodyFont': bodyFont,
-        'favorite': favorite,
-        'folder': folder,
-        'tags': tags,
-        'checklist': checklist,
-        'deletedAt': deletedAt?.toIso8601String(),
-        'reminderAt': reminderAt?.toIso8601String(),
-        'archived': archived,
-        'wallpaperDarkness': wallpaperDarkness,
-        'wallpaperBlur': wallpaperBlur,
-        'emoji': emoji,
-        'coverImage': coverImage,
-        'cardOpacity': cardOpacity,
-        'priority': priority,
-        'dueAt': dueAt?.toIso8601String(),
-      };
+    'id': id,
+    'title': title,
+    'body': body,
+    'updatedAt': updatedAt.toIso8601String(),
+    'color': color,
+    'pinned': pinned,
+    'wallpaper': wallpaper,
+    'customWallpaper': customWallpaper,
+    'textColor': textColor,
+    'font': font,
+    'titleFont': titleFont,
+    'bodyFont': bodyFont,
+    'favorite': favorite,
+    'folder': folder,
+    'tags': tags,
+    'checklist': checklist,
+    'deletedAt': deletedAt?.toIso8601String(),
+    'reminderAt': reminderAt?.toIso8601String(),
+    'archived': archived,
+    'wallpaperDarkness': wallpaperDarkness,
+    'wallpaperBlur': wallpaperBlur,
+    'emoji': emoji,
+    'coverImage': coverImage,
+    'cardOpacity': cardOpacity,
+    'priority': priority,
+    'dueAt': dueAt?.toIso8601String(),
+    'editor': editor,
+  };
 
   factory Note.fromJson(Map<String, dynamic> json) => Note(
-        id: json['id']?.toString() ?? DateTime.now().microsecondsSinceEpoch.toString(),
-        title: json['title'] ?? '',
-        body: json['body'] ?? '',
-        updatedAt: DateTime.tryParse(json['updatedAt'] ?? '') ?? DateTime.now(),
-        color: json['color'] ?? 0,
-        pinned: json['pinned'] ?? false,
-        wallpaper: json['wallpaper'] ?? 0,
-        customWallpaper: json['customWallpaper'],
-        textColor: json['textColor'] ?? 0,
-        font: json['font'] ?? 0,
-        titleFont: json['titleFont'] is int ? json['titleFont'] as int : null,
-        bodyFont: json['bodyFont'] is int ? json['bodyFont'] as int : null,
-        favorite: json['favorite'] ?? false,
-        folder: json['folder'] ?? 'Geral',
-        tags: List<String>.from(json['tags'] ?? const []),
-        checklist: json['checklist'] ?? false,
-        deletedAt: json['deletedAt'] == null ? null : DateTime.tryParse(json['deletedAt']),
-        reminderAt: json['reminderAt'] == null ? null : DateTime.tryParse(json['reminderAt']),
-        archived: json['archived'] ?? false,
-        wallpaperDarkness: (json['wallpaperDarkness'] ?? .38).toDouble(),
-        wallpaperBlur: (json['wallpaperBlur'] ?? 0).toDouble(),
-        emoji: json['emoji']?.toString() ?? '',
-        coverImage: json['coverImage']?.toString(),
-        cardOpacity: (json['cardOpacity'] ?? 1).toDouble().clamp(.35, 1),
-        priority: (json['priority'] ?? 0).toInt().clamp(0, 3),
-        dueAt: json['dueAt'] == null ? null : DateTime.tryParse(json['dueAt']),
-      );
+    id:
+        json['id']?.toString() ??
+        DateTime.now().microsecondsSinceEpoch.toString(),
+    title: json['title'] ?? '',
+    body: json['body'] ?? '',
+    updatedAt: DateTime.tryParse(json['updatedAt'] ?? '') ?? DateTime.now(),
+    color: json['color'] ?? 0,
+    pinned: json['pinned'] ?? false,
+    wallpaper: json['wallpaper'] ?? 0,
+    customWallpaper: json['customWallpaper'],
+    textColor: json['textColor'] ?? 0,
+    font: json['font'] ?? 0,
+    titleFont: json['titleFont'] is int ? json['titleFont'] as int : null,
+    bodyFont: json['bodyFont'] is int ? json['bodyFont'] as int : null,
+    favorite: json['favorite'] ?? false,
+    folder: json['folder'] ?? 'Geral',
+    tags: List<String>.from(json['tags'] ?? const []),
+    checklist: json['checklist'] ?? false,
+    deletedAt: json['deletedAt'] == null
+        ? null
+        : DateTime.tryParse(json['deletedAt']),
+    reminderAt: json['reminderAt'] == null
+        ? null
+        : DateTime.tryParse(json['reminderAt']),
+    archived: json['archived'] ?? false,
+    wallpaperDarkness: (json['wallpaperDarkness'] ?? .38).toDouble(),
+    wallpaperBlur: (json['wallpaperBlur'] ?? 0).toDouble(),
+    emoji: json['emoji']?.toString() ?? '',
+    coverImage: json['coverImage']?.toString(),
+    cardOpacity: (json['cardOpacity'] ?? 1).toDouble().clamp(.35, 1),
+    priority: (json['priority'] ?? 0).toInt().clamp(0, 3),
+    dueAt: json['dueAt'] == null ? null : DateTime.tryParse(json['dueAt']),
+    editor: Map<String, dynamic>.from(json['editor'] ?? const {}),
+  );
 }
 
 class NotoTemplate {
@@ -124,6 +134,7 @@ class NotoTemplate {
     this.body = '',
     this.checklist = false,
     this.emoji = '',
+    this.editor = const {},
   });
 
   final String id;
@@ -132,24 +143,29 @@ class NotoTemplate {
   String body;
   bool checklist;
   String emoji;
+  Map<String, dynamic> editor;
 
   Map<String, dynamic> toJson() => {
-        'id': id,
-        'name': name,
-        'title': title,
-        'body': body,
-        'checklist': checklist,
-        'emoji': emoji,
-      };
+    'id': id,
+    'name': name,
+    'title': title,
+    'body': body,
+    'checklist': checklist,
+    'emoji': emoji,
+    'editor': editor,
+  };
 
   factory NotoTemplate.fromJson(Map<String, dynamic> json) => NotoTemplate(
-        id: json['id']?.toString() ?? DateTime.now().microsecondsSinceEpoch.toString(),
-        name: json['name']?.toString() ?? 'Modelo',
-        title: json['title']?.toString() ?? '',
-        body: json['body']?.toString() ?? '',
-        checklist: json['checklist'] ?? false,
-        emoji: json['emoji']?.toString() ?? '',
-      );
+    id:
+        json['id']?.toString() ??
+        DateTime.now().microsecondsSinceEpoch.toString(),
+    name: json['name']?.toString() ?? 'Modelo',
+    title: json['title']?.toString() ?? '',
+    body: json['body']?.toString() ?? '',
+    checklist: json['checklist'] ?? false,
+    emoji: json['emoji']?.toString() ?? '',
+    editor: Map<String, dynamic>.from(json['editor'] ?? const {}),
+  );
 }
 
 class NotoAccent {
@@ -159,7 +175,11 @@ class NotoAccent {
 }
 
 class NotoFont {
-  const NotoFont(this.name, this.family, {this.subtitle = 'A imaginação começa aqui'});
+  const NotoFont(
+    this.name,
+    this.family, {
+    this.subtitle = 'A imaginação começa aqui',
+  });
   final String name;
   final String? family;
   final String subtitle;
@@ -167,7 +187,7 @@ class NotoFont {
 
 class NotoAppearance {
   static const accents = <NotoAccent>[
-    NotoAccent('Uva', Color(0xFF7454D6)),
+    NotoAccent('Violeta Noto', Color(0xFF7C3AED)),
     NotoAccent('Índigo', Color(0xFF4F5FD7)),
     NotoAccent('Azul', Color(0xFF2D6FD6)),
     NotoAccent('Céu', Color(0xFF1687C9)),
@@ -183,6 +203,14 @@ class NotoAppearance {
     NotoAccent('Magenta', Color(0xFFA744A3)),
     NotoAccent('Café', Color(0xFF7C6257)),
     NotoAccent('Grafite', Color(0xFF59636B)),
+    NotoAccent('Lavanda viva', Color(0xFF9B6DFF)),
+    NotoAccent('Azul elétrico', Color(0xFF2457F5)),
+    NotoAccent('Turquesa viva', Color(0xFF00B8C4)),
+    NotoAccent('Verde vivo', Color(0xFF009F69)),
+    NotoAccent('Laranja vivo', Color(0xFFF26A16)),
+    NotoAccent('Coral vivo', Color(0xFFEF4565)),
+    NotoAccent('Rosa vivo', Color(0xFFDA187D)),
+    NotoAccent('Magenta viva', Color(0xFFB91FD0)),
   ];
 
   static const fonts = <NotoFont>[
@@ -220,6 +248,16 @@ class NotoAppearance {
     NotoFont('Urbanist', 'Urbanist'),
     NotoFont('DM Serif', 'DMSerifDisplay'),
     NotoFont('Libre Baskerville', 'LibreBaskerville'),
+    NotoFont('RobotoSlab', 'RobotoSlab'),
+    NotoFont('Merriweather', 'Merriweather'),
+    NotoFont('Ubuntu', 'Ubuntu'),
+    NotoFont('PTSans', 'PTSans'),
+    NotoFont('Inconsolata', 'Inconsolata'),
+    NotoFont('Dosis', 'Dosis'),
+    NotoFont('Anton', 'Anton'),
+    NotoFont('ShadowsIntoLight', 'ShadowsIntoLight'),
+    NotoFont('AmaticSC', 'AmaticSC'),
+    NotoFont('IndieFlower', 'IndieFlower'),
   ];
 
   static const noteColors = <Color>[
@@ -297,9 +335,13 @@ class NotoAppearance {
     'Dragão celestial',
   ];
 
-  static int safeFontIndex(int index) => index.clamp(0, fonts.length - 1).toInt();
-  static int safeAccentIndex(int index) => index.clamp(0, accents.length - 1).toInt();
-  static int safeNoteColorIndex(int index) => index.clamp(0, noteColors.length - 1).toInt();
-  static int safeTextColorIndex(int index) => index.clamp(0, textColors.length - 1).toInt();
+  static int safeFontIndex(int index) =>
+      index.clamp(0, fonts.length - 1).toInt();
+  static int safeAccentIndex(int index) =>
+      index.clamp(0, accents.length - 1).toInt();
+  static int safeNoteColorIndex(int index) =>
+      index.clamp(0, noteColors.length - 1).toInt();
+  static int safeTextColorIndex(int index) =>
+      index.clamp(0, textColors.length - 1).toInt();
   static String? familyAt(int index) => fonts[safeFontIndex(index)].family;
 }

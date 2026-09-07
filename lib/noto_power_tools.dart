@@ -1,3 +1,7 @@
+import 'noto_rich_editor.dart';
+
+import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
+
 import 'dart:convert';
 import 'dart:io';
 
@@ -14,25 +18,27 @@ import 'noto_store.dart';
 import 'noto_theme.dart';
 
 String priorityLabel(int priority) => switch (priority) {
-      1 => 'Baixa',
-      2 => 'Média',
-      3 => 'Alta',
-      _ => 'Sem prioridade',
-    };
+  1 => 'Baixa',
+  2 => 'Média',
+  3 => 'Alta',
+  _ => 'Sem prioridade',
+};
 
 IconData priorityIcon(int priority) => switch (priority) {
-      1 => Icons.keyboard_arrow_down_rounded,
-      2 => Icons.remove_rounded,
-      3 => Icons.keyboard_double_arrow_up_rounded,
-      _ => Icons.flag_outlined,
-    };
+  1 => Icons.keyboard_arrow_down_rounded,
+  2 => Icons.remove_rounded,
+  3 => Icons.keyboard_double_arrow_up_rounded,
+  _ => Icons.flag_outlined,
+};
 
 Future<String?> pickPersistentImage(String prefix) async {
   final picked = await ImagePicker().pickImage(source: ImageSource.gallery);
   if (picked == null) return null;
   final dir = await getApplicationDocumentsDirectory();
   final ext = picked.path.contains('.') ? picked.path.split('.').last : 'jpg';
-  final target = File('${dir.path}/${prefix}_${DateTime.now().microsecondsSinceEpoch}.$ext');
+  final target = File(
+    '${dir.path}/${prefix}_${DateTime.now().microsecondsSinceEpoch}.$ext',
+  );
   await File(picked.path).copy(target.path);
   return target.path;
 }
@@ -50,9 +56,22 @@ Future<void> exportNoteFile(Note note, {required bool markdown}) async {
   final ext = markdown ? 'md' : 'txt';
   final title = note.title.trim().isEmpty ? 'Sem título' : note.title.trim();
   final path = '${dir.path}/${_safeFileName(title)}.$ext';
+  final tables = ((note.editor['tables'] as List?) ?? []).map(
+    (e) => NotoTable.fromJson(Map<String, dynamic>.from(e as Map)),
+  );
+  final code = ((note.editor['code'] as List?) ?? []).map(
+    (c) => markdown
+        ? '```${c['language']}\n${c['text']}\n```'
+        : c['text'].toString(),
+  );
+  final body = [
+    note.body,
+    ...code,
+    ...tables.map((t) => markdown ? t.markdown : t.plainText),
+  ].join('\n\n');
   final content = markdown
-      ? '# $title\n\n${note.body}\n\n---\nExportado pelo Noto'
-      : '$title\n\n${note.body}\n\n— Noto';
+      ? '# $title\n\n$body\n\n---\nExportado pelo Noto'
+      : '$title\n\n$body\n\n— Noto';
   final file = File(path);
   await file.writeAsString(content);
   await Share.shareXFiles([XFile(file.path)], text: 'Exportado pelo Noto');
@@ -74,11 +93,16 @@ Future<Note?> importTextNote({required int defaultFont}) async {
   } else {
     return null;
   }
-  final filename = selected.name.replaceFirst(RegExp(r'\.(txt|md|markdown)$', caseSensitive: false), '');
+  final filename = selected.name.replaceFirst(
+    RegExp(r'\.(txt|md|markdown)$', caseSensitive: false),
+    '',
+  );
   final lines = content.split('\n');
   var title = filename;
   var body = content;
-  if (selected.extension?.toLowerCase() != 'txt' && lines.isNotEmpty && lines.first.trim().startsWith('# ')) {
+  if (selected.extension?.toLowerCase() != 'txt' &&
+      lines.isNotEmpty &&
+      lines.first.trim().startsWith('# ')) {
     title = lines.first.trim().substring(2).trim();
     body = lines.skip(1).join('\n').trimLeft();
   }
@@ -92,11 +116,7 @@ Future<Note?> importTextNote({required int defaultFont}) async {
 }
 
 class CalendarPage extends StatefulWidget {
-  const CalendarPage({
-    super.key,
-    required this.store,
-    required this.onOpen,
-  });
+  const CalendarPage({super.key, required this.store, required this.onOpen});
 
   final AppStore store;
   final Future<void> Function(Note note) onOpen;
@@ -112,15 +132,14 @@ class _CalendarPageState extends State<CalendarPage> {
       a.year == b.year && a.month == b.month && a.day == b.day;
 
   List<Note> _notesFor(DateTime day) => widget.store.notes.where((note) {
-        if (note.deletedAt != null) return false;
-        return _sameDay(note.updatedAt, day) ||
-            (note.dueAt != null && _sameDay(note.dueAt!, day));
-      }).toList()
-        ..sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
+    if (note.deletedAt != null) return false;
+    return _sameDay(note.updatedAt, day) ||
+        (note.dueAt != null && _sameDay(note.dueAt!, day));
+  }).toList()..sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
 
   void _changeMonth(int delta) => setState(() {
-        month = DateTime(month.year, month.month + delta);
-      });
+    month = DateTime(month.year, month.month + delta);
+  });
 
   Future<void> _openDay(DateTime day) async {
     final notes = _notesFor(day);
@@ -139,10 +158,13 @@ class _CalendarPageState extends State<CalendarPage> {
                   Expanded(
                     child: Text(
                       DateFormat("dd 'de' MMMM", 'pt_BR').format(day),
-                      style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800),
+                      style: Theme.of(context).textTheme.titleLarge
+                          ?.copyWith(fontWeight: FontWeight.w800),
                     ),
                   ),
-                  Text('${notes.length} ${notes.length == 1 ? 'nota' : 'notas'}'),
+                  Text(
+                    '${notes.length} ${notes.length == 1 ? 'nota' : 'notas'}',
+                  ),
                 ],
               ),
             ),
@@ -154,11 +176,23 @@ class _CalendarPageState extends State<CalendarPage> {
                       itemCount: notes.length,
                       itemBuilder: (_, index) {
                         final note = notes[index];
-                        final dueHere = note.dueAt != null && _sameDay(note.dueAt!, day);
+                        final dueHere =
+                            note.dueAt != null && _sameDay(note.dueAt!, day);
                         return ListTile(
-                          leading: Text(note.emoji.isEmpty ? '•' : note.emoji, style: const TextStyle(fontSize: 22)),
-                          title: Text(note.title.trim().isEmpty ? 'Sem título' : note.title),
-                          subtitle: Text(dueHere ? 'Prazo · ${priorityLabel(note.priority)}' : 'Editada neste dia'),
+                          leading: Text(
+                            note.emoji.isEmpty ? '•' : note.emoji,
+                            style: const TextStyle(fontSize: 22),
+                          ),
+                          title: Text(
+                            note.title.trim().isEmpty
+                                ? 'Sem título'
+                                : note.title,
+                          ),
+                          subtitle: Text(
+                            dueHere
+                                ? 'Prazo · ${priorityLabel(note.priority)}'
+                                : 'Editada neste dia',
+                          ),
                           onTap: () async {
                             Navigator.pop(sheetContext);
                             await widget.onOpen(note);
@@ -202,15 +236,22 @@ class _CalendarPageState extends State<CalendarPage> {
             padding: const EdgeInsets.fromLTRB(12, 10, 12, 4),
             child: Row(
               children: [
-                IconButton(onPressed: () => _changeMonth(-1), icon: const Icon(Icons.chevron_left_rounded)),
+                IconButton(
+                  onPressed: () => _changeMonth(-1),
+                  icon: const Icon(Icons.chevron_left_rounded),
+                ),
                 Expanded(
                   child: Text(
                     DateFormat('MMMM yyyy', 'pt_BR').format(month),
                     textAlign: TextAlign.center,
-                    style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800),
+                    style: Theme.of(context).textTheme.titleLarge
+                        ?.copyWith(fontWeight: FontWeight.w800),
                   ),
                 ),
-                IconButton(onPressed: () => _changeMonth(1), icon: const Icon(Icons.chevron_right_rounded)),
+                IconButton(
+                  onPressed: () => _changeMonth(1),
+                  icon: const Icon(Icons.chevron_right_rounded),
+                ),
               ],
             ),
           ),
@@ -218,12 +259,18 @@ class _CalendarPageState extends State<CalendarPage> {
             padding: const EdgeInsets.symmetric(horizontal: 14),
             child: Row(
               children: weekdays
-                  .map((day) => Expanded(
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(vertical: 8),
-                          child: Text(day, textAlign: TextAlign.center, style: const TextStyle(fontWeight: FontWeight.w700)),
+                  .map(
+                    (day) => Expanded(
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 8),
+                        child: Text(
+                          day,
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(fontWeight: FontWeight.w700),
                         ),
-                      ))
+                      ),
+                    ),
+                  )
                   .toList(),
             ),
           ),
@@ -237,7 +284,8 @@ class _CalendarPageState extends State<CalendarPage> {
               itemCount: total,
               itemBuilder: (_, index) {
                 final dayNumber = index - startOffset + 1;
-                if (dayNumber < 1 || dayNumber > days) return const SizedBox.shrink();
+                if (dayNumber < 1 || dayNumber > days)
+                  return const SizedBox.shrink();
                 final day = DateTime(month.year, month.month, dayNumber);
                 final notes = _notesFor(day);
                 final today = _sameDay(day, DateTime.now());
@@ -249,11 +297,23 @@ class _CalendarPageState extends State<CalendarPage> {
                     padding: const EdgeInsets.symmetric(vertical: 7),
                     decoration: BoxDecoration(
                       borderRadius: BorderRadius.circular(10),
-                      border: today ? Border.all(color: Theme.of(context).colorScheme.primary, width: 1.5) : null,
+                      border: today
+                          ? Border.all(
+                              color: Theme.of(context).colorScheme.primary,
+                              width: 1.5,
+                            )
+                          : null,
                     ),
                     child: Column(
                       children: [
-                        Text('$dayNumber', style: TextStyle(fontWeight: today ? FontWeight.w900 : FontWeight.w600)),
+                        Text(
+                          '$dayNumber',
+                          style: TextStyle(
+                            fontWeight: today
+                                ? FontWeight.w900
+                                : FontWeight.w600,
+                          ),
+                        ),
                         if (notes.isNotEmpty) ...[
                           const SizedBox(height: 5),
                           Container(
@@ -265,7 +325,10 @@ class _CalendarPageState extends State<CalendarPage> {
                             ),
                           ),
                           if (notes.length > 1)
-                            Text('${notes.length}', style: Theme.of(context).textTheme.labelSmall),
+                            Text(
+                              '${notes.length}',
+                              style: Theme.of(context).textTheme.labelSmall,
+                            ),
                         ],
                       ],
                     ),
@@ -281,95 +344,32 @@ class _CalendarPageState extends State<CalendarPage> {
 }
 
 class MarkdownPreviewPage extends StatelessWidget {
-  const MarkdownPreviewPage({super.key, required this.title, required this.markdown});
+  const MarkdownPreviewPage({
+    super.key,
+    required this.title,
+    required this.markdown,
+  });
 
   final String title;
   final String markdown;
 
-  List<Widget> _buildBlocks(BuildContext context) {
-    final widgets = <Widget>[];
-    var inCode = false;
-    final code = <String>[];
-
-    void flushCode() {
-      if (code.isEmpty) return;
-      widgets.add(Container(
-        width: double.infinity,
-        margin: const EdgeInsets.symmetric(vertical: 8),
-        padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(
-          color: Theme.of(context).colorScheme.surfaceContainerHighest,
-          borderRadius: BorderRadius.circular(10),
-        ),
-        child: SelectableText(code.join('\n'), style: const TextStyle(fontFamily: 'FiraCode', fontSize: 13, height: 1.45)),
-      ));
-      code.clear();
-    }
-
-    for (final raw in markdown.split('\n')) {
-      final line = raw.trimRight();
-      if (line.trim().startsWith('```')) {
-        if (inCode) flushCode();
-        inCode = !inCode;
-        continue;
-      }
-      if (inCode) {
-        code.add(line);
-        continue;
-      }
-      if (line.trim().isEmpty) {
-        widgets.add(const SizedBox(height: 9));
-      } else if (RegExp(r'^#{1,3} ').hasMatch(line)) {
-        final hashes = line.indexOf(' ');
-        widgets.add(Padding(
-          padding: const EdgeInsets.only(top: 10, bottom: 4),
-          child: Text(line.substring(hashes + 1), style: TextStyle(fontSize: hashes == 1 ? 28 : hashes == 2 ? 22 : 18, fontWeight: FontWeight.w900)),
-        ));
-      } else if (line.trim() == '---') {
-        widgets.add(const Divider(height: 24));
-      } else if (line.startsWith('> ')) {
-        widgets.add(Container(
-          margin: const EdgeInsets.symmetric(vertical: 5),
-          padding: const EdgeInsets.fromLTRB(12, 8, 8, 8),
-          decoration: BoxDecoration(border: Border(left: BorderSide(color: Theme.of(context).colorScheme.primary, width: 3))),
-          child: Text(line.substring(2), style: const TextStyle(fontStyle: FontStyle.italic)),
-        ));
-      } else if (line.startsWith('- ') || line.startsWith('* ')) {
-        widgets.add(Padding(
-          padding: const EdgeInsets.only(left: 8, bottom: 5),
-          child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            const Text('•  '),
-            Expanded(child: Text(line.substring(2))),
-          ]),
-        ));
-      } else if (line.startsWith('[ ] ') || line.startsWith('[x] ')) {
-        widgets.add(Padding(
-          padding: const EdgeInsets.only(bottom: 5),
-          child: Row(children: [
-            Icon(line.startsWith('[x]') ? Icons.check_box_rounded : Icons.check_box_outline_blank_rounded, size: 19),
-            const SizedBox(width: 8),
-            Expanded(child: Text(line.substring(4))),
-          ]),
-        ));
-      } else {
-        widgets.add(Padding(
-          padding: const EdgeInsets.only(bottom: 5),
-          child: SelectableText(line, style: const TextStyle(height: 1.55)),
-        ));
-      }
-    }
-    if (inCode) flushCode();
-    return widgets;
-  }
-
   @override
   Widget build(BuildContext context) => Scaffold(
-        appBar: AppBar(title: Text(title.trim().isEmpty ? 'Prévia Markdown' : title)),
-        body: ListView(
-          padding: const EdgeInsets.fromLTRB(22, 16, 22, 40),
-          children: _buildBlocks(context),
-        ),
-      );
+    appBar: AppBar(
+      title: Text(title.trim().isEmpty ? 'Prévia Markdown' : title),
+    ),
+    body: Markdown(
+      data: markdown.replaceAllMapped(
+        RegExp(r'^\[([ xX])\] ', multiLine: true),
+        (match) => '- [${match[1]}] ',
+      ),
+      selectable: true,
+      softLineBreak: true,
+      padding: const EdgeInsets.fromLTRB(22, 16, 22, 40),
+      // Notes stay offline: never fetch remote images embedded in Markdown.
+      imageBuilder: (uri, title, alt) => Text(alt ?? 'Imagem'),
+    ),
+  );
 }
 
 class PowerNoteStyleSheet extends StatefulWidget {
@@ -396,11 +396,15 @@ class _PowerNoteStyleSheetState extends State<PowerNoteStyleSheet> {
   }
 
   Future<void> _pickFont({required bool title}) async {
-    final current = title ? (widget.note.titleFont ?? widget.note.font) : (widget.note.bodyFont ?? widget.note.font);
+    final current = title
+        ? (widget.note.titleFont ?? widget.note.font)
+        : (widget.note.bodyFont ?? widget.note.font);
     final selected = await showModalBottomSheet<int>(
       context: context,
       isScrollControlled: true,
-      builder: (_) => legacy.FontPickerSheet(selected: NotoAppearance.safeFontIndex(current)),
+      builder: (_) => legacy.FontPickerSheet(
+        selected: NotoAppearance.safeFontIndex(current),
+      ),
     );
     if (selected == null) return;
     await _save(() {
@@ -427,48 +431,73 @@ class _PowerNoteStyleSheetState extends State<PowerNoteStyleSheet> {
         child: ListView(
           padding: const EdgeInsets.fromLTRB(18, 8, 18, 32),
           children: [
-            Text('Estilo da nota', style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w900)),
+            Text(
+              'Estilo da nota',
+              style: Theme.of(context).textTheme.headlineSmall
+                  ?.copyWith(fontWeight: FontWeight.w900),
+            ),
             const SizedBox(height: 16),
             TextField(
               controller: TextEditingController(text: note.emoji),
               maxLength: 4,
-              decoration: const InputDecoration(labelText: 'Emoji / ícone', hintText: 'Ex.: 📚'),
+              decoration: const InputDecoration(
+                labelText: 'Emoji / ícone',
+                hintText: 'Ex.: 📚',
+              ),
               onSubmitted: (value) => _save(() => note.emoji = value.trim()),
             ),
             const SizedBox(height: 8),
-            const Text('COR DA NOTA', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w900)),
+            const Text(
+              'COR DA NOTA',
+              style: TextStyle(fontSize: 11, fontWeight: FontWeight.w900),
+            ),
             const SizedBox(height: 9),
             Wrap(
               spacing: 9,
               runSpacing: 9,
-              children: List.generate(NotoAppearance.noteColors.length, (index) {
-                final color = index == 0 ? Theme.of(context).colorScheme.surfaceContainerHighest : NotoAppearance.noteColors[index];
+              children: List.generate(NotoAppearance.noteColors.length, (
+                index,
+              ) {
+                final color = index == 0
+                    ? Theme.of(context).colorScheme.surfaceContainerHighest
+                    : NotoAppearance.noteColors[index];
                 return InkWell(
                   customBorder: const CircleBorder(),
                   onTap: () => _save(() => note.color = index),
                   child: CircleAvatar(
                     radius: 19,
                     backgroundColor: color,
-                    child: note.color == index ? const Icon(Icons.check_rounded) : null,
+                    child: note.color == index
+                        ? const Icon(Icons.check_rounded)
+                        : null,
                   ),
                 );
               }),
             ),
             const SizedBox(height: 18),
-            const Text('COR DO TEXTO', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w900)),
+            const Text(
+              'COR DO TEXTO',
+              style: TextStyle(fontSize: 11, fontWeight: FontWeight.w900),
+            ),
             const SizedBox(height: 9),
             Wrap(
               spacing: 9,
               runSpacing: 9,
-              children: List.generate(NotoAppearance.textColors.length, (index) {
-                final color = index == 0 ? Theme.of(context).colorScheme.surfaceContainerHighest : NotoAppearance.textColors[index];
+              children: List.generate(NotoAppearance.textColors.length, (
+                index,
+              ) {
+                final color = index == 0
+                    ? Theme.of(context).colorScheme.surfaceContainerHighest
+                    : NotoAppearance.textColors[index];
                 return InkWell(
                   customBorder: const CircleBorder(),
                   onTap: () => _save(() => note.textColor = index),
                   child: CircleAvatar(
                     radius: 19,
                     backgroundColor: color,
-                    child: note.textColor == index ? const Icon(Icons.check_rounded) : null,
+                    child: note.textColor == index
+                        ? const Icon(Icons.check_rounded)
+                        : null,
                   ),
                 );
               }),
@@ -478,21 +507,35 @@ class _PowerNoteStyleSheetState extends State<PowerNoteStyleSheet> {
               contentPadding: EdgeInsets.zero,
               leading: const Icon(Icons.title_rounded),
               title: const Text('Fonte do título'),
-              subtitle: Text(NotoAppearance.fonts[NotoAppearance.safeFontIndex(note.titleFont ?? note.font)].name),
+              subtitle: Text(
+                NotoAppearance
+                    .fonts[NotoAppearance.safeFontIndex(
+                      note.titleFont ?? note.font,
+                    )]
+                    .name,
+              ),
               onTap: () => _pickFont(title: true),
             ),
             ListTile(
               contentPadding: EdgeInsets.zero,
               leading: const Icon(Icons.notes_rounded),
               title: const Text('Fonte do corpo'),
-              subtitle: Text(NotoAppearance.fonts[NotoAppearance.safeFontIndex(note.bodyFont ?? note.font)].name),
+              subtitle: Text(
+                NotoAppearance
+                    .fonts[NotoAppearance.safeFontIndex(
+                      note.bodyFont ?? note.font,
+                    )]
+                    .name,
+              ),
               onTap: () => _pickFont(title: false),
             ),
             ListTile(
               contentPadding: EdgeInsets.zero,
               leading: const Icon(Icons.image_outlined),
               title: const Text('Capa do card'),
-              subtitle: Text(note.coverImage == null ? 'Sem capa' : 'Imagem escolhida'),
+              subtitle: Text(
+                note.coverImage == null ? 'Sem capa' : 'Imagem escolhida',
+              ),
               trailing: note.coverImage == null
                   ? const Icon(Icons.chevron_right_rounded)
                   : IconButton(
@@ -510,11 +553,15 @@ class _PowerNoteStyleSheetState extends State<PowerNoteStyleSheet> {
               onTap: () => showModalBottomSheet<void>(
                 context: context,
                 isScrollControlled: true,
-                builder: (_) => legacy.WallpaperSheet(store: widget.store, note: note),
+                builder: (_) =>
+                    legacy.WallpaperSheet(store: widget.store, note: note),
               ).then((_) => widget.onChanged()),
             ),
             const SizedBox(height: 8),
-            Text('Transparência do card · ${(note.cardOpacity * 100).round()}%', style: const TextStyle(fontWeight: FontWeight.w700)),
+            Text(
+              'Transparência do card · ${(note.cardOpacity * 100).round()}%',
+              style: const TextStyle(fontWeight: FontWeight.w700),
+            ),
             Slider(
               value: note.cardOpacity,
               min: .35,
@@ -530,12 +577,15 @@ class _PowerNoteStyleSheetState extends State<PowerNoteStyleSheet> {
               onChanged: (value) => _save(() => note.checklist = value),
             ),
             if (noteWallpaper(note) != null) ...[
-              Text('Escurecer wallpaper · ${(note.wallpaperDarkness * 100).round()}%'),
+              Text(
+                'Escurecer wallpaper · ${(note.wallpaperDarkness * 100).round()}%',
+              ),
               Slider(
                 value: note.wallpaperDarkness,
                 min: 0,
                 max: .8,
-                onChanged: (value) => _save(() => note.wallpaperDarkness = value),
+                onChanged: (value) =>
+                    _save(() => note.wallpaperDarkness = value),
               ),
               Text('Desfoque · ${note.wallpaperBlur.round()}'),
               Slider(
