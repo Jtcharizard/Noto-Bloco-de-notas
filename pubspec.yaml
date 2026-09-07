@@ -1,7 +1,7 @@
 name: bloco_personalizavel
 description: Bloco de notas offline com temas e fontes personalizaveis.
 publish_to: none
-version: 1.6.0+8
+version: 1.7.0+9
 
 environment:
   sdk: '>=3.4.0 <4.0.0'
@@ -128,6 +128,37 @@ flutter:
     - family: LibreBaskerville
       fonts:
         - asset: assets/fonts/LibreBaskerville-Regular.ttf
+
+    - family: RobotoSlab
+      fonts:
+        - asset: assets/fonts/RobotoSlab.ttf
+    - family: Merriweather
+      fonts:
+        - asset: assets/fonts/Merriweather.ttf
+    - family: Ubuntu
+      fonts:
+        - asset: assets/fonts/Ubuntu.ttf
+    - family: PTSans
+      fonts:
+        - asset: assets/fonts/PTSans.ttf
+    - family: Inconsolata
+      fonts:
+        - asset: assets/fonts/Inconsolata.ttf
+    - family: Dosis
+      fonts:
+        - asset: assets/fonts/Dosis.ttf
+    - family: Anton
+      fonts:
+        - asset: assets/fonts/Anton.ttf
+    - family: ShadowsIntoLight
+      fonts:
+        - asset: assets/fonts/ShadowsIntoLight.ttf
+    - family: AmaticSC
+      fonts:
+        - asset: assets/fonts/AmaticSC.ttf
+    - family: IndieFlower
+      fonts:
+        - asset: assets/fonts/IndieFlower.ttf
 
 flutter_launcher_icons:
   android: true

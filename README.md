@@ -10,7 +10,7 @@
   [![Flutter](https://img.shields.io/badge/Flutter-3.x-02569B?logo=flutter&logoColor=white)](https://flutter.dev/)
   [![Dart](https://img.shields.io/badge/Dart-3.x-0175C2?logo=dart&logoColor=white)](https://dart.dev/)
   [![Android](https://img.shields.io/badge/Android-APK-3DDC84?logo=android&logoColor=white)](https://github.com/Jtcharizard/Noto-Bloco-de-notas/actions/workflows/gerar-apk.yml)
-  [![Versão](https://img.shields.io/badge/versão-1.6.0-F28C28)](https://github.com/Jtcharizard/Noto-Bloco-de-notas)
+  [![Versão](https://img.shields.io/badge/versão-1.7.0-F28C28)](https://github.com/Jtcharizard/Noto-Bloco-de-notas)
   [![Build APK](https://github.com/Jtcharizard/Noto-Bloco-de-notas/actions/workflows/gerar-apk.yml/badge.svg)](https://github.com/Jtcharizard/Noto-Bloco-de-notas/actions/workflows/gerar-apk.yml)
 </div>
 
@@ -43,14 +43,16 @@ O app funciona sem conta e sem internet. As notas e preferências ficam armazena
 - Apresentação inicial e tela Sobre
 - Salvamento local e funcionamento totalmente offline
 
-## Novidades da v1.6.0
+## Novidades da v1.7.0
 
-- Novas logos: ícone com volume e marca interna simplificada
-- Barra de formatação no editor: negrito, itálico, título, listas, checklist, citação, código e separador
-- Inserção de tabelas com 1–6 colunas e 1–20 linhas, além do cabeçalho
-- Prévia com tabelas e formatação Markdown, preservando as notas existentes
+- Tabelas visuais com células editáveis, rolagem horizontal e inclusão/remoção de linhas e colunas. Tabelas Markdown anteriores são convertidas ao abrir a nota.
+- Desfazer/refazer, buscar/substituir (incluindo tabelas em substituir tudo), alinhamento do texto e cor/marca-texto no trecho selecionado.
+- 10 fontes adicionais disponíveis offline: Roboto Slab, Merriweather, Ubuntu, PT Sans, Inconsolata, Dosis, Anton, Shadows Into Light, Amatic SC e Indie Flower.
+- Paleta violeta da logo e 8 cores vivas opcionais em Aparência.
+- Salvamento automático com indicador, diário de rascunhos para recuperação, última posição do cursor e rolagem, fechar teclado, contagem da seleção, copiar nota, aviso de título repetido, atalhos fixados na barra, preferências de foco/atalhos e confirmação ao apagar tabelas preenchidas.
+- Dados de tabelas e formatação incluídos em backup, duplicação, modelos e histórico.
 
-No editor de texto, toque na tabela da barra, escolha o tamanho e preencha as células entre `|`. Deslize a barra para acessar todos os comandos e toque no olho para ver o resultado. A barra formata o texto selecionado; sem seleção, insere um texto substituível. Tabelas e formatação são salvas e exportadas em Markdown. O editor de checklist mantém seus controles próprios.
+As tabelas ficam abaixo do texto da nota. Toque em uma célula para editar. O menu da tabela insere e remove linhas/colunas a partir da célula selecionada. O alinhamento aplica-se ao texto da nota; cores, fontes e marca-texto podem ser aplicados à seleção. TXT e Markdown preservam os textos e as tabelas; o backup Noto preserva também os estilos.
 
 ## Novidades da v0.4.5
 
