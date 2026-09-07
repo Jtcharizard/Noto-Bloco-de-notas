@@ -31,18 +31,13 @@ ThemeData notoTheme(AppStore store, Brightness brightness) {
   final muted = dark ? const Color(0xFFC0AFD5) : const Color(0xFF685979);
   final line = dark ? const Color(0xFF4B3862) : const Color(0xFFD9C8F0);
 
-  final scheme = ColorScheme(
+  final generated = ColorScheme.fromSeed(
+    seedColor: selectedAccent,
     brightness: brightness,
+  );
+  final scheme = generated.copyWith(
     primary: accent,
     onPrimary: accent.computeLuminance() > .179 ? Colors.black : Colors.white,
-    primaryContainer: dark ? const Color(0xFF49316D) : const Color(0xFFE8DAFF),
-    onPrimaryContainer: dark
-        ? const Color(0xFFF7EEFF)
-        : const Color(0xFF35145F),
-    secondary: const Color(0xFFD127B8),
-    onSecondary: Colors.white,
-    error: const Color(0xFFB3261E),
-    onError: Colors.white,
     surface: surface,
     onSurface: text,
     outline: muted,
@@ -51,7 +46,10 @@ ThemeData notoTheme(AppStore store, Brightness brightness) {
     surfaceContainerLow: surface,
     surfaceContainer: raised,
     surfaceContainerHigh: raised,
-    surfaceContainerHighest: raised,
+    surfaceContainerHighest: Color.alphaBlend(
+      accent.withValues(alpha: .08),
+      raised,
+    ),
   );
 
   final base = ThemeData(
@@ -62,6 +60,9 @@ ThemeData notoTheme(AppStore store, Brightness brightness) {
   );
 
   return base.copyWith(
+    iconButtonTheme: IconButtonThemeData(
+      style: IconButton.styleFrom(foregroundColor: accent),
+    ),
     scaffoldBackgroundColor: surface,
     canvasColor: surface,
     appBarTheme: AppBarTheme(
@@ -350,4 +351,19 @@ class NotoTile extends StatelessWidget {
       ),
     );
   }
+}
+
+/// Reserves system navigation space for every route, including modal sheets.
+class NotoSafeFrame extends StatelessWidget {
+  const NotoSafeFrame({super.key, required this.child});
+  final Widget child;
+  @override
+  Widget build(BuildContext context) => ColoredBox(
+    color: Theme.of(context).colorScheme.surface,
+    child: SafeArea(
+      top: false,
+      maintainBottomViewPadding: true,
+      child: Padding(padding: const EdgeInsets.only(bottom: 12), child: child),
+    ),
+  );
 }

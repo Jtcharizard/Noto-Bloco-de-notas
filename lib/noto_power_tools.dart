@@ -59,8 +59,14 @@ Future<void> exportNoteFile(Note note, {required bool markdown}) async {
   final tables = ((note.editor['tables'] as List?) ?? []).map(
     (e) => NotoTable.fromJson(Map<String, dynamic>.from(e as Map)),
   );
+  final code = ((note.editor['code'] as List?) ?? []).map(
+    (c) => markdown
+        ? '```${c['language']}\n${c['text']}\n```'
+        : c['text'].toString(),
+  );
   final body = [
     note.body,
+    ...code,
     ...tables.map((t) => markdown ? t.markdown : t.plainText),
   ].join('\n\n');
   final content = markdown

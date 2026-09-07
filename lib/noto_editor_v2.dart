@@ -1,3 +1,5 @@
+import 'noto_code_block.dart';
+
 import 'dart:async';
 import 'dart:convert';
 
@@ -56,6 +58,7 @@ class _EditorPageV2State extends State<EditorPageV2>
         (widget.note.editor['scroll'] as num?)?.toDouble() ?? 0,
   );
   final List<NotoTable> tables = [];
+  final List<Map<String, dynamic>> codeBlocks = [];
   final List<String> undoStack = [];
   final List<String> redoStack = [];
   Set<String> pinnedTools = {'table', 'bold', 'color', 'search'};
@@ -73,6 +76,43 @@ class _EditorPageV2State extends State<EditorPageV2>
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     final metadata = widget.note.editor;
+    codeBlocks.addAll(
+      ((metadata['code'] as List?) ?? []).map(
+        (e) => Map<String, dynamic>.from(e as Map),
+      ),
+    );
+    if (!widget.note.checklist && codeBlocks.isEmpty) {
+      body.text = body.text.replaceAllMapped(
+        RegExp(r'^```([^\n]*)\n([\s\S]*?)\n```[ \t]*(?:\n|$)', multiLine: true),
+        (m) {
+          final language = m[1]!.trim();
+          codeBlocks.add({
+            'id':
+                'code-${DateTime.now().microsecondsSinceEpoch}-${codeBlocks.length}',
+            'language':
+                [
+                  'dart',
+                  'python',
+                  'javascript',
+                  'typescript',
+                  'html',
+                  'css',
+                  'json',
+                  'sql',
+                  'java',
+                  'c',
+                  'cpp',
+                  'bash',
+                ].contains(language)
+                ? language
+                : 'texto',
+            'text': m[2],
+            'wrap': false,
+          });
+          return '';
+        },
+      );
+    }
     tables.addAll(
       ((metadata['tables'] as List?) ?? []).map(
         (e) => NotoTable.fromJson(Map<String, dynamic>.from(e as Map)),
@@ -83,6 +123,13 @@ class _EditorPageV2State extends State<EditorPageV2>
           0,
           TextAlign.values.length - 1,
         )];
+    final taskLines = body.text
+        .split('\n')
+        .where((s) => s.trim().isNotEmpty)
+        .toList();
+    if (taskLines.isNotEmpty &&
+        taskLines.every((s) => RegExp(r'^\s*(?:- )?\[[ xX]\]').hasMatch(s)))
+      widget.note.checklist = true;
     if (tables.isEmpty && !widget.note.checklist) {
       final migration = migrateTables(body.text);
       if (migration.tables.isNotEmpty) {
@@ -100,6 +147,8 @@ class _EditorPageV2State extends State<EditorPageV2>
   }
 
   Map<String, dynamic> _editorData() => {
+    'checklist': widget.note.checklist,
+    'code': codeBlocks,
     'styles': body.marks,
     'tables': tables.map((t) => t.toJson()).toList(),
     'align': alignment.index,
@@ -109,6 +158,8 @@ class _EditorPageV2State extends State<EditorPageV2>
   String _snapshot() => jsonEncode({
     'title': title.text,
     'body': body.text,
+    'checklist': widget.note.checklist,
+    'code': codeBlocks,
     'styles': body.marks,
     'tables': tables.map((t) => t.toJson()).toList(),
     'align': alignment.index,
@@ -195,12 +246,20 @@ class _EditorPageV2State extends State<EditorPageV2>
   void _restoreSnapshot(String raw) {
     final data = Map<String, dynamic>.from(jsonDecode(raw) as Map);
     restoringEditor = true;
+    widget.note.checklist = data['checklist'] as bool? ?? widget.note.checklist;
     title.text = data['title'] as String;
     body.restore(
       data['body'] as String,
       data['styles'] as List? ?? [],
       body.selection.isValid ? body.selection.extentOffset : 0,
     );
+    codeBlocks
+      ..clear()
+      ..addAll(
+        ((data['code'] as List?) ?? []).map(
+          (e) => Map<String, dynamic>.from(e as Map),
+        ),
+      );
     tables
       ..clear()
       ..addAll(
@@ -230,10 +289,12 @@ class _EditorPageV2State extends State<EditorPageV2>
   String get fullText => [
     body.text,
     ...tables.map((t) => t.plainText),
+    ...codeBlocks.map((c) => c['text'] as String),
   ].where((s) => s.isNotEmpty).join('\n\n');
   String get fullMarkdown => [
     body.text,
     ...tables.map((t) => t.markdown),
+    ...codeBlocks.map((c) => '```${c['language']}\n${c['text']}\n```'),
   ].where((s) => s.isNotEmpty).join('\n\n');
   int get selectedWords {
     final s = body.selection;
@@ -642,7 +703,8 @@ class _EditorPageV2State extends State<EditorPageV2>
   bool get hasContent =>
       title.text.trim().isNotEmpty ||
       body.text.trim().isNotEmpty ||
-      tables.isNotEmpty;
+      tables.isNotEmpty ||
+      codeBlocks.isNotEmpty;
 
   int get words => body.text.trim().isEmpty
       ? 0
@@ -907,9 +969,33 @@ class _EditorPageV2State extends State<EditorPageV2>
     }
   }
 
-  void _insertCodeBlock() => _format('code');
+  void _insertCodeBlock() {
+    codeBlocks.add({
+      'id': DateTime.now().microsecondsSinceEpoch.toString(),
+      'text': '',
+      'language': 'texto',
+      'wrap': false,
+    });
+    _editorChanged();
+  }
 
   void _format(String kind) {
+    if (kind == 'code') {
+      _insertCodeBlock();
+      return;
+    }
+    if (kind == 'checklist') {
+      widget.note.checklist = true;
+      body.text = body.text.replaceAllMapped(
+        RegExp(r'^- (\[[ xX]\])', multiLine: true),
+        (m) => m[1]!,
+      );
+      _editorChanged();
+      dirty = true;
+      _autosave();
+      setState(() {});
+      return;
+    }
     if (kind == 'bold' || kind == 'italic') {
       final at = body.selection.isValid
           ? body.selection.start
@@ -1482,6 +1568,17 @@ class _EditorPageV2State extends State<EditorPageV2>
                                   widget.note.editor['styles'] as List? ?? [],
                                   0,
                                 );
+                                codeBlocks
+                                  ..clear()
+                                  ..addAll(
+                                    ((widget.note.editor['code'] as List?) ??
+                                            [])
+                                        .map(
+                                          (e) => Map<String, dynamic>.from(
+                                            e as Map,
+                                          ),
+                                        ),
+                                  );
                                 tables
                                   ..clear()
                                   ..addAll(
@@ -1608,12 +1705,26 @@ class _EditorPageV2State extends State<EditorPageV2>
                       if (value == 'code') _insertCodeBlock();
                       if (value == 'export') await _showExport();
                       if (value == 'template') await _saveAsTemplate();
+                      if (value == 'textMode') {
+                        setState(
+                          () => widget.note.checklist = !widget.note.checklist,
+                        );
+                        dirty = true;
+                        _autosave();
+                      }
                       if (value == 'share') await shareNote();
                       if (value == 'duplicate') await _duplicate();
                       if (value == 'archive') await _archiveAndClose();
                       if (value == 'delete') await _deleteAndClose();
                     },
                     itemBuilder: (_) => const [
+                      PopupMenuItem(
+                        value: 'textMode',
+                        child: ListTile(
+                          leading: Icon(Icons.checklist),
+                          title: Text('Alternar checklist / texto'),
+                        ),
+                      ),
                       PopupMenuItem(
                         value: 'organize',
                         child: ListTile(
@@ -1867,6 +1978,16 @@ class _EditorPageV2State extends State<EditorPageV2>
                                     color: fg,
                                   ),
                                 ),
+                                for (final code in codeBlocks)
+                                  NotoCodeBlock(
+                                    key: ValueKey('${code['id']}-$tableEpoch'),
+                                    data: code,
+                                    onChanged: _editorChanged,
+                                    onDelete: () {
+                                      codeBlocks.remove(code);
+                                      _editorChanged();
+                                    },
+                                  ),
                                 for (final table in tables)
                                   VisualNoteTable(
                                     key: ValueKey('${table.id}-$tableEpoch'),

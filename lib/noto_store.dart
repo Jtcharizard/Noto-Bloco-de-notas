@@ -155,10 +155,12 @@ class AppStore extends ChangeNotifier {
           Note(
             id: id,
             title: data['title'] as String,
+            checklist: data['checklist'] as bool? ?? false,
             body: data['body'] as String,
             updatedAt:
                 DateTime.tryParse(draft['at'] as String) ?? DateTime.now(),
             editor: {
+              'code': data['code'] ?? [],
               'styles': data['styles'],
               'tables': data['tables'],
               'align': data['align'],
