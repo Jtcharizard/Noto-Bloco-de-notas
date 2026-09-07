@@ -4,6 +4,10 @@ import 'package:bloco_personalizavel/noto_theme.dart';
 import 'package:bloco_personalizavel/noto_store.dart';
 import 'package:bloco_personalizavel/noto_code_block.dart';
 import 'package:bloco_personalizavel/noto_editor.dart';
+import 'package:bloco_personalizavel/noto_mixed_editor.dart';
+import 'package:bloco_personalizavel/noto_power_tools.dart';
+import 'package:bloco_personalizavel/noto_models.dart';
+import 'package:intl/date_symbol_data_local.dart';
 
 void main() {
   testWidgets('navigation area stays separated from bottom controls', (
@@ -101,4 +105,51 @@ void main() {
       expect(data['language'], 'python');
     },
   );
+  testWidgets('mixed editor keeps text and clickable tasks together', (
+    tester,
+  ) async {
+    final controller = TextEditingController(
+      text: 'Introdução\n- [ ] Fazer teste\nConclusão',
+    );
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: MixedContentEditor(controller: controller, onChanged: () {}),
+        ),
+      ),
+    );
+    expect(find.byType(Checkbox), findsOneWidget);
+    expect(find.text('Introdução'), findsOneWidget);
+    expect(find.text('Conclusão'), findsOneWidget);
+    await tester.tap(find.byType(Checkbox));
+    await tester.pump();
+    expect(controller.text, contains('- [x] Fazer teste'));
+    await tester.tap(find.byTooltip('Opções da linha').first);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Transformar em tarefa'));
+    await tester.pumpAndSettle();
+    expect(controller.text, startsWith('- [ ] Introdução'));
+    await tester.pumpWidget(const SizedBox());
+    controller.dispose();
+  });
+
+  testWidgets('calendar renders localized month instead of blank route', (
+    tester,
+  ) async {
+    await initializeDateFormatting('pt_BR');
+    final store = AppStore();
+    store.notes.add(
+      Note(id: 'cal', title: 'Hoje', body: '', updatedAt: DateTime.now()),
+    );
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: notoTheme(store, Brightness.light),
+        home: CalendarPage(store: store, onOpen: (_) async {}),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('Calendário'), findsOneWidget);
+    expect(find.byType(GridView), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
 }

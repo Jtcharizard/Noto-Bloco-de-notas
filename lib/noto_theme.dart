@@ -60,9 +60,6 @@ ThemeData notoTheme(AppStore store, Brightness brightness) {
   );
 
   return base.copyWith(
-    iconButtonTheme: IconButtonThemeData(
-      style: IconButton.styleFrom(foregroundColor: accent),
-    ),
     scaffoldBackgroundColor: surface,
     canvasColor: surface,
     appBarTheme: AppBarTheme(

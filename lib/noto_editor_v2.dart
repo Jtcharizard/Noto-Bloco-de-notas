@@ -1,4 +1,5 @@
 import 'noto_code_block.dart';
+import 'noto_mixed_editor.dart';
 
 import 'dart:async';
 import 'dart:convert';
@@ -123,13 +124,12 @@ class _EditorPageV2State extends State<EditorPageV2>
           0,
           TextAlign.values.length - 1,
         )];
-    final taskLines = body.text
-        .split('\n')
-        .where((s) => s.trim().isNotEmpty)
-        .toList();
-    if (taskLines.isNotEmpty &&
-        taskLines.every((s) => RegExp(r'^\s*(?:- )?\[[ xX]\]').hasMatch(s)))
+    if (RegExp(
+      r'^\s*(?:-\s*)?\[[ xX]\]',
+      multiLine: true,
+    ).hasMatch(body.text)) {
       widget.note.checklist = true;
+    }
     if (tables.isEmpty && !widget.note.checklist) {
       final migration = migrateTables(body.text);
       if (migration.tables.isNotEmpty) {
@@ -661,41 +661,178 @@ class _EditorPageV2State extends State<EditorPageV2>
     );
   }
 
-  Widget _richToolbar() => Material(
-    color: Theme.of(context).colorScheme.primaryContainer,
-    borderRadius: BorderRadius.circular(12),
-    child: SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
+  Future<void> _showInsertMenu() async {
+    final value = await showModalBottomSheet<String>(
+      context: context,
+      useSafeArea: true,
+      builder: (ctx) => SafeArea(
+        child: Wrap(
+          children: [
+            const ListTile(title: Text('Inserir')),
+            ListTile(
+              leading: const Icon(Icons.check_box_outlined),
+              title: const Text('Tarefa com checkbox'),
+              onTap: () => Navigator.pop(ctx, 'checklist'),
+            ),
+            ListTile(
+              leading: const Icon(Icons.table_chart_outlined),
+              title: const Text('Tabela'),
+              onTap: () => Navigator.pop(ctx, 'table'),
+            ),
+            ListTile(
+              leading: const Icon(Icons.code_rounded),
+              title: const Text('Bloco de código'),
+              onTap: () => Navigator.pop(ctx, 'code'),
+            ),
+            ListTile(
+              leading: const Icon(Icons.horizontal_rule_rounded),
+              title: const Text('Separador'),
+              onTap: () => Navigator.pop(ctx, 'divider'),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (value != null) _tool(value);
+  }
+
+  Future<void> _showFormatMenu() async {
+    final value = await showModalBottomSheet<String>(
+      context: context,
+      useSafeArea: true,
+      builder: (ctx) => SafeArea(
+        child: Wrap(
+          children: [
+            const ListTile(title: Text('Formatar texto')),
+            ListTile(
+              leading: const Icon(Icons.title_rounded),
+              title: const Text('Título'),
+              onTap: () => Navigator.pop(ctx, 'heading'),
+            ),
+            ListTile(
+              leading: const Icon(Icons.format_list_bulleted_rounded),
+              title: const Text('Lista'),
+              onTap: () => Navigator.pop(ctx, 'list'),
+            ),
+            ListTile(
+              leading: const Icon(Icons.format_quote_rounded),
+              title: const Text('Citação'),
+              onTap: () => Navigator.pop(ctx, 'quote'),
+            ),
+            ListTile(
+              leading: const Icon(Icons.font_download_outlined),
+              title: const Text('Fonte'),
+              onTap: () => Navigator.pop(ctx, 'font'),
+            ),
+            ListTile(
+              leading: const Icon(Icons.format_color_text_rounded),
+              title: const Text('Cor do texto'),
+              onTap: () => Navigator.pop(ctx, 'color'),
+            ),
+            ListTile(
+              leading: const Icon(Icons.highlight_rounded),
+              title: const Text('Marca-texto'),
+              onTap: () => Navigator.pop(ctx, 'highlight'),
+            ),
+            ListTile(
+              leading: const Icon(Icons.format_align_left_rounded),
+              title: const Text('Alinhamento'),
+              onTap: () => Navigator.pop(ctx, 'align'),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (value != null) _tool(value);
+  }
+
+  Future<void> _showEditorTools() async {
+    final value = await showModalBottomSheet<String>(
+      context: context,
+      useSafeArea: true,
+      builder: (ctx) => SafeArea(
+        child: Wrap(
+          children: [
+            const ListTile(title: Text('Ferramentas')),
+            ListTile(
+              leading: const Icon(Icons.find_replace_rounded),
+              title: const Text('Buscar e substituir'),
+              onTap: () => Navigator.pop(ctx, 'search'),
+            ),
+            ListTile(
+              leading: const Icon(Icons.copy_all_rounded),
+              title: const Text('Copiar nota'),
+              onTap: () => Navigator.pop(ctx, 'copy'),
+            ),
+            ListTile(
+              leading: const Icon(Icons.visibility_outlined),
+              title: const Text('Visualizar nota'),
+              onTap: () => Navigator.pop(ctx, 'preview'),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (value == 'preview' && mounted) {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) =>
+              MarkdownPreviewPage(title: title.text, markdown: fullMarkdown),
+        ),
+      );
+    } else if (value != null) {
+      _tool(value);
+    }
+  }
+
+  Widget _richToolbar() {
+    final cs = Theme.of(context).colorScheme;
+    return Material(
+      color: cs.surfaceContainerHighest,
+      borderRadius: BorderRadius.circular(14),
       child: Row(
         children: [
           IconButton(
             tooltip: 'Desfazer',
             onPressed: undoStack.isEmpty ? null : () => _historyEdit(false),
-            icon: const Icon(Icons.undo),
+            icon: const Icon(Icons.undo_rounded),
           ),
           IconButton(
             tooltip: 'Refazer',
             onPressed: redoStack.isEmpty ? null : () => _historyEdit(true),
-            icon: const Icon(Icons.redo),
+            icon: const Icon(Icons.redo_rounded),
           ),
-          for (final key in [
-            ...pinnedTools.where(toolLabels.containsKey),
-            ...toolLabels.keys.where((k) => !pinnedTools.contains(k)),
-          ])
-            IconButton(
-              tooltip: toolLabels[key],
-              onPressed: () => _tool(key),
-              icon: Icon(toolIcons[key]),
-            ),
           IconButton(
-            tooltip: 'Personalizar barra',
-            onPressed: _customizeTools,
-            icon: const Icon(Icons.push_pin_outlined),
+            tooltip: 'Negrito',
+            onPressed: () => _tool('bold'),
+            icon: const Icon(Icons.format_bold_rounded),
+          ),
+          IconButton(
+            tooltip: 'Itálico',
+            onPressed: () => _tool('italic'),
+            icon: const Icon(Icons.format_italic_rounded),
+          ),
+          const Spacer(),
+          IconButton(
+            tooltip: 'Inserir',
+            onPressed: _showInsertMenu,
+            icon: const Icon(Icons.add_circle_outline_rounded),
+          ),
+          IconButton(
+            tooltip: 'Formatar',
+            onPressed: _showFormatMenu,
+            icon: const Icon(Icons.format_paint_outlined),
+          ),
+          IconButton(
+            tooltip: 'Ferramentas',
+            onPressed: _showEditorTools,
+            icon: const Icon(Icons.more_horiz_rounded),
           ),
         ],
       ),
-    ),
-  );
+    );
+  }
 
   bool saved = false;
   bool focusMode = false;
@@ -846,7 +983,7 @@ class _EditorPageV2State extends State<EditorPageV2>
       builder: (_) => PowerNoteStyleSheet(
         store: widget.store,
         note: widget.note,
-        onChanged: () => setState(() {}),
+        onChanged: _editorChanged,
       ),
     );
   }
@@ -1030,13 +1167,15 @@ class _EditorPageV2State extends State<EditorPageV2>
     }
     if (kind == 'checklist') {
       widget.note.checklist = true;
-      body.text = body.text.replaceAllMapped(
-        RegExp(r'^- (\[[ xX]\])', multiLine: true),
-        (m) => m[1]!,
-      );
+      if (!RegExp(
+        r'^\s*(?:-\s*)?\[[ xX]\]',
+        multiLine: true,
+      ).hasMatch(body.text)) {
+        body.text = body.text.trim().isEmpty
+            ? '- [ ] Nova tarefa'
+            : '${body.text}\n- [ ] Nova tarefa';
+      }
       _editorChanged();
-      dirty = true;
-      _autosave();
       setState(() {});
       return;
     }
@@ -1749,26 +1888,12 @@ class _EditorPageV2State extends State<EditorPageV2>
                       if (value == 'code') _insertCodeBlock();
                       if (value == 'export') await _showExport();
                       if (value == 'template') await _saveAsTemplate();
-                      if (value == 'textMode') {
-                        setState(
-                          () => widget.note.checklist = !widget.note.checklist,
-                        );
-                        dirty = true;
-                        _autosave();
-                      }
                       if (value == 'share') await shareNote();
                       if (value == 'duplicate') await _duplicate();
                       if (value == 'archive') await _archiveAndClose();
                       if (value == 'delete') await _deleteAndClose();
                     },
                     itemBuilder: (_) => const [
-                      PopupMenuItem(
-                        value: 'textMode',
-                        child: ListTile(
-                          leading: Icon(Icons.checklist),
-                          title: Text('Alternar checklist / texto'),
-                        ),
-                      ),
                       PopupMenuItem(
                         value: 'organize',
                         child: ListTile(
@@ -1977,7 +2102,7 @@ class _EditorPageV2State extends State<EditorPageV2>
                           ],
                         ),
                       ),
-                    if (!widget.note.checklist && !focusMode) ...[
+                    if (!focusMode) ...[
                       _richToolbar(),
                       const SizedBox(height: 8),
                     ],
@@ -1987,7 +2112,7 @@ class _EditorPageV2State extends State<EditorPageV2>
                           ? Column(
                               children: [
                                 Expanded(
-                                  child: legacy.ChecklistEditor(
+                                  child: MixedContentEditor(
                                     controller: body,
                                     family: bodyFamily,
                                     fontSize: widget.store.fontSize,
