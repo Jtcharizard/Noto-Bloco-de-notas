@@ -18,7 +18,6 @@ import 'package:intl/intl.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:timezone/timezone.dart' as tz;
 
-import 'noto_editor.dart' as legacy;
 import 'noto_features.dart';
 import 'noto_formatting.dart';
 import 'noto_models.dart';
@@ -62,7 +61,6 @@ class _EditorPageV2State extends State<EditorPageV2>
   final List<Map<String, dynamic>> codeBlocks = [];
   final List<String> undoStack = [];
   final List<String> redoStack = [];
-  Set<String> pinnedTools = {'table', 'bold', 'color', 'search'};
   TextAlign alignment = TextAlign.left;
   Timer? autosaveTimer;
   SharedPreferences? editorPrefs;
@@ -169,8 +167,6 @@ class _EditorPageV2State extends State<EditorPageV2>
     final prefs = await SharedPreferences.getInstance();
     if (!mounted) return;
     editorPrefs = prefs;
-    pinnedTools = (prefs.getStringList('editor.pins') ?? pinnedTools.toList())
-        .toSet();
     focusMode = prefs.getBool('editor.focus') ?? false;
     final raw = prefs.getString('editor.draft.${widget.note.id}');
     if (!dirty && raw != null) {
@@ -531,41 +527,6 @@ class _EditorPageV2State extends State<EditorPageV2>
     bodyFocus.requestFocus();
   }
 
-  static const toolLabels = {
-    'table': 'Tabela',
-    'bold': 'Negrito',
-    'italic': 'Itálico',
-    'font': 'Fonte',
-    'color': 'Cor',
-    'highlight': 'Marca-texto',
-    'align': 'Alinhamento',
-    'search': 'Buscar e substituir',
-    'copy': 'Copiar nota',
-    'heading': 'Título',
-    'list': 'Lista',
-    'checklist': 'Checklist',
-    'quote': 'Citação',
-    'code': 'Código',
-    'divider': 'Separador',
-  };
-  static const toolIcons = {
-    'table': Icons.table_chart_outlined,
-    'bold': Icons.format_bold,
-    'italic': Icons.format_italic,
-    'font': Icons.font_download_outlined,
-    'color': Icons.format_color_text,
-    'highlight': Icons.highlight,
-    'align': Icons.format_align_left,
-    'search': Icons.find_replace,
-    'copy': Icons.copy_all,
-    'heading': Icons.title,
-    'list': Icons.format_list_bulleted,
-    'checklist': Icons.checklist,
-    'quote': Icons.format_quote,
-    'code': Icons.code,
-    'divider': Icons.horizontal_rule,
-  };
-
   void _tool(String key) {
     switch (key) {
       case 'table':
@@ -616,49 +577,6 @@ class _EditorPageV2State extends State<EditorPageV2>
       default:
         _format(key);
     }
-  }
-
-  Future<void> _customizeTools() async {
-    await showModalBottomSheet<void>(
-      context: context,
-      isScrollControlled: true,
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx, update) => SafeArea(
-          child: SizedBox(
-            height: MediaQuery.sizeOf(ctx).height * .7,
-            child: ListView(
-              children: [
-                const ListTile(
-                  title: Text('Seus atalhos'),
-                  subtitle: Text(
-                    'Marque os comandos que ficam no início da barra.',
-                  ),
-                ),
-                for (final entry in toolLabels.entries)
-                  CheckboxListTile(
-                    title: Text(entry.value),
-                    value: pinnedTools.contains(entry.key),
-                    onChanged: (v) {
-                      update(() {
-                        if (v == true) {
-                          pinnedTools.add(entry.key);
-                        } else {
-                          pinnedTools.remove(entry.key);
-                        }
-                      });
-                      editorPrefs?.setStringList(
-                        'editor.pins',
-                        pinnedTools.toList(),
-                      );
-                      setState(() {});
-                    },
-                  ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
   }
 
   Future<void> _showInsertMenu() async {
