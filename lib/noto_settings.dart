@@ -634,7 +634,7 @@ void showAboutNoto(BuildContext context) => showAboutDialog(
       applicationVersion: '2.0 UI',
       applicationIcon: ClipRRect(
         borderRadius: BorderRadius.circular(18),
-        child: Image.asset('assets/app_icon.png', width: 68, height: 68),
+        child: Image.asset('assets/noto_mark.png', width: 68, height: 68),
       ),
       children: const [Text('Um bloco de notas simples por fora e personalizável por dentro.')],
     );

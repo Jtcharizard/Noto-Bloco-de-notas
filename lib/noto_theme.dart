@@ -216,31 +216,12 @@ class NotoMark extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final primary = Theme.of(context).colorScheme.primary;
-    return SizedBox(
+    return Image.asset(
+      'assets/noto_mark.png',
       width: size,
       height: size,
-      child: Stack(
-        alignment: Alignment.center,
-        children: [
-          Positioned(
-            left: 0,
-            top: size * .16,
-            bottom: size * .16,
-            child: Container(width: 3, color: primary),
-          ),
-          Text(
-            'N',
-            style: TextStyle(
-              color: Theme.of(context).colorScheme.onSurface,
-              fontSize: size * .58,
-              fontWeight: FontWeight.w900,
-              height: 1,
-              letterSpacing: -1.4,
-            ),
-          ),
-        ],
-      ),
+      fit: BoxFit.contain,
+      semanticLabel: 'Noto',
     );
   }
 }

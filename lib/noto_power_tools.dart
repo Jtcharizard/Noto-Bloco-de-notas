@@ -1,3 +1,4 @@
+import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
 import 'dart:convert';
 import 'dart:io';
 
@@ -286,88 +287,19 @@ class MarkdownPreviewPage extends StatelessWidget {
   final String title;
   final String markdown;
 
-  List<Widget> _buildBlocks(BuildContext context) {
-    final widgets = <Widget>[];
-    var inCode = false;
-    final code = <String>[];
-
-    void flushCode() {
-      if (code.isEmpty) return;
-      widgets.add(Container(
-        width: double.infinity,
-        margin: const EdgeInsets.symmetric(vertical: 8),
-        padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(
-          color: Theme.of(context).colorScheme.surfaceContainerHighest,
-          borderRadius: BorderRadius.circular(10),
-        ),
-        child: SelectableText(code.join('\n'), style: const TextStyle(fontFamily: 'FiraCode', fontSize: 13, height: 1.45)),
-      ));
-      code.clear();
-    }
-
-    for (final raw in markdown.split('\n')) {
-      final line = raw.trimRight();
-      if (line.trim().startsWith('```')) {
-        if (inCode) flushCode();
-        inCode = !inCode;
-        continue;
-      }
-      if (inCode) {
-        code.add(line);
-        continue;
-      }
-      if (line.trim().isEmpty) {
-        widgets.add(const SizedBox(height: 9));
-      } else if (RegExp(r'^#{1,3} ').hasMatch(line)) {
-        final hashes = line.indexOf(' ');
-        widgets.add(Padding(
-          padding: const EdgeInsets.only(top: 10, bottom: 4),
-          child: Text(line.substring(hashes + 1), style: TextStyle(fontSize: hashes == 1 ? 28 : hashes == 2 ? 22 : 18, fontWeight: FontWeight.w900)),
-        ));
-      } else if (line.trim() == '---') {
-        widgets.add(const Divider(height: 24));
-      } else if (line.startsWith('> ')) {
-        widgets.add(Container(
-          margin: const EdgeInsets.symmetric(vertical: 5),
-          padding: const EdgeInsets.fromLTRB(12, 8, 8, 8),
-          decoration: BoxDecoration(border: Border(left: BorderSide(color: Theme.of(context).colorScheme.primary, width: 3))),
-          child: Text(line.substring(2), style: const TextStyle(fontStyle: FontStyle.italic)),
-        ));
-      } else if (line.startsWith('- ') || line.startsWith('* ')) {
-        widgets.add(Padding(
-          padding: const EdgeInsets.only(left: 8, bottom: 5),
-          child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            const Text('•  '),
-            Expanded(child: Text(line.substring(2))),
-          ]),
-        ));
-      } else if (line.startsWith('[ ] ') || line.startsWith('[x] ')) {
-        widgets.add(Padding(
-          padding: const EdgeInsets.only(bottom: 5),
-          child: Row(children: [
-            Icon(line.startsWith('[x]') ? Icons.check_box_rounded : Icons.check_box_outline_blank_rounded, size: 19),
-            const SizedBox(width: 8),
-            Expanded(child: Text(line.substring(4))),
-          ]),
-        ));
-      } else {
-        widgets.add(Padding(
-          padding: const EdgeInsets.only(bottom: 5),
-          child: SelectableText(line, style: const TextStyle(height: 1.55)),
-        ));
-      }
-    }
-    if (inCode) flushCode();
-    return widgets;
-  }
-
   @override
   Widget build(BuildContext context) => Scaffold(
         appBar: AppBar(title: Text(title.trim().isEmpty ? 'Prévia Markdown' : title)),
-        body: ListView(
+        body: Markdown(
+          data: markdown.replaceAllMapped(
+            RegExp(r'^\[([ xX])\] ', multiLine: true),
+            (match) => '- [${match[1]}] ',
+          ),
+          selectable: true,
+          softLineBreak: true,
           padding: const EdgeInsets.fromLTRB(22, 16, 22, 40),
-          children: _buildBlocks(context),
+          // Notes stay offline: never fetch remote images embedded in Markdown.
+          imageBuilder: (uri, title, alt) => Text(alt ?? 'Imagem'),
         ),
       );
 }

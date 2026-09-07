@@ -8,6 +8,7 @@ import 'package:timezone/timezone.dart' as tz;
 
 import 'noto_editor.dart' as legacy;
 import 'noto_features.dart';
+import 'noto_formatting.dart';
 import 'noto_models.dart';
 import 'noto_power_tools.dart';
 import 'noto_store.dart';
@@ -34,6 +35,8 @@ class _EditorPageV2State extends State<EditorPageV2> {
       TextEditingController(text: widget.note.title);
   late final TextEditingController body =
       TextEditingController(text: widget.note.body);
+
+  final bodyFocus = FocusNode();
 
   bool saved = false;
   bool focusMode = false;
@@ -247,17 +250,76 @@ class _EditorPageV2State extends State<EditorPageV2> {
     }
   }
 
-  void _insertCodeBlock() {
-    final selection = body.selection;
-    final start = selection.isValid ? selection.start : body.text.length;
-    final end = selection.isValid ? selection.end : body.text.length;
-    final selected = start >= 0 && end >= start ? body.text.substring(start, end) : '';
-    final block = '```\n${selected.isEmpty ? '// código' : selected}\n```';
-    final newText = body.text.replaceRange(start, end, block);
-    body.value = TextEditingValue(
-      text: newText,
-      selection: TextSelection.collapsed(offset: start + block.length),
+  void _insertCodeBlock() => _format('code');
+
+  void _format(String kind) {
+    body.value = switch (kind) {
+      'bold' => formatSelection(body.value, prefix: '**', suffix: '**'),
+      'italic' => formatSelection(body.value, prefix: '*', suffix: '*'),
+      'heading' => formatSelection(body.value, prefix: '## ', eachLine: true),
+      'list' => formatSelection(body.value, prefix: '- ', eachLine: true),
+      'checklist' => formatSelection(body.value, prefix: '- [ ] ', eachLine: true),
+      'quote' => formatSelection(body.value, prefix: '> ', eachLine: true),
+      'code' => formatSelection(body.value, prefix: '```\n', suffix: '\n```', placeholder: '// código', block: true),
+      'divider' => formatSelection(body.value.copyWith(selection: TextSelection.collapsed(offset: body.selection.isValid ? body.selection.end : body.text.length)), placeholder: '---', block: true),
+      _ => body.value,
+    };
+    bodyFocus.requestFocus();
+    setState(() {});
+  }
+
+  void _preview() {
+    Navigator.push(context, MaterialPageRoute(
+      builder: (_) => MarkdownPreviewPage(title: title.text, markdown: body.text),
+    ));
+  }
+
+  Future<void> _insertTable() async {
+    final insertion = body.value;
+    var rows = 3;
+    var columns = 3;
+    final accepted = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, update) => AlertDialog(
+          title: const Text('Inserir tabela'),
+          content: SingleChildScrollView(
+            child: Column(mainAxisSize: MainAxisSize.min, children: [
+              const Text('Escolhe o tamanho e preenche as células entre as barras. Usa o olho para ver a tabela pronta.'),
+              const SizedBox(height: 16),
+              DropdownButtonFormField<int>(
+                initialValue: columns,
+                decoration: const InputDecoration(labelText: 'Colunas'),
+                items: List.generate(6, (i) => DropdownMenuItem(value: i + 1, child: Text('${i + 1}'))),
+                onChanged: (value) => update(() => columns = value ?? 3),
+              ),
+              const SizedBox(height: 12),
+              DropdownButtonFormField<int>(
+                initialValue: rows,
+                decoration: const InputDecoration(labelText: 'Linhas (além do cabeçalho)'),
+                items: List.generate(20, (i) => DropdownMenuItem(value: i + 1, child: Text('${i + 1}'))),
+                onChanged: (value) => update(() => rows = value ?? 3),
+              ),
+            ]),
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(dialogContext, false), child: const Text('Cancelar')),
+            FilledButton(onPressed: () => Navigator.pop(dialogContext, true), child: const Text('Inserir')),
+          ],
+        ),
+      ),
     );
+    if (accepted != true || !mounted) return;
+    // Insert before the selection, without discarding any existing note text.
+    final offset = insertion.selection.isValid ? insertion.selection.start : insertion.text.length;
+    body.value = formatSelection(
+      insertion.copyWith(selection: TextSelection.collapsed(offset: offset)),
+      placeholder: markdownTable(rows, columns),
+      block: true,
+    );
+    final header = body.value.selection.start + 2;
+    body.selection = TextSelection(baseOffset: header, extentOffset: header + 'Coluna 1'.length);
+    bodyFocus.requestFocus();
     setState(() {});
   }
 
@@ -661,6 +723,7 @@ class _EditorPageV2State extends State<EditorPageV2> {
   void dispose() {
     title.dispose();
     body.dispose();
+    bodyFocus.dispose();
     super.dispose();
   }
 
@@ -822,6 +885,10 @@ class _EditorPageV2State extends State<EditorPageV2> {
                           ],
                         ),
                       ),
+                    if (!widget.note.checklist && !focusMode) ...[
+                      FormattingToolbar(onFormat: _format, onTable: _insertTable, onPreview: _preview),
+                      const SizedBox(height: 8),
+                    ],
                     SizedBox(height: focusMode ? 18 : 12),
                     Expanded(
                       child: widget.note.checklist
@@ -834,6 +901,7 @@ class _EditorPageV2State extends State<EditorPageV2> {
                             )
                           : TextField(
                               controller: body,
+                              focusNode: bodyFocus,
                               expands: true,
                               maxLines: null,
                               textAlignVertical: TextAlignVertical.top,
