@@ -91,16 +91,24 @@ jobs:
         run: flutter pub get
 
       - name: Aplicar icone do Noto
-        run: dart run flutter_launcher_icons
+        run: |
+          set -o pipefail
+          dart run flutter_launcher_icons 2>&1 | tee step.log || { grep -E "error|Error|ERROR|failed|Failed|Expected|Actual|warning •|info •|Because|depends" step.log | grep -v "^info •" | tail -40 | sed 's/^/::error::/'; exit 1; }
 
       - name: Verificar codigo
-        run: flutter analyze --no-fatal-infos
+        run: |
+          set -o pipefail
+          flutter analyze --no-fatal-infos 2>&1 | tee step.log || { grep -E "error|Error|ERROR|failed|Failed|Expected|Actual|warning •|info •|Because|depends" step.log | grep -v "^info •" | tail -40 | sed 's/^/::error::/'; exit 1; }
 
       - name: Rodar testes
-        run: flutter test
+        run: |
+          set -o pipefail
+          flutter test 2>&1 | tee step.log || { grep -E "error|Error|ERROR|failed|Failed|Expected|Actual|warning •|info •|Because|depends" step.log | grep -v "^info •" | tail -40 | sed 's/^/::error::/'; exit 1; }
 
       - name: Compilar APK
-        run: flutter build apk --release
+        run: |
+          set -o pipefail
+          flutter build apk --release 2>&1 | tee step.log || { grep -E "error|Error|ERROR|failed|Failed|Expected|Actual|warning •|info •|Because|depends" step.log | grep -v "^info •" | tail -40 | sed 's/^/::error::/'; exit 1; }
 
       - name: Disponibilizar APK
         uses: actions/upload-artifact@v4
