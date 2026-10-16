@@ -10,7 +10,7 @@
   [![Flutter](https://img.shields.io/badge/Flutter-3.x-02569B?logo=flutter&logoColor=white)](https://flutter.dev/)
   [![Dart](https://img.shields.io/badge/Dart-3.x-0175C2?logo=dart&logoColor=white)](https://dart.dev/)
   [![Android](https://img.shields.io/badge/Android-APK-3DDC84?logo=android&logoColor=white)](https://github.com/Jtcharizard/Noto-Bloco-de-notas/actions/workflows/gerar-apk.yml)
-  [![Versão](https://img.shields.io/badge/versão-1.9.0-8B5CF6)](https://github.com/Jtcharizard/Noto-Bloco-de-notas)
+  [![Versão](https://img.shields.io/badge/versão-2.0.0-8B5CF6)](https://github.com/Jtcharizard/Noto-Bloco-de-notas)
   [![Build APK](https://github.com/Jtcharizard/Noto-Bloco-de-notas/actions/workflows/gerar-apk.yml/badge.svg)](https://github.com/Jtcharizard/Noto-Bloco-de-notas/actions/workflows/gerar-apk.yml)
 </div>
 
@@ -42,6 +42,22 @@ O app funciona sem conta e sem internet. As notas e preferências ficam armazena
 - Compartilhamento e exportação em TXT
 - Apresentação inicial e tela Sobre
 - Salvamento local e funcionamento totalmente offline
+
+## Novidades da v2.0.0
+
+- Saiu o Noto Pulse; a tela inicial ficou mais limpa
+- Contagem de tarefas corrigida (antes mostrava zero nas listas novas)
+- Enter numa tarefa cria a próxima; Enter numa tarefa vazia volta para texto
+- Desfazer, histórico e links agora atualizam também as listas de tarefas
+- Liga e desliga a lista de tarefas pelo menu Inserir, sem travar a nota
+- Lembretes: não trava mais com lembrete antigo, avisa se o horário já passou e some depois de tocar
+- Atalhos de pasta na tela inicial e ação "Mover para a lixeira" na seleção em lote
+- Modo foco não fica mais ligado sozinho na próxima nota
+- Sem aviso chato de título repetido; emoji da nota salva enquanto você digita
+- Calendário mostra lembretes; notas arquivadas abrem com um toque
+- Lixeira com botão "Esvaziar"; backup agora inclui modelos e capas
+- Escolha de nota do widget voltou aos Ajustes; o widget "Nova nota" abre direto uma nota em branco
+- Textos do app revisados em português claro
 
 ## Novidades da v1.9.0
 

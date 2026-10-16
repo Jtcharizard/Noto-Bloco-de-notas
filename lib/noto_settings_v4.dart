@@ -146,6 +146,60 @@ class SettingsPageV4 extends StatelessWidget {
     }
   }
 
+  List<Note> get _activeNotes =>
+      store.notes.where((n) => n.deletedAt == null && !n.archived).toList()
+        ..sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
+
+  String _widgetNoteLabel() {
+    for (final note in _activeNotes) {
+      if (note.id == store.widgetNoteId) {
+        return note.title.trim().isEmpty ? 'Sem título' : note.title;
+      }
+    }
+    return 'A mais recente';
+  }
+
+  Future<void> _pickWidgetNote(BuildContext context) async {
+    final notes = _activeNotes;
+    final selected = await showModalBottomSheet<String>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      builder: (sheetContext) => ConstrainedBox(
+        constraints: BoxConstraints(
+          maxHeight: MediaQuery.sizeOf(sheetContext).height * .7,
+        ),
+        child: ListView(
+          shrinkWrap: true,
+          children: [
+            const _SheetHeader('Nota do widget'),
+            RadioListTile<String>(
+              value: '',
+              groupValue: store.widgetNoteId ?? '',
+              title: const Text('Sempre a mais recente'),
+              onChanged: (value) => Navigator.pop(sheetContext, value),
+            ),
+            for (final note in notes)
+              RadioListTile<String>(
+                value: note.id,
+                groupValue: store.widgetNoteId ?? '',
+                title: Text(
+                  note.title.trim().isEmpty ? 'Sem título' : note.title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                onChanged: (value) => Navigator.pop(sheetContext, value),
+              ),
+            const SizedBox(height: 12),
+          ],
+        ),
+      ),
+    );
+    if (selected == null) return;
+    store.widgetNoteId = selected.isEmpty ? null : selected;
+    await store.save();
+  }
+
   @override
   Widget build(BuildContext context) => AnimatedBuilder(
         animation: store,
@@ -210,7 +264,7 @@ class SettingsPageV4 extends StatelessWidget {
                 NotoTile(
                   icon: Icons.wallpaper_outlined,
                   title: 'Fundo do aplicativo',
-                  subtitle: hasWallpaper ? 'Personalizado' : 'Tema Noto',
+                  subtitle: hasWallpaper ? 'Personalizado' : 'Padrão',
                   onTap: () => showModalBottomSheet<void>(
                     context: context,
                     isScrollControlled: true,
@@ -223,23 +277,18 @@ class SettingsPageV4 extends StatelessWidget {
                 SwitchListTile(
                   contentPadding: EdgeInsets.zero,
                   title: const Text('Resumo de hoje'),
-                  subtitle: const Text('Pendências e lembretes em uma linha'),
+                  subtitle: const Text('Tarefas e lembretes do dia em uma linha'),
                   value: store.homeShowToday,
                   onChanged: (value) {
                     store.homeShowToday = value;
                     store.save();
                   },
                 ),
-                Divider(color: Theme.of(context).colorScheme.outlineVariant),
-                SwitchListTile(
-                  contentPadding: EdgeInsets.zero,
-                  title: const Text('Noto Pulse'),
-                  subtitle: const Text('Mostra um padrão útil quando houver'),
-                  value: store.homeShowPulse,
-                  onChanged: (value) {
-                    store.homeShowPulse = value;
-                    store.save();
-                  },
+                NotoTile(
+                  icon: Icons.widgets_outlined,
+                  title: 'Nota do widget',
+                  subtitle: _widgetNoteLabel(),
+                  onTap: () => _pickWidgetNote(context),
                 ),
                 const SizedBox(height: 28),
                 const SectionTitle('Dados'),

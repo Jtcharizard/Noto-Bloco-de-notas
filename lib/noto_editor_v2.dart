@@ -167,7 +167,6 @@ class _EditorPageV2State extends State<EditorPageV2>
     final prefs = await SharedPreferences.getInstance();
     if (!mounted) return;
     editorPrefs = prefs;
-    focusMode = prefs.getBool('editor.focus') ?? false;
     final raw = prefs.getString('editor.draft.${widget.note.id}');
     if (!dirty && raw != null) {
       try {
@@ -175,7 +174,7 @@ class _EditorPageV2State extends State<EditorPageV2>
         final time = DateTime.tryParse(draft['at'] as String? ?? '');
         if (time != null && time.isAfter(widget.note.updatedAt)) {
           _restoreSnapshot(draft['snapshot'] as String);
-          saveLabel = 'Rascunho recuperado';
+          saveLabel = 'Texto não salvo recuperado';
           dirty = true;
           autosaveTimer = Timer(const Duration(milliseconds: 700), _autosave);
         }
@@ -227,7 +226,7 @@ class _EditorPageV2State extends State<EditorPageV2>
         if (mounted) setState(() => saveLabel = 'Salvo');
       }
     } catch (_) {
-      if (mounted) setState(() => saveLabel = 'Falha ao salvar · tentar');
+      if (mounted) setState(() => saveLabel = 'Não salvou · toque para tentar de novo');
     }
   }
 
@@ -316,7 +315,7 @@ class _EditorPageV2State extends State<EditorPageV2>
           void search(bool replaceOne, bool all) {
             final needle = find.text;
             if (needle.isEmpty) {
-              update(() => result = 'Digite o que procurar');
+              update(() => result = 'Digite o que você quer buscar');
               return;
             }
             if (all) {
@@ -350,7 +349,11 @@ class _EditorPageV2State extends State<EditorPageV2>
               }
               restoringEditor = false;
               _editorChanged();
-              update(() => result = '$count ocorrência(s) substituída(s)');
+              update(
+                () => result = count == 1
+                    ? '1 trecho substituído'
+                    : '$count trechos substituídos',
+              );
               return;
             }
             final selection = body.selection;
@@ -382,10 +385,10 @@ class _EditorPageV2State extends State<EditorPageV2>
             );
             update(
               () => result = at >= 0
-                  ? 'Trecho selecionado no texto'
+                  ? 'Encontrado e selecionado no texto'
                   : inTables > 0
-                  ? '$inTables ocorrência(s) nas tabelas. Use substituir tudo.'
-                  : 'Nenhum resultado',
+                  ? 'Encontrado só nas tabelas. Use "Substituir tudo".'
+                  : 'Nada encontrado',
             );
           }
 
@@ -399,7 +402,7 @@ class _EditorPageV2State extends State<EditorPageV2>
                     controller: find,
                     autofocus: true,
                     decoration: const InputDecoration(
-                      labelText: 'Buscar (diferencia maiúsculas)',
+                      labelText: 'Buscar (maiúsculas contam)',
                     ),
                   ),
                   TextField(
@@ -548,35 +551,66 @@ class _EditorPageV2State extends State<EditorPageV2>
         _pickInlineFont();
         break;
       case 'align':
-        setState(
-          () => alignment =
-              [
-                TextAlign.left,
-                TextAlign.center,
-                TextAlign.right,
-                TextAlign.justify,
-              ][([
-                        TextAlign.left,
-                        TextAlign.center,
-                        TextAlign.right,
-                        TextAlign.justify,
-                      ].indexOf(alignment) +
-                      1) %
-                  4],
-        );
-        _editorChanged();
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              'Alinhamento: ${['esquerda', 'direita', 'centro', 'justificado', 'início', 'fim'][alignment.index]}',
-            ),
-            duration: const Duration(seconds: 1),
-          ),
-        );
+        _pickAlignment();
         break;
       default:
         _format(key);
     }
+  }
+
+  Future<void> _pickAlignment() async {
+    const options = [
+      (TextAlign.left, 'À esquerda', Icons.format_align_left_rounded),
+      (TextAlign.center, 'Centralizado', Icons.format_align_center_rounded),
+      (TextAlign.right, 'À direita', Icons.format_align_right_rounded),
+      (TextAlign.justify, 'Justificado', Icons.format_align_justify_rounded),
+    ];
+    final picked = await showModalBottomSheet<TextAlign>(
+      context: context,
+      useSafeArea: true,
+      builder: (ctx) => SafeArea(
+        child: Wrap(
+          children: [
+            const ListTile(title: Text('Alinhamento')),
+            for (final option in options)
+              ListTile(
+                leading: Icon(option.$3),
+                title: Text(option.$2),
+                trailing: alignment == option.$1
+                    ? const Icon(Icons.check_rounded)
+                    : null,
+                onTap: () => Navigator.pop(ctx, option.$1),
+              ),
+          ],
+        ),
+      ),
+    );
+    if (picked == null || !mounted) return;
+    setState(() => alignment = picked);
+    _editorChanged();
+  }
+
+  void _setChecklistMode(bool on) {
+    if (on == widget.note.checklist) return;
+    widget.note.checklist = on;
+    if (on) {
+      if (!hasTaskLines(body.text)) {
+        body.text = body.text.trim().isEmpty
+            ? '- [ ] '
+            : '${body.text.trimRight()}\n- [ ] ';
+      }
+    } else {
+      final task = RegExp(r'^\s*(?:[-*]\s*)?\[([ xX])\]\s?(.*)$');
+      body.text = body.text
+          .split('\n')
+          .map((line) {
+            final match = task.firstMatch(line);
+            return match == null ? line : '- ${match.group(2) ?? ''}';
+          })
+          .join('\n');
+    }
+    tableEpoch++;
+    _editorChanged();
   }
 
   Future<void> _showInsertMenu() async {
@@ -587,11 +621,20 @@ class _EditorPageV2State extends State<EditorPageV2>
         child: Wrap(
           children: [
             const ListTile(title: Text('Inserir')),
-            ListTile(
-              leading: const Icon(Icons.check_box_outlined),
-              title: const Text('Tarefa com checkbox'),
-              onTap: () => Navigator.pop(ctx, 'checklist'),
-            ),
+            if (widget.note.checklist)
+              ListTile(
+                leading: const Icon(Icons.notes_rounded),
+                title: const Text('Voltar para texto comum'),
+                subtitle: const Text('As tarefas viram itens de lista'),
+                onTap: () => Navigator.pop(ctx, 'plain'),
+              )
+            else
+              ListTile(
+                leading: const Icon(Icons.check_box_outlined),
+                title: const Text('Lista de tarefas'),
+                subtitle: const Text('Caixas de marcar junto com o texto'),
+                onTap: () => Navigator.pop(ctx, 'checklist'),
+              ),
             ListTile(
               leading: const Icon(Icons.table_chart_outlined),
               title: const Text('Tabela'),
@@ -684,7 +727,7 @@ class _EditorPageV2State extends State<EditorPageV2>
             ),
             ListTile(
               leading: const Icon(Icons.visibility_outlined),
-              title: const Text('Visualizar nota'),
+              title: const Text('Ver como vai ficar'),
               onTap: () => Navigator.pop(ctx, 'preview'),
             ),
           ],
@@ -721,27 +764,30 @@ class _EditorPageV2State extends State<EditorPageV2>
             onPressed: redoStack.isEmpty ? null : () => _historyEdit(true),
             icon: const Icon(Icons.redo_rounded),
           ),
-          IconButton(
-            tooltip: 'Negrito',
-            onPressed: () => _tool('bold'),
-            icon: const Icon(Icons.format_bold_rounded),
-          ),
-          IconButton(
-            tooltip: 'Itálico',
-            onPressed: () => _tool('italic'),
-            icon: const Icon(Icons.format_italic_rounded),
-          ),
+          if (!widget.note.checklist) ...[
+            IconButton(
+              tooltip: 'Negrito',
+              onPressed: () => _tool('bold'),
+              icon: const Icon(Icons.format_bold_rounded),
+            ),
+            IconButton(
+              tooltip: 'Itálico',
+              onPressed: () => _tool('italic'),
+              icon: const Icon(Icons.format_italic_rounded),
+            ),
+          ],
           const Spacer(),
           IconButton(
             tooltip: 'Inserir',
             onPressed: _showInsertMenu,
             icon: const Icon(Icons.add_circle_outline_rounded),
           ),
-          IconButton(
-            tooltip: 'Formatar',
-            onPressed: _showFormatMenu,
-            icon: const Icon(Icons.format_paint_outlined),
-          ),
+          if (!widget.note.checklist)
+            IconButton(
+              tooltip: 'Formatar',
+              onPressed: _showFormatMenu,
+              icon: const Icon(Icons.format_paint_outlined),
+            ),
           IconButton(
             tooltip: 'Ferramentas',
             onPressed: _showEditorTools,
@@ -761,9 +807,12 @@ class _EditorPageV2State extends State<EditorPageV2>
       tables.isNotEmpty ||
       codeBlocks.isNotEmpty;
 
-  int get words => body.text.trim().isEmpty
+  String get _countableText => body.text
+      .replaceAll(RegExp(r'^\s*(?:[-*]\s*)?\[[ xX]\]', multiLine: true), '')
+      .trim();
+  int get words => _countableText.isEmpty
       ? 0
-      : body.text.trim().split(RegExp(r'\s+')).length;
+      : _countableText.split(RegExp(r'\s+')).length;
   int get characters => body.text.characters.length;
   int get readingMinutes => words == 0 ? 0 : ((words + 199) ~/ 200);
 
@@ -797,34 +846,6 @@ class _EditorPageV2State extends State<EditorPageV2>
 
   Future<void> saveAndClose() async {
     if (saved) return;
-    if (title.text.trim().isNotEmpty &&
-        widget.store.notes.any(
-          (n) =>
-              n.id != widget.note.id &&
-              n.deletedAt == null &&
-              n.title.trim().toLowerCase() == title.text.trim().toLowerCase(),
-        )) {
-      final proceed = await showDialog<bool>(
-        context: context,
-        builder: (ctx) => AlertDialog(
-          title: const Text('Já existe uma nota com esse título'),
-          content: const Text(
-            'Quer manter o título repetido ou voltar para mudar?',
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(ctx, false),
-              child: const Text('Voltar'),
-            ),
-            FilledButton(
-              onPressed: () => Navigator.pop(ctx, true),
-              child: const Text('Manter'),
-            ),
-          ],
-        ),
-      );
-      if (proceed != true || !mounted) return;
-    }
     autosaveTimer?.cancel();
     saved = true;
     try {
@@ -833,7 +854,7 @@ class _EditorPageV2State extends State<EditorPageV2>
       if (mounted) Navigator.pop(context, persisted);
     } catch (_) {
       saved = false;
-      if (mounted) setState(() => saveLabel = 'Falha ao salvar · tentar');
+      if (mounted) setState(() => saveLabel = 'Não salvou · toque para tentar de novo');
     }
   }
 
@@ -845,15 +866,19 @@ class _EditorPageV2State extends State<EditorPageV2>
 
   Future<void> chooseReminder() async {
     final now = DateTime.now();
+    final today = DateUtils.dateOnly(now);
+    final current = widget.note.reminderAt;
     final date = await showDatePicker(
       context: context,
-      initialDate: widget.note.reminderAt ?? now,
-      firstDate: now,
-      lastDate: now.add(const Duration(days: 3650)),
+      helpText: 'Dia do lembrete',
+      initialDate: current != null && !current.isBefore(today) ? current : today,
+      firstDate: today,
+      lastDate: today.add(const Duration(days: 3650)),
     );
     if (date == null || !mounted) return;
     final time = await showTimePicker(
       context: context,
+      helpText: 'Hora do lembrete',
       initialTime: TimeOfDay.fromDateTime(
         widget.note.reminderAt ?? now.add(const Duration(hours: 1)),
       ),
@@ -866,7 +891,13 @@ class _EditorPageV2State extends State<EditorPageV2>
       time.hour,
       time.minute,
     );
-    if (selected.isBefore(DateTime.now())) return;
+    if (!mounted) return;
+    if (selected.isBefore(DateTime.now())) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Esse horário já passou. Escolha outro.')),
+      );
+      return;
+    }
 
     const details = NotificationDetails(
       android: AndroidNotificationDetails(
@@ -881,16 +912,26 @@ class _EditorPageV2State extends State<EditorPageV2>
     await notifications.zonedSchedule(
       id,
       title.text.trim().isEmpty ? 'Lembrete do Noto' : title.text.trim(),
-      body.text.trim().isEmpty
-          ? 'Hora de abrir tua nota.'
-          : body.text.trim().split('\n').first,
+      readablePreview(body.text).isEmpty
+          ? 'Você pediu para lembrar desta nota.'
+          : readablePreview(body.text).split('\n').first,
       tz.TZDateTime.from(selected, tz.local),
       details,
       androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
       payload: widget.note.id,
     );
+    if (!mounted) return;
     setState(() => widget.note.reminderAt = selected);
     await widget.store.save();
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Lembrete marcado para ${DateFormat("dd/MM 'às' HH:mm").format(selected)}',
+          ),
+        ),
+      );
+    }
   }
 
   void openStyleSheet() {
@@ -930,6 +971,7 @@ class _EditorPageV2State extends State<EditorPageV2>
         hasContent) {
       widget.store.notes.add(widget.note);
     }
+    widget.store.cancelReminder(widget.note);
     widget.note.deletedAt = DateTime.now();
     await widget.store.save();
     saved = true;
@@ -1084,17 +1126,11 @@ class _EditorPageV2State extends State<EditorPageV2>
       return;
     }
     if (kind == 'checklist') {
-      widget.note.checklist = true;
-      if (!RegExp(
-        r'^\s*(?:-\s*)?\[[ xX]\]',
-        multiLine: true,
-      ).hasMatch(body.text)) {
-        body.text = body.text.trim().isEmpty
-            ? '- [ ] Nova tarefa'
-            : '${body.text}\n- [ ] Nova tarefa';
-      }
-      _editorChanged();
-      setState(() {});
+      _setChecklistMode(true);
+      return;
+    }
+    if (kind == 'plain') {
+      _setChecklistMode(false);
       return;
     }
     if (kind == 'bold' || kind == 'italic') {
@@ -1313,7 +1349,7 @@ class _EditorPageV2State extends State<EditorPageV2>
                   ?.copyWith(fontWeight: FontWeight.w900),
             ),
             const SizedBox(height: 5),
-            const Text('Pasta, subpasta e tags ficam todos aqui.'),
+            const Text('Use / para criar subpastas. Ex.: Escola/Química.'),
             const SizedBox(height: 16),
             TextField(
               controller: folderController,
@@ -1355,7 +1391,7 @@ class _EditorPageV2State extends State<EditorPageV2>
               child: FilledButton.icon(
                 onPressed: () => Navigator.pop(sheetContext, true),
                 icon: const Icon(Icons.check_rounded),
-                label: const Text('Salvar organização'),
+                label: const Text('Salvar'),
               ),
             ),
           ],
@@ -1428,7 +1464,7 @@ class _EditorPageV2State extends State<EditorPageV2>
                               style: Theme.of(context).textTheme.headlineSmall
                                   ?.copyWith(fontWeight: FontWeight.w900),
                             ),
-                            const Text('Links e backlinks num lugar só.'),
+                            const Text('Ligue notas usando [[Nome da nota]].'),
                           ],
                         ),
                       ),
@@ -1473,6 +1509,7 @@ class _EditorPageV2State extends State<EditorPageV2>
                                   body.selection = TextSelection.collapsed(
                                     offset: body.text.length,
                                   );
+                                  tableEpoch++;
                                   setModalState(() {});
                                   if (mounted) setState(() {});
                                 }
@@ -1484,7 +1521,7 @@ class _EditorPageV2State extends State<EditorPageV2>
                   ),
                   const SizedBox(height: 22),
                   Text(
-                    'SAINDO DESTA NOTA',
+                    'LINKS NESTA NOTA',
                     style: Theme.of(context).textTheme.labelSmall
                         ?.copyWith(fontWeight: FontWeight.w900),
                   ),
@@ -1495,7 +1532,7 @@ class _EditorPageV2State extends State<EditorPageV2>
                       leading: Icon(Icons.link_off_rounded),
                       title: Text('Nenhum link ainda'),
                       subtitle: Text(
-                        'Usa Conectar ou escreve [[Nome da nota]].',
+                        'Toque em Conectar ou escreva [[Nome da nota]].',
                       ),
                     )
                   else
@@ -1535,7 +1572,7 @@ class _EditorPageV2State extends State<EditorPageV2>
                     }),
                   const Divider(height: 28),
                   Text(
-                    'APONTANDO PRA ESTA NOTA',
+                    'NOTAS QUE APONTAM PARA ESTA',
                     style: Theme.of(context).textTheme.labelSmall
                         ?.copyWith(fontWeight: FontWeight.w900),
                   ),
@@ -1544,7 +1581,7 @@ class _EditorPageV2State extends State<EditorPageV2>
                     const ListTile(
                       contentPadding: EdgeInsets.zero,
                       leading: Icon(Icons.call_received_rounded),
-                      title: Text('Nenhum backlink ainda'),
+                      title: Text('Nenhuma nota aponta para esta ainda'),
                     )
                   else
                     ...backlinks.map(
@@ -1606,7 +1643,11 @@ class _EditorPageV2State extends State<EditorPageV2>
                             style: Theme.of(context).textTheme.headlineSmall
                                 ?.copyWith(fontWeight: FontWeight.w900),
                           ),
-                          Text('${history.length} de até 20 versões guardadas'),
+                          Text(
+                            history.length == 1
+                                ? '1 versão guardada (até 20)'
+                                : '${history.length} versões guardadas (até 20)',
+                          ),
                         ],
                       ),
                     ),
@@ -1629,7 +1670,7 @@ class _EditorPageV2State extends State<EditorPageV2>
                         child: Padding(
                           padding: EdgeInsets.all(28),
                           child: Text(
-                            'Ainda não tem versão anterior. Ela aparece depois que a nota for editada e salva.',
+                            'Nenhuma versão anterior ainda. Elas aparecem conforme você edita a nota.',
                             textAlign: TextAlign.center,
                           ),
                         ),
@@ -1650,7 +1691,7 @@ class _EditorPageV2State extends State<EditorPageV2>
                               overflow: TextOverflow.ellipsis,
                             ),
                             subtitle: Text(
-                              '${DateFormat('dd/MM/yyyy HH:mm').format(revision.savedAt)}\n${revision.body.trim().isEmpty ? 'Nota vazia' : revision.body.replaceAll('\n', ' ')}',
+                              '${DateFormat('dd/MM/yyyy HH:mm').format(revision.savedAt)}\n${readablePreview(revision.body).isEmpty ? 'Nota vazia' : readablePreview(revision.body).replaceAll('\n', ' ')}',
                               maxLines: 3,
                               overflow: TextOverflow.ellipsis,
                             ),
@@ -1792,18 +1833,6 @@ class _EditorPageV2State extends State<EditorPageV2>
                       if (value == 'task') await _showTaskDetails();
                       if (value == 'connections') await _showConnections();
                       if (value == 'history') await _showHistory();
-                      if (value == 'preview') {
-                        await Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => MarkdownPreviewPage(
-                              title: title.text,
-                              markdown: fullMarkdown,
-                            ),
-                          ),
-                        );
-                      }
-                      if (value == 'code') _insertCodeBlock();
                       if (value == 'export') await _showExport();
                       if (value == 'template') await _saveAsTemplate();
                       if (value == 'share') await shareNote();
@@ -1831,20 +1860,6 @@ class _EditorPageV2State extends State<EditorPageV2>
                         child: ListTile(
                           leading: Icon(Icons.hub_outlined),
                           title: Text('Conexões'),
-                        ),
-                      ),
-                      PopupMenuItem(
-                        value: 'preview',
-                        child: ListTile(
-                          leading: Icon(Icons.visibility_outlined),
-                          title: Text('Prévia Markdown'),
-                        ),
-                      ),
-                      PopupMenuItem(
-                        value: 'code',
-                        child: ListTile(
-                          leading: Icon(Icons.code_rounded),
-                          title: Text('Inserir bloco de código'),
                         ),
                       ),
                       PopupMenuItem(
@@ -1894,7 +1909,7 @@ class _EditorPageV2State extends State<EditorPageV2>
                         value: 'delete',
                         child: ListTile(
                           leading: Icon(Icons.delete_outline_rounded),
-                          title: Text('Lixeira'),
+                          title: Text('Mover para a lixeira'),
                         ),
                       ),
                     ],
@@ -2031,6 +2046,7 @@ class _EditorPageV2State extends State<EditorPageV2>
                               children: [
                                 Expanded(
                                   child: MixedContentEditor(
+                                    key: ValueKey('mixed-$tableEpoch'),
                                     controller: body,
                                     family: bodyFamily,
                                     fontSize: widget.store.fontSize,
@@ -2062,7 +2078,7 @@ class _EditorPageV2State extends State<EditorPageV2>
                                   textCapitalization:
                                       TextCapitalization.sentences,
                                   decoration: InputDecoration(
-                                    hintText: 'Começa a escrever...',
+                                    hintText: 'Escreva aqui...',
                                     hintStyle: TextStyle(
                                       color: fg?.withValues(alpha: .48),
                                     ),
@@ -2134,8 +2150,8 @@ class _EditorPageV2State extends State<EditorPageV2>
                           Expanded(
                             child: Text(
                               selectedWords > 0
-                                  ? '$selectedWords palavras selecionadas'
-                                  : '$words palavras · $characters caracteres',
+                                  ? '$selectedWords ${selectedWords == 1 ? 'palavra selecionada' : 'palavras selecionadas'}'
+                                  : '$words ${words == 1 ? 'palavra' : 'palavras'} · $characters ${characters == 1 ? 'caractere' : 'caracteres'}',
                               overflow: TextOverflow.ellipsis,
                               style: TextStyle(
                                 fontSize: 10.5,
@@ -2147,7 +2163,6 @@ class _EditorPageV2State extends State<EditorPageV2>
                             tooltip: 'Modo foco',
                             onPressed: () {
                               setState(() => focusMode = true);
-                              editorPrefs?.setBool('editor.focus', true);
                             },
                             icon: const Icon(Icons.fullscreen_rounded),
                           ),
@@ -2172,7 +2187,6 @@ class _EditorPageV2State extends State<EditorPageV2>
                     tooltip: 'Sair do modo foco',
                     onPressed: () {
                       setState(() => focusMode = false);
-                      editorPrefs?.setBool('editor.focus', false);
                     },
                     icon: const Icon(Icons.fullscreen_exit_rounded),
                   ),

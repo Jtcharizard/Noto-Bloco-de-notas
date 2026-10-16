@@ -69,7 +69,7 @@ class OnboardingPage extends StatelessWidget {
               ),
               const SizedBox(height: 10),
               Text(
-                'Um lugar simples pra escrever, guardar e achar depois.',
+                'Um lugar simples para escrever, guardar e encontrar depois.',
                 style: Theme.of(context).textTheme.titleMedium?.copyWith(
                   height: 1.35,
                   color: cs.onSurface.withValues(alpha: .68),
@@ -77,13 +77,13 @@ class OnboardingPage extends StatelessWidget {
               ),
               const SizedBox(height: 34),
               const _IntroLine(
-                'Captura rápida quando tu só quer tirar algo da cabeça.',
+                'Anotação rápida para quando você só quer tirar uma ideia da cabeça.',
               ),
               const _IntroLine(
-                'Pastas, tags e busca quando realmente precisar organizar.',
+                'Pastas, tags e busca para quando precisar organizar.',
               ),
               const _IntroLine(
-                'Teus textos ficam no aparelho; o Pulse trabalha localmente.',
+                'Suas notas ficam só no seu celular, sem conta e sem internet.',
               ),
               const Spacer(),
               SizedBox(

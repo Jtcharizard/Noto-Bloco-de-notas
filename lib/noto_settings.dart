@@ -8,346 +8,9 @@ import 'package:intl/intl.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 
+import 'noto_editor_v2.dart';
 import 'noto_models.dart';
 import 'noto_store.dart';
-import 'noto_theme.dart';
-
-class SettingsPage extends StatelessWidget {
-  const SettingsPage({super.key, required this.store});
-  final AppStore store;
-
-  @override
-  Widget build(BuildContext context) => AnimatedBuilder(
-    animation: store,
-    builder: (_, __) {
-      final active = store.notes
-          .where((n) => n.deletedAt == null && !n.archived)
-          .toList();
-      final selectedWidgetId = active.any((n) => n.id == store.widgetNoteId)
-          ? store.widgetNoteId
-          : null;
-      return Scaffold(
-        appBar: AppBar(
-          title: const Text(
-            'Ajustes',
-            style: TextStyle(fontWeight: FontWeight.w900),
-          ),
-          actions: [
-            IconButton(
-              tooltip: 'Sobre o Noto',
-              icon: const Icon(Icons.info_outline_rounded),
-              onPressed: () => showAboutNoto(context),
-            ),
-            const SizedBox(width: 6),
-          ],
-        ),
-        body: ListView(
-          padding: const EdgeInsets.fromLTRB(16, 8, 16, 120),
-          children: [
-            const SectionTitle('Aparência'),
-            Card(
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text(
-                      'Tema',
-                      style: TextStyle(fontWeight: FontWeight.w800),
-                    ),
-                    const SizedBox(height: 10),
-                    SizedBox(
-                      width: double.infinity,
-                      child: SegmentedButton<ThemeMode>(
-                        segments: const [
-                          ButtonSegment(
-                            value: ThemeMode.system,
-                            icon: Icon(Icons.brightness_auto_outlined),
-                            label: Text('Sistema'),
-                          ),
-                          ButtonSegment(
-                            value: ThemeMode.light,
-                            icon: Icon(Icons.light_mode_outlined),
-                            label: Text('Claro'),
-                          ),
-                          ButtonSegment(
-                            value: ThemeMode.dark,
-                            icon: Icon(Icons.dark_mode_outlined),
-                            label: Text('Escuro'),
-                          ),
-                        ],
-                        selected: {store.mode},
-                        onSelectionChanged: (value) {
-                          store.mode = value.first;
-                          store.save();
-                        },
-                      ),
-                    ),
-                    const SizedBox(height: 20),
-                    Row(
-                      children: [
-                        const Expanded(
-                          child: Text(
-                            'Cor do app',
-                            style: TextStyle(fontWeight: FontWeight.w800),
-                          ),
-                        ),
-                        Text(
-                          NotoAppearance.accents[store.accent].name,
-                          style: Theme.of(context).textTheme.bodySmall,
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 12),
-                    Wrap(
-                      spacing: 10,
-                      runSpacing: 10,
-                      children: List.generate(NotoAppearance.accents.length, (
-                        index,
-                      ) {
-                        final option = NotoAppearance.accents[index];
-                        final selected = store.accent == index;
-                        return Tooltip(
-                          message: option.name,
-                          child: InkWell(
-                            customBorder: const CircleBorder(),
-                            onTap: () {
-                              store.accent = index;
-                              store.save();
-                            },
-                            child: AnimatedContainer(
-                              duration: const Duration(milliseconds: 180),
-                              width: 42,
-                              height: 42,
-                              decoration: BoxDecoration(
-                                color: option.color,
-                                shape: BoxShape.circle,
-                                border: Border.all(
-                                  color: selected
-                                      ? Theme.of(context).colorScheme.onSurface
-                                      : Colors.transparent,
-                                  width: 3,
-                                ),
-                              ),
-                              child: selected
-                                  ? const Icon(
-                                      Icons.check_rounded,
-                                      color: Colors.white,
-                                    )
-                                  : null,
-                            ),
-                          ),
-                        );
-                      }),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-            const SizedBox(height: 18),
-            NotoTile(
-              icon: Icons.font_download_outlined,
-              title: 'Fonte do aplicativo',
-              subtitle:
-                  '${NotoAppearance.fonts[store.font].name} • ${NotoAppearance.fonts.length} opções',
-              onTap: () async {
-                final selected = await showModalBottomSheet<int>(
-                  context: context,
-                  isScrollControlled: true,
-                  builder: (_) => FontPickerSheet(selected: store.font),
-                );
-                if (selected != null) {
-                  store.font = selected;
-                  await store.save();
-                }
-              },
-            ),
-            const SizedBox(height: 10),
-            Card(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(16, 14, 16, 10),
-                child: Column(
-                  children: [
-                    Row(
-                      children: [
-                        const Icon(Icons.text_fields_rounded),
-                        const SizedBox(width: 10),
-                        const Expanded(
-                          child: Text(
-                            'Tamanho do texto',
-                            style: TextStyle(fontWeight: FontWeight.w800),
-                          ),
-                        ),
-                        Text('${store.fontSize.round()}'),
-                      ],
-                    ),
-                    Slider(
-                      value: store.fontSize,
-                      min: 14,
-                      max: 26,
-                      divisions: 6,
-                      onChanged: (value) {
-                        store.fontSize = value;
-                        store.save();
-                      },
-                    ),
-                  ],
-                ),
-              ),
-            ),
-            const SizedBox(height: 26),
-            const SectionTitle('Tela inicial'),
-            NotoTile(
-              icon: Icons.wallpaper_outlined,
-              title: 'Fundo da tela inicial',
-              subtitle: store.customWallpaper != null || store.wallpaper > 0
-                  ? 'Fundo personalizado ativo'
-                  : 'Sem imagem de fundo',
-              onTap: () => showModalBottomSheet<void>(
-                context: context,
-                isScrollControlled: true,
-                builder: (_) => WallpaperSheet(store: store),
-              ),
-            ),
-            const SizedBox(height: 10),
-            Card(
-              child: Padding(
-                padding: const EdgeInsets.all(14),
-                child: Column(
-                  children: [
-                    Row(
-                      children: [
-                        const Icon(Icons.brightness_6_outlined),
-                        const SizedBox(width: 8),
-                        const SizedBox(width: 78, child: Text('Escurecer')),
-                        Expanded(
-                          child: Slider(
-                            value: store.wallpaperDarkness,
-                            min: 0,
-                            max: .8,
-                            onChanged: (value) {
-                              store.wallpaperDarkness = value;
-                              store.save();
-                            },
-                          ),
-                        ),
-                      ],
-                    ),
-                    Row(
-                      children: [
-                        const Icon(Icons.blur_on_outlined),
-                        const SizedBox(width: 8),
-                        const SizedBox(width: 78, child: Text('Desfoque')),
-                        Expanded(
-                          child: Slider(
-                            value: store.wallpaperBlur,
-                            min: 0,
-                            max: 16,
-                            divisions: 16,
-                            onChanged: (value) {
-                              store.wallpaperBlur = value;
-                              store.save();
-                            },
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-            ),
-            const SizedBox(height: 26),
-            const SectionTitle('Organização'),
-            NotoTile(
-              icon: Icons.archive_outlined,
-              title: 'Notas arquivadas',
-              subtitle:
-                  '${store.notes.where((n) => n.archived && n.deletedAt == null).length} arquivadas',
-              onTap: () => Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => ArchivePage(store: store)),
-              ),
-            ),
-            const SizedBox(height: 10),
-            NotoTile(
-              icon: Icons.delete_outline_rounded,
-              title: 'Lixeira',
-              subtitle:
-                  '${store.notes.where((n) => n.deletedAt != null).length} itens',
-              onTap: () => Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => TrashPage(store: store)),
-              ),
-            ),
-            const SizedBox(height: 26),
-            const SectionTitle('Widget'),
-            Card(
-              child: Padding(
-                padding: const EdgeInsets.all(14),
-                child: DropdownButtonFormField<String?>(
-                  value: selectedWidgetId,
-                  decoration: const InputDecoration(
-                    labelText: 'Nota exibida no widget',
-                    prefixIcon: Icon(Icons.widgets_outlined),
-                  ),
-                  items: [
-                    const DropdownMenuItem<String?>(
-                      value: null,
-                      child: Text('Nota mais recente'),
-                    ),
-                    ...active.map(
-                      (note) => DropdownMenuItem<String?>(
-                        value: note.id,
-                        child: Text(
-                          note.title.trim().isEmpty ? 'Sem título' : note.title,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                    ),
-                  ],
-                  onChanged: (value) {
-                    store.widgetNoteId = value;
-                    store.save();
-                  },
-                ),
-              ),
-            ),
-            const SizedBox(height: 26),
-            const SectionTitle('Seus dados'),
-            Row(
-              children: [
-                Expanded(
-                  child: FilledButton.tonalIcon(
-                    onPressed: () => exportBackup(context, store),
-                    icon: const Icon(Icons.upload_file_outlined),
-                    label: const Text('Backup'),
-                  ),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: FilledButton.tonalIcon(
-                    onPressed: () => importBackup(context, store),
-                    icon: const Icon(Icons.settings_backup_restore_rounded),
-                    label: const Text('Restaurar'),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 26),
-            NotoTile(
-              icon: Icons.slideshow_outlined,
-              title: 'Ver apresentação novamente',
-              onTap: () {
-                store.onboardingDone = false;
-                store.save();
-              },
-            ),
-          ],
-        ),
-      );
-    },
-  );
-}
 
 class FontPickerSheet extends StatefulWidget {
   const FontPickerSheet({super.key, required this.selected});
@@ -400,7 +63,7 @@ class _FontPickerSheetState extends State<FontPickerSheet> {
                   ),
                   TextField(
                     decoration: const InputDecoration(
-                      labelText: 'Sua frase de prévia',
+                      labelText: 'Texto de exemplo',
                       hintText: 'Minha próxima grande ideia',
                     ),
                     onChanged: (value) => setState(() => preview = value),
@@ -491,7 +154,7 @@ class WallpaperSheet extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                note == null ? 'Fundo da tela inicial' : 'Fundo da nota',
+                note == null ? 'Fundo do aplicativo' : 'Fundo da nota',
                 style: Theme.of(context).textTheme.headlineSmall
                     ?.copyWith(fontWeight: FontWeight.w900),
               ),
@@ -610,7 +273,7 @@ class ArchivePage extends StatelessWidget {
           ),
         ),
         body: items.isEmpty
-            ? const Center(child: Text('Nenhuma nota arquivada'))
+            ? const Center(child: Text('Nenhuma nota arquivada.'))
             : ListView.separated(
                 padding: const EdgeInsets.all(16),
                 itemCount: items.length,
@@ -624,10 +287,32 @@ class ArchivePage extends StatelessWidget {
                         note.title.trim().isEmpty ? 'Sem título' : note.title,
                       ),
                       subtitle: Text(note.folder),
-                      trailing: IconButton(
-                        tooltip: 'Desarquivar',
-                        icon: const Icon(Icons.unarchive_outlined),
-                        onPressed: () => store.unarchive(note),
+                      onTap: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => EditorPageV2(
+                            store: store,
+                            note: note,
+                            isNew: false,
+                          ),
+                        ),
+                      ),
+                      trailing: PopupMenuButton<String>(
+                        tooltip: 'Opções',
+                        onSelected: (value) {
+                          if (value == 'unarchive') store.unarchive(note);
+                          if (value == 'trash') store.delete(note);
+                        },
+                        itemBuilder: (_) => const [
+                          PopupMenuItem(
+                            value: 'unarchive',
+                            child: Text('Desarquivar'),
+                          ),
+                          PopupMenuItem(
+                            value: 'trash',
+                            child: Text('Mover para a lixeira'),
+                          ),
+                        ],
                       ),
                     ),
                   );
@@ -654,9 +339,39 @@ class TrashPage extends StatelessWidget {
             'Lixeira',
             style: TextStyle(fontWeight: FontWeight.w900),
           ),
+          actions: [
+            if (items.isNotEmpty)
+              TextButton(
+                onPressed: () async {
+                  final ok = await showDialog<bool>(
+                    context: context,
+                    builder: (dialogContext) => AlertDialog(
+                      title: const Text('Esvaziar a lixeira?'),
+                      content: Text(
+                        items.length == 1
+                            ? 'A nota será apagada de vez. Não dá para desfazer.'
+                            : 'As ${items.length} notas serão apagadas de vez. Não dá para desfazer.',
+                      ),
+                      actions: [
+                        TextButton(
+                          onPressed: () => Navigator.pop(dialogContext, false),
+                          child: const Text('Cancelar'),
+                        ),
+                        FilledButton(
+                          onPressed: () => Navigator.pop(dialogContext, true),
+                          child: const Text('Esvaziar'),
+                        ),
+                      ],
+                    ),
+                  );
+                  if (ok == true) store.emptyTrash();
+                },
+                child: const Text('Esvaziar'),
+              ),
+          ],
         ),
         body: items.isEmpty
-            ? const Center(child: Text('A lixeira está vazia'))
+            ? const Center(child: Text('A lixeira está vazia.'))
             : ListView.separated(
                 padding: const EdgeInsets.all(16),
                 itemCount: items.length,
@@ -675,6 +390,7 @@ class TrashPage extends StatelessWidget {
                         onSelected: (value) {
                           if (value == 'restore') store.restore(note);
                           if (value == 'delete') store.deleteForever(note);
+
                         },
                         itemBuilder: (_) => const [
                           PopupMenuItem(
@@ -684,7 +400,7 @@ class TrashPage extends StatelessWidget {
                           PopupMenuItem(
                             value: 'delete',
                             child: Text(
-                              'Excluir para sempre',
+                              'Apagar de vez',
                               style: TextStyle(color: Colors.red),
                             ),
                           ),
@@ -706,6 +422,10 @@ Future<void> exportBackup(BuildContext context, AppStore store) async {
     if (path != null && await File(path).exists()) {
       images['note_${note.id}'] = base64Encode(await File(path).readAsBytes());
     }
+    final cover = note.coverImage;
+    if (cover != null && await File(cover).exists()) {
+      images['cover_${note.id}'] = base64Encode(await File(cover).readAsBytes());
+    }
   }
   if (store.customWallpaper != null &&
       await File(store.customWallpaper!).exists()) {
@@ -716,9 +436,10 @@ Future<void> exportBackup(BuildContext context, AppStore store) async {
 
   final data = {
     'format': 'noto-backup',
-    'version': 2,
+    'version': 3,
     'createdAt': DateTime.now().toIso8601String(),
     'notes': store.notes.map((n) => n.toJson()).toList(),
+    'templates': store.templates.map((t) => t.toJson()).toList(),
     'settings': {
       'mode': store.mode.index,
       'accent': store.accent,
@@ -767,7 +488,18 @@ Future<void> importBackup(BuildContext context, AppStore store) async {
         await file.writeAsBytes(base64Decode(encoded));
         note.customWallpaper = file.path;
       }
+      final cover = images['cover_${note.id}'];
+      if (cover != null) {
+        final file = File('${dir.path}/restored_cover_${note.id}.jpg');
+        await file.writeAsBytes(base64Decode(cover));
+        note.coverImage = file.path;
+      }
     }
+    final templates = data['templates'] is List
+        ? (data['templates'] as List)
+              .map((e) => NotoTemplate.fromJson(Map<String, dynamic>.from(e)))
+              .toList()
+        : null;
 
     if (!context.mounted) return;
     final confirmed = await showDialog<bool>(
@@ -775,7 +507,7 @@ Future<void> importBackup(BuildContext context, AppStore store) async {
       builder: (dialogContext) => AlertDialog(
         title: const Text('Restaurar este backup?'),
         content: Text(
-          'As notas atuais serão substituídas pelas ${notes.length} notas deste arquivo.',
+          'As notas que estão no app agora serão trocadas pelas ${notes.length} notas deste backup.',
         ),
         actions: [
           TextButton(
@@ -794,6 +526,11 @@ Future<void> importBackup(BuildContext context, AppStore store) async {
     store.notes
       ..clear()
       ..addAll(notes);
+    if (templates != null) {
+      store.templates
+        ..clear()
+        ..addAll(templates);
+    }
     store.mode =
         ThemeMode.values[((settings['mode'] as num?)?.toInt() ?? 0).clamp(
           0,
@@ -833,14 +570,14 @@ Future<void> importBackup(BuildContext context, AppStore store) async {
     await store.save();
     if (context.mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('${notes.length} notas restauradas.')),
+        SnackBar(content: Text(notes.length == 1 ? '1 nota restaurada.' : '${notes.length} notas restauradas.')),
       );
     }
   } catch (_) {
     if (context.mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Esse arquivo não é um backup válido do Noto.'),
+          content: Text('Esse arquivo não é um backup do Noto.'),
         ),
       );
     }
@@ -850,12 +587,12 @@ Future<void> importBackup(BuildContext context, AppStore store) async {
 void showAboutNoto(BuildContext context) => showAboutDialog(
   context: context,
   applicationName: 'Noto',
-  applicationVersion: '2.0 UI',
+  applicationVersion: '2.0',
   applicationIcon: ClipRRect(
     borderRadius: BorderRadius.circular(18),
     child: Image.asset('assets/noto_mark.png', width: 68, height: 68),
   ),
   children: const [
-    Text('Um bloco de notas simples por fora e personalizável por dentro.'),
+    Text('Um bloco de notas simples, offline e do seu jeito.'),
   ],
 );

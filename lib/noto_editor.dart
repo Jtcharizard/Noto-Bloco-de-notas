@@ -106,7 +106,7 @@ class _EditorPageState extends State<EditorPage> {
       id,
       title.text.trim().isEmpty ? 'Lembrete do Noto' : title.text.trim(),
       body.text.trim().isEmpty
-          ? 'Hora de abrir tua nota.'
+          ? 'Você pediu para lembrar desta nota.'
           : body.text.trim().split('\n').first,
       tz.TZDateTime.from(selected, tz.local),
       details,
@@ -310,7 +310,7 @@ class _EditorPageState extends State<EditorPage> {
                               keyboardType: TextInputType.multiline,
                               textCapitalization: TextCapitalization.sentences,
                               decoration: InputDecoration(
-                                hintText: 'Começa a escrever...',
+                                hintText: 'Escreva aqui...',
                                 hintStyle: TextStyle(
                                   color: fg?.withValues(alpha: .48),
                                 ),
@@ -508,7 +508,7 @@ class _NoteStyleSheetState extends State<NoteStyleSheet> {
                 'Imagem de fundo',
                 style: TextStyle(fontWeight: FontWeight.w800),
               ),
-              subtitle: const Text('Escolhe um wallpaper ou uma foto tua'),
+              subtitle: const Text('Escolha um fundo ou uma foto sua'),
               trailing: const Icon(Icons.chevron_right_rounded),
               onTap: () => showModalBottomSheet<void>(
                 context: context,

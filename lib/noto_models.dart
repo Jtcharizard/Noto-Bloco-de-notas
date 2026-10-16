@@ -178,7 +178,7 @@ class NotoFont {
   const NotoFont(
     this.name,
     this.family, {
-    this.subtitle = 'A imaginação começa aqui',
+    this.subtitle = 'Minha próxima grande ideia',
   });
   final String name;
   final String? family;
@@ -215,8 +215,8 @@ class NotoAppearance {
 
   static const fonts = <NotoFont>[
     NotoFont('Moderna', null),
-    NotoFont('Livro', 'serif'),
-    NotoFont('Máquina', 'monospace'),
+    NotoFont('Clássica', 'serif'),
+    NotoFont('Máquina de escrever', 'monospace'),
     NotoFont('Poppins', 'Poppins'),
     NotoFont('Montserrat', 'Montserrat'),
     NotoFont('Playfair', 'Playfair'),
@@ -248,16 +248,16 @@ class NotoAppearance {
     NotoFont('Urbanist', 'Urbanist'),
     NotoFont('DM Serif', 'DMSerifDisplay'),
     NotoFont('Libre Baskerville', 'LibreBaskerville'),
-    NotoFont('RobotoSlab', 'RobotoSlab'),
+    NotoFont('Roboto Slab', 'RobotoSlab'),
     NotoFont('Merriweather', 'Merriweather'),
     NotoFont('Ubuntu', 'Ubuntu'),
-    NotoFont('PTSans', 'PTSans'),
+    NotoFont('PT Sans', 'PTSans'),
     NotoFont('Inconsolata', 'Inconsolata'),
     NotoFont('Dosis', 'Dosis'),
     NotoFont('Anton', 'Anton'),
-    NotoFont('ShadowsIntoLight', 'ShadowsIntoLight'),
-    NotoFont('AmaticSC', 'AmaticSC'),
-    NotoFont('IndieFlower', 'IndieFlower'),
+    NotoFont('Shadows Into Light', 'ShadowsIntoLight'),
+    NotoFont('Amatic SC', 'AmaticSC'),
+    NotoFont('Indie Flower', 'IndieFlower'),
   ];
 
   static const noteColors = <Color>[

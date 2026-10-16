@@ -37,7 +37,6 @@ class AppStore extends ChangeNotifier {
   bool onboardingDone = false;
   bool loaded = false;
   bool homeShowToday = true;
-  bool homeShowPulse = true;
   bool homeShowRecents = true;
   bool _skipRevisionCapture = false;
 
@@ -135,7 +134,16 @@ class AppStore extends ChangeNotifier {
     widgetNoteId = prefs.getString('widgetNoteId');
     onboardingDone = prefs.getBool('onboardingDone') ?? false;
     homeShowToday = prefs.getBool('homeShowToday') ?? true;
-    homeShowPulse = prefs.getBool('homeShowPulse') ?? true;
+    await prefs.remove('homeShowPulse');
+    await prefs.remove('editor.focus');
+
+    // Lembretes que já tocaram não ficam pendurados na nota para sempre.
+    final now = DateTime.now();
+    for (final note in notes) {
+      if (note.reminderAt != null && note.reminderAt!.isBefore(now)) {
+        note.reminderAt = null;
+      }
+    }
     homeShowRecents = prefs.getBool('homeShowRecents') ?? true;
 
     // A journal written before the first debounced save can recover a new note.
@@ -230,7 +238,6 @@ class AppStore extends ChangeNotifier {
     }
     await prefs.setBool('onboardingDone', onboardingDone);
     await prefs.setBool('homeShowToday', homeShowToday);
-    await prefs.setBool('homeShowPulse', homeShowPulse);
     await prefs.setBool('homeShowRecents', homeShowRecents);
 
     await _syncWidget();
@@ -370,8 +377,8 @@ class AppStore extends ChangeNotifier {
     await HomeWidget.saveWidgetData<String>(
       'note_body',
       selected == null
-          ? 'Toca para criar tua primeira nota'
-          : selected.body.replaceAll('[ ]', '☐').replaceAll('[x]', '☑'),
+          ? 'Toque para criar sua primeira nota'
+          : readablePreview(selected.body),
     );
     await HomeWidget.updateWidget(
       name: 'NotoWidgetProvider',
@@ -379,7 +386,16 @@ class AppStore extends ChangeNotifier {
     );
   }
 
+  void cancelReminder(Note note) {
+    if (note.reminderAt == null) return;
+    note.reminderAt = null;
+    notifications
+        .cancel(note.id.hashCode & 0x7fffffff)
+        .catchError((Object _) {});
+  }
+
   void delete(Note note) {
+    cancelReminder(note);
     note.deletedAt = DateTime.now();
     save();
   }
@@ -389,7 +405,19 @@ class AppStore extends ChangeNotifier {
     save();
   }
 
+  void emptyTrash() {
+    final trashed = notes.where((n) => n.deletedAt != null).toList();
+    for (final note in trashed) {
+      cancelReminder(note);
+      notes.remove(note);
+      histories.remove(note.id);
+      _savedContent.remove(note.id);
+    }
+    save();
+  }
+
   void deleteForever(Note note) {
+    cancelReminder(note);
     notes.remove(note);
     histories.remove(note.id);
     _savedContent.remove(note.id);
@@ -416,7 +444,7 @@ class AppStore extends ChangeNotifier {
     notes.add(
       Note(
         id: DateTime.now().microsecondsSinceEpoch.toString(),
-        title: '${note.title} — cópia',
+        title: note.title.trim().isEmpty ? '' : '${note.title} (cópia)',
         body: note.body,
         editor: copyEditor(note.editor),
         updatedAt: DateTime.now(),

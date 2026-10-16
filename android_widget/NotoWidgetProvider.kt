@@ -12,7 +12,7 @@ class NotoWidgetProvider : HomeWidgetProvider() {
         appWidgetIds.forEach { id ->
             val views = RemoteViews(context.packageName, R.layout.noto_widget)
             views.setTextViewText(R.id.widget_title, widgetData.getString("note_title", "Noto"))
-            views.setTextViewText(R.id.widget_body, widgetData.getString("note_body", "Toca para abrir tuas notas"))
+            views.setTextViewText(R.id.widget_body, widgetData.getString("note_body", "Toque para abrir suas notas"))
             views.setOnClickPendingIntent(R.id.widget_root, HomeWidgetLaunchIntent.getActivity(context, MainActivity::class.java))
             appWidgetManager.updateAppWidget(id, views)
         }

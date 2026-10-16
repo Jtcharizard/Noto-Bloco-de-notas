@@ -1,6 +1,8 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:home_widget/home_widget.dart';
 import 'package:intl/intl.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -32,13 +34,14 @@ class _HomeShellV4State extends State<HomeShellV4> {
   });
   Future<void> _bulk(String action) async {
     final chosen = _active.where((n) => selectedIds.contains(n.id)).toList();
+    final allFavorite = chosen.isNotEmpty && chosen.every((n) => n.favorite);
     String? destination;
     if (action == 'move') {
       var value = '';
       destination = await showDialog<String>(
         context: context,
         builder: (ctx) => AlertDialog(
-          title: const Text('Mover notas para pasta'),
+          title: const Text('Mover para a pasta'),
           content: TextField(
             autofocus: true,
             decoration: const InputDecoration(labelText: 'Pasta'),
@@ -64,15 +67,23 @@ class _HomeShellV4State extends State<HomeShellV4> {
     }
     for (final note in chosen) {
       if (action == 'move') note.folder = destination!;
-      if (action == 'favorite') note.favorite = true;
+      if (action == 'favorite') note.favorite = !allFavorite;
       if (action == 'archive') note.archived = true;
+      if (action == 'trash') {
+        widget.store.cancelReminder(note);
+        note.deletedAt = DateTime.now();
+      }
       note.updatedAt = DateTime.now();
     }
     await widget.store.save();
     if (mounted) {
       setState(selectedIds.clear);
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('${chosen.length} notas atualizadas')),
+        SnackBar(
+          content: Text(
+            chosen.length == 1 ? '1 nota atualizada' : '${chosen.length} notas atualizadas',
+          ),
+        ),
       );
     }
   }
@@ -92,10 +103,42 @@ class _HomeShellV4State extends State<HomeShellV4> {
   final Set<String> savedFolders = {'Geral', 'Entrada'};
   final Set<String> savedTags = {};
 
+  StreamSubscription<Uri?>? _widgetClicks;
+
   @override
   void initState() {
     super.initState();
     _loadCollections();
+    _listenToQuickWidget();
+  }
+
+  @override
+  void dispose() {
+    _widgetClicks?.cancel();
+    super.dispose();
+  }
+
+  /// O widget "Nova nota" abre o app com noto://nova-nota.
+  Future<void> _listenToQuickWidget() async {
+    try {
+      _widgetClicks = HomeWidget.widgetClicked.listen(_handleWidgetUri);
+      _handleWidgetUri(await HomeWidget.initiallyLaunchedFromHomeWidget());
+    } catch (_) {
+      /* Sem widgets nesta plataforma. */
+    }
+  }
+
+  void _handleWidgetUri(Uri? uri) {
+    if (uri == null || uri.host != 'nova-nota' || !mounted) return;
+    final note = Note(
+      id: DateTime.now().microsecondsSinceEpoch.toString(),
+      title: '',
+      body: '',
+      updatedAt: DateTime.now(),
+      folder: 'Geral',
+      font: widget.store.font,
+    );
+    _openNote(note, isNew: true);
   }
 
   Future<void> _loadCollections() async {
@@ -253,12 +296,12 @@ class _HomeShellV4State extends State<HomeShellV4> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              'Captura rápida',
+              'Nota rápida',
               style: Theme.of(context).textTheme.titleLarge
                   ?.copyWith(fontWeight: FontWeight.w800),
             ),
             const SizedBox(height: 4),
-            const Text('Vai direto pra Entrada.'),
+            const Text('Fica salva na pasta Entrada.'),
             const SizedBox(height: 14),
             TextField(
               controller: controller,
@@ -266,7 +309,7 @@ class _HomeShellV4State extends State<HomeShellV4> {
               minLines: 1,
               maxLines: 5,
               textCapitalization: TextCapitalization.sentences,
-              decoration: const InputDecoration(hintText: 'Escreve e salva.'),
+              decoration: const InputDecoration(hintText: 'Digite aqui'),
             ),
             const SizedBox(height: 16),
             Align(
@@ -333,7 +376,7 @@ class _HomeShellV4State extends State<HomeShellV4> {
                 child: widget.store.templates.isEmpty
                     ? const Center(
                         child: Text(
-                          'Salva uma nota como modelo pelo menu do editor.',
+                          'Para criar um modelo, abra uma nota e use o menu ⋮ > Salvar como modelo.',
                         ),
                       )
                     : ListView.builder(
@@ -348,7 +391,7 @@ class _HomeShellV4State extends State<HomeShellV4> {
                             title: Text(template.name),
                             subtitle: Text(
                               template.title.trim().isEmpty
-                                  ? 'Sem título pré-definido'
+                                  ? 'Sem título definido'
                                   : template.title,
                               maxLines: 1,
                             ),
@@ -393,22 +436,22 @@ class _HomeShellV4State extends State<HomeShellV4> {
               ),
               const SizedBox(height: 10),
               _CreateRow(
-                title: 'Captura rápida',
-                subtitle: 'Anota sem abrir o editor',
+                title: 'Nota rápida',
+                subtitle: 'Anote algo sem abrir o editor',
                 onTap: () => Navigator.pop(sheetContext, 'quick'),
               ),
               _CreateRow(
                 title: 'Em branco',
                 subtitle: folder != null
-                    ? 'Já entra em $folder'
+                    ? 'Vai para a pasta $folder'
                     : tag != null
-                    ? 'Já recebe #$tag'
-                    : 'Começa do zero',
+                    ? 'Já vem com a tag #$tag'
+                    : 'Nota vazia',
                 onTap: () => Navigator.pop(sheetContext, 'blank'),
               ),
               _CreateRow(
-                title: 'Checklist',
-                subtitle: 'Lista marcável',
+                title: 'Lista de tarefas',
+                subtitle: 'Com caixas para marcar',
                 onTap: () => Navigator.pop(sheetContext, 'checklist'),
               ),
               _CreateRow(
@@ -423,12 +466,12 @@ class _HomeShellV4State extends State<HomeShellV4> {
               ),
               _CreateRow(
                 title: 'Diário',
-                subtitle: 'Entrada com a data de hoje',
+                subtitle: 'Página com a data de hoje',
                 onTap: () => Navigator.pop(sheetContext, 'diary'),
               ),
               _CreateRow(
-                title: 'Importar TXT / Markdown',
-                subtitle: 'Transforma um arquivo em nota',
+                title: 'Importar arquivo',
+                subtitle: 'Abre um arquivo .txt ou .md como nota',
                 onTap: () => Navigator.pop(sheetContext, 'import'),
               ),
               if (widget.store.templates.isNotEmpty) ...[
@@ -506,7 +549,7 @@ class _HomeShellV4State extends State<HomeShellV4> {
     var checklist = false;
     if (choice == 'checklist') {
       title = 'Minha lista';
-      body = '[ ] Primeiro item';
+      body = '- [ ] ';
       checklist = true;
     } else if (choice == 'study') {
       title = 'Resumo de estudo';
@@ -754,7 +797,7 @@ class _HomeShellV4State extends State<HomeShellV4> {
               ),
               SwitchListTile(
                 contentPadding: EdgeInsets.zero,
-                title: const Text('Só checklists'),
+                title: const Text('Só listas de tarefas'),
                 value: draftChecklist,
                 onChanged: (value) =>
                     setModalState(() => draftChecklist = value),
@@ -770,7 +813,7 @@ class _HomeShellV4State extends State<HomeShellV4> {
                 leading: const Icon(Icons.date_range_outlined),
                 title: const Text('Editadas entre'),
                 subtitle: Text(
-                  '${draftFrom == null ? 'qualquer data' : DateFormat('dd/MM/yy').format(draftFrom!)}  →  ${draftTo == null ? 'hoje/futuro' : DateFormat('dd/MM/yy').format(draftTo!)}',
+                  '${draftFrom == null ? 'qualquer data' : DateFormat('dd/MM/yy').format(draftFrom!)}  →  ${draftTo == null ? 'hoje' : DateFormat('dd/MM/yy').format(draftTo!)}',
                 ),
                 trailing: const Icon(Icons.chevron_right_rounded),
                 onTap: () async {
@@ -862,7 +905,7 @@ class _HomeShellV4State extends State<HomeShellV4> {
     widget.store.save();
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: const Text('Nota movida pra lixeira'),
+        content: const Text('Nota movida para a lixeira'),
         action: SnackBarAction(
           label: 'Desfazer',
           onPressed: () {
@@ -874,6 +917,38 @@ class _HomeShellV4State extends State<HomeShellV4> {
     );
   }
 
+  Widget _folderChips() {
+    final folders = _allFolders;
+    return SizedBox(
+      height: 46,
+      child: ListView(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.fromLTRB(20, 8, 20, 0),
+        children: [
+          Padding(
+            padding: const EdgeInsets.only(right: 8),
+            child: ChoiceChip(
+              label: const Text('Todas'),
+              selected: folder == null,
+              onSelected: (_) => setState(() => folder = null),
+            ),
+          ),
+          for (final item in folders)
+            Padding(
+              padding: const EdgeInsets.only(right: 8),
+              child: ChoiceChip(
+                label: Text(item),
+                selected: folder == item,
+                onSelected: (_) => setState(
+                  () => folder = folder == item ? null : item,
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) => AnimatedBuilder(
     animation: widget.store,
@@ -881,7 +956,6 @@ class _HomeShellV4State extends State<HomeShellV4> {
       final active = _active;
       final notes = _visible;
       final snapshot = buildTodaySnapshot(active);
-      final insights = buildPulseInsights(active);
       final inbox = active.where((note) => note.folder == 'Entrada').length;
       final archived = widget.store.notes
           .where((note) => note.archived && note.deletedAt == null)
@@ -962,16 +1036,15 @@ class _HomeShellV4State extends State<HomeShellV4> {
                 ),
               if (widget.store.homeShowToday)
                 _TodayLine(snapshot: snapshot, inbox: inbox),
-              if (widget.store.homeShowPulse && insights.isNotEmpty)
-                _PulseLine(insight: insights.first),
+              if (_allFolders.length > 1) _folderChips(),
               Padding(
                 padding: const EdgeInsets.fromLTRB(20, 14, 20, 8),
                 child: Row(
                   children: [
                     Expanded(
                       child: Text(
-                        _hasFilters
-                            ? '${notes.length} filtradas'
+                        _hasFilters || query.trim().isNotEmpty
+                            ? '${notes.length} ${notes.length == 1 ? 'encontrada' : 'encontradas'}'
                             : '${notes.length} ${notes.length == 1 ? 'nota' : 'notas'}',
                         style: Theme.of(context).textTheme.labelLarge
                             ?.copyWith(fontWeight: FontWeight.w700),
@@ -1101,7 +1174,7 @@ class _HomeShellV4State extends State<HomeShellV4> {
                     ),
                     Expanded(child: Text('${selectedIds.length} selecionadas')),
                     IconButton(
-                      tooltip: 'Selecionar todas visíveis',
+                      tooltip: 'Selecionar todas',
                       onPressed: () => setState(
                         () => selectedIds.addAll(_visible.map((n) => n.id)),
                       ),
@@ -1117,11 +1190,15 @@ class _HomeShellV4State extends State<HomeShellV4> {
                         ),
                         PopupMenuItem(
                           value: 'favorite',
-                          child: Text('Favoritar selecionadas'),
+                          child: Text('Favoritar / desfavoritar'),
                         ),
                         PopupMenuItem(
                           value: 'archive',
-                          child: Text('Arquivar selecionadas'),
+                          child: Text('Arquivar'),
+                        ),
+                        PopupMenuItem(
+                          value: 'trash',
+                          child: Text('Mover para a lixeira'),
                         ),
                       ],
                     ),
@@ -1257,15 +1334,18 @@ class _TodayLine extends StatelessWidget {
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     final parts = <String>[];
-    if (snapshot.pendingTasks > 0)
-      parts.add('${snapshot.pendingTasks} pendentes');
-    if (snapshot.remindersToday > 0)
-      parts.add('${snapshot.remindersToday} lembretes');
-    if (snapshot.overdueReminders > 0)
-      parts.add('${snapshot.overdueReminders} atrasados');
-    if (snapshot.touched > 0) parts.add('${snapshot.touched} mexidas hoje');
+    String plural(int n, String one, String many) => '$n ${n == 1 ? one : many}';
+    if (snapshot.pendingTasks > 0) {
+      parts.add(plural(snapshot.pendingTasks, 'tarefa a fazer', 'tarefas a fazer'));
+    }
+    if (snapshot.remindersToday > 0) {
+      parts.add(plural(snapshot.remindersToday, 'lembrete', 'lembretes'));
+    }
+    if (snapshot.touched > 0) {
+      parts.add(plural(snapshot.touched, 'nota editada', 'notas editadas'));
+    }
     if (inbox > 0) parts.add('$inbox na Entrada');
-    if (parts.isEmpty) parts.add('nada pendente por aqui');
+    if (parts.isEmpty) parts.add('nada pendente');
 
     return Container(
       width: double.infinity,
@@ -1291,42 +1371,6 @@ class _TodayLine extends StatelessWidget {
           ],
         ),
         style: Theme.of(context).textTheme.bodySmall,
-      ),
-    );
-  }
-}
-
-class _PulseLine extends StatelessWidget {
-  const _PulseLine({required this.insight});
-  final PulseInsight insight;
-
-  @override
-  Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'Pulse',
-            style: TextStyle(
-              color: cs.primary,
-              fontWeight: FontWeight.w800,
-              fontSize: 12,
-            ),
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Text(
-              '${insight.title} — ${insight.detail}',
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                color: cs.onSurface.withValues(alpha: .72),
-                height: 1.35,
-              ),
-            ),
-          ),
-        ],
       ),
     );
   }
@@ -1404,23 +1448,12 @@ class _NoteCard extends StatelessWidget {
     final metadataColor = hasWallpaper
         ? Colors.white70
         : cs.onSurface.withValues(alpha: .58);
-    final preview = note.body
-        .replaceAll('[ ]', '☐')
-        .replaceAll('[x]', '☑')
-        .replaceAll('\n', ' ')
-        .trim();
-    final pending = note.checklist
-        ? note.body
-              .split('\n')
-              .where((line) => line.trim().startsWith('[ ]'))
-              .length
-        : 0;
+    final preview = readablePreview(note.body).replaceAll('\n', '  ');
+    final pending = countPendingTasks(note.body);
     final cover = note.coverImage == null ? null : File(note.coverImage!);
     final hasCover = cover != null && cover.existsSync();
 
-    return Opacity(
-      opacity: note.cardOpacity,
-      child: Material(
+    return Material(
         color: Colors.transparent,
         borderRadius: BorderRadius.circular(16),
         clipBehavior: Clip.antiAlias,
@@ -1533,7 +1566,7 @@ class _NoteCard extends StatelessWidget {
                           children: [
                             if (pending > 0)
                               Text(
-                                '$pending pendentes',
+                                '$pending a fazer',
                                 style: TextStyle(
                                   color:
                                       customTextColor ??
@@ -1589,7 +1622,6 @@ class _NoteCard extends StatelessWidget {
             ),
           ),
         ),
-      ),
     );
   }
 }
@@ -1604,8 +1636,8 @@ class _EmptyNotes extends StatelessWidget {
       padding: const EdgeInsets.all(32),
       child: Text(
         filtered
-            ? 'Nada por aqui com esse filtro.'
-            : 'Ainda não tem nota aqui.\nToca no + pra começar.',
+            ? 'Nenhuma nota encontrada.'
+            : 'Nenhuma nota ainda.\nToque no + para começar.',
         textAlign: TextAlign.center,
         style: Theme.of(context).textTheme.bodyMedium,
       ),

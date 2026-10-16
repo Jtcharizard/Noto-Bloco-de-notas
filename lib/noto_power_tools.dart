@@ -134,7 +134,8 @@ class _CalendarPageState extends State<CalendarPage> {
   List<Note> _notesFor(DateTime day) => widget.store.notes.where((note) {
     if (note.deletedAt != null) return false;
     return _sameDay(note.updatedAt, day) ||
-        (note.dueAt != null && _sameDay(note.dueAt!, day));
+        (note.dueAt != null && _sameDay(note.dueAt!, day)) ||
+        (note.reminderAt != null && _sameDay(note.reminderAt!, day));
   }).toList()..sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
 
   void _changeMonth(int delta) => setState(() {
@@ -171,13 +172,16 @@ class _CalendarPageState extends State<CalendarPage> {
             const Divider(height: 1),
             Expanded(
               child: notes.isEmpty
-                  ? const Center(child: Text('Nada registrado neste dia.'))
+                  ? const Center(child: Text('Nada neste dia.'))
                   : ListView.builder(
                       itemCount: notes.length,
                       itemBuilder: (_, index) {
                         final note = notes[index];
                         final dueHere =
                             note.dueAt != null && _sameDay(note.dueAt!, day);
+                        final reminderHere =
+                            note.reminderAt != null &&
+                            _sameDay(note.reminderAt!, day);
                         return ListTile(
                           leading: Text(
                             note.emoji.isEmpty ? '•' : note.emoji,
@@ -189,8 +193,12 @@ class _CalendarPageState extends State<CalendarPage> {
                                 : note.title,
                           ),
                           subtitle: Text(
-                            dueHere
-                                ? 'Prazo · ${priorityLabel(note.priority)}'
+                            reminderHere
+                                ? 'Lembrete às ${DateFormat('HH:mm').format(note.reminderAt!)}'
+                                : dueHere
+                                ? note.priority > 0
+                                      ? 'Prazo · prioridade ${priorityLabel(note.priority).toLowerCase()}'
+                                      : 'Prazo'
                                 : 'Editada neste dia',
                           ),
                           onTap: () async {
@@ -356,7 +364,7 @@ class MarkdownPreviewPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Scaffold(
     appBar: AppBar(
-      title: Text(title.trim().isEmpty ? 'Prévia Markdown' : title),
+      title: Text(title.trim().isEmpty ? 'Visualizar' : title),
     ),
     body: Markdown(
       data: markdown.replaceAllMapped(
@@ -389,6 +397,16 @@ class PowerNoteStyleSheet extends StatefulWidget {
 }
 
 class _PowerNoteStyleSheetState extends State<PowerNoteStyleSheet> {
+  late final TextEditingController emoji = TextEditingController(
+    text: widget.note.emoji,
+  );
+
+  @override
+  void dispose() {
+    emoji.dispose();
+    super.dispose();
+  }
+
   Future<void> _save(VoidCallback change) async {
     setState(change);
     await widget.store.save();
@@ -438,13 +456,13 @@ class _PowerNoteStyleSheetState extends State<PowerNoteStyleSheet> {
             ),
             const SizedBox(height: 16),
             TextField(
-              controller: TextEditingController(text: note.emoji),
+              controller: emoji,
               maxLength: 4,
               decoration: const InputDecoration(
-                labelText: 'Emoji / ícone',
+                labelText: 'Emoji da nota',
                 hintText: 'Ex.: 📚',
               ),
-              onSubmitted: (value) => _save(() => note.emoji = value.trim()),
+              onChanged: (value) => _save(() => note.emoji = value.trim()),
             ),
             const SizedBox(height: 8),
             const Text(
@@ -532,9 +550,9 @@ class _PowerNoteStyleSheetState extends State<PowerNoteStyleSheet> {
             ListTile(
               contentPadding: EdgeInsets.zero,
               leading: const Icon(Icons.image_outlined),
-              title: const Text('Capa do card'),
+              title: const Text('Capa no card'),
               subtitle: Text(
-                note.coverImage == null ? 'Sem capa' : 'Imagem escolhida',
+                note.coverImage == null ? 'Sem capa' : 'Com imagem',
               ),
               trailing: note.coverImage == null
                   ? const Icon(Icons.chevron_right_rounded)
@@ -549,7 +567,7 @@ class _PowerNoteStyleSheetState extends State<PowerNoteStyleSheet> {
               contentPadding: EdgeInsets.zero,
               leading: const Icon(Icons.wallpaper_outlined),
               title: const Text('Wallpaper da nota'),
-              subtitle: const Text('Imagem que fica atrás do texto'),
+              subtitle: const Text('Imagem de fundo ao abrir a nota'),
               onTap: () => showModalBottomSheet<void>(
                 context: context,
                 isScrollControlled: true,
@@ -558,27 +576,9 @@ class _PowerNoteStyleSheetState extends State<PowerNoteStyleSheet> {
               ).then((_) => widget.onChanged()),
             ),
             const SizedBox(height: 8),
-            Text(
-              'Transparência do card · ${(note.cardOpacity * 100).round()}%',
-              style: const TextStyle(fontWeight: FontWeight.w700),
-            ),
-            Slider(
-              value: note.cardOpacity,
-              min: .35,
-              max: 1,
-              divisions: 13,
-              onChanged: (value) => _save(() => note.cardOpacity = value),
-            ),
-            SwitchListTile(
-              contentPadding: EdgeInsets.zero,
-              title: const Text('Checklist'),
-              subtitle: const Text('Transforma o corpo em lista marcável'),
-              value: note.checklist,
-              onChanged: (value) => _save(() => note.checklist = value),
-            ),
             if (noteWallpaper(note) != null) ...[
               Text(
-                'Escurecer wallpaper · ${(note.wallpaperDarkness * 100).round()}%',
+                'Escurecer fundo · ${(note.wallpaperDarkness * 100).round()}%',
               ),
               Slider(
                 value: note.wallpaperDarkness,
