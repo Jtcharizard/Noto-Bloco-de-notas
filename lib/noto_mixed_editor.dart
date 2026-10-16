@@ -12,6 +12,8 @@ class MixedContentEditor extends StatefulWidget {
     this.family,
     this.fontSize = 17,
     this.textColor,
+    this.hideDone = false,
+    this.onShowDone,
   });
 
   final TextEditingController controller;
@@ -19,6 +21,10 @@ class MixedContentEditor extends StatefulWidget {
   final String? family;
   final double fontSize;
   final Color? textColor;
+
+  /// Esconde as tarefas já marcadas.
+  final bool hideDone;
+  final VoidCallback? onShowDone;
 
   @override
   State<MixedContentEditor> createState() => _MixedContentEditorState();
@@ -125,6 +131,29 @@ class _MixedContentEditorState extends State<MixedContentEditor> {
     _focusLater(added.last);
   }
 
+  /// Tarefa marcada desce para o fim do seu grupo de tarefas;
+  /// desmarcada volta para junto das que faltam fazer.
+  void _toggle(_MixedLine line, bool checked) {
+    setState(() {
+      line.checked = checked;
+      var start = lines.indexOf(line);
+      var end = start;
+      while (start > 0 && lines[start - 1].task) {
+        start--;
+      }
+      while (end < lines.length - 1 && lines[end + 1].task) {
+        end++;
+      }
+      final block = lines.sublist(start, end + 1);
+      final ordered = [
+        ...block.where((item) => !item.checked),
+        ...block.where((item) => item.checked),
+      ];
+      lines.replaceRange(start, end + 1, ordered);
+    });
+    _sync();
+  }
+
   void _removeLine(_MixedLine line) {
     if (lines.length <= 1) return;
     setState(() => lines.remove(line));
@@ -132,23 +161,40 @@ class _MixedContentEditorState extends State<MixedContentEditor> {
     WidgetsBinding.instance.addPostFrameCallback((_) => line.dispose());
   }
 
+  List<_MixedLine> get _visible => widget.hideDone
+      ? lines.where((line) => !(line.task && line.checked)).toList()
+      : lines;
+
   @override
-  Widget build(BuildContext context) => Column(
+  Widget build(BuildContext context) {
+    final visible = _visible;
+    final hidden = lines.length - visible.length;
+    return Column(
     children: [
       Expanded(
         child: ReorderableListView.builder(
           padding: const EdgeInsets.only(bottom: 12),
           buildDefaultDragHandles: false,
-          itemCount: lines.length,
+          itemCount: visible.length,
           onReorder: (oldIndex, newIndex) {
             setState(() {
-              if (newIndex > oldIndex) newIndex--;
-              lines.insert(newIndex, lines.removeAt(oldIndex));
+              final moving = visible[oldIndex];
+              final anchor = newIndex < visible.length
+                  ? visible[newIndex]
+                  : null;
+              final original = lines.indexOf(moving);
+              lines.remove(moving);
+              final position = anchor == null
+                  ? lines.length
+                  : identical(anchor, moving)
+                  ? original
+                  : lines.indexOf(anchor);
+              lines.insert(position, moving);
             });
             _sync();
           },
           itemBuilder: (context, index) {
-            final line = lines[index];
+            final line = visible[index];
             return Row(
               key: line.key,
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -156,10 +202,7 @@ class _MixedContentEditorState extends State<MixedContentEditor> {
                 if (line.task)
                   Checkbox(
                     value: line.checked,
-                    onChanged: (value) {
-                      setState(() => line.checked = value ?? false);
-                      _sync();
-                    },
+                    onChanged: (value) => _toggle(line, value ?? false),
                   )
                 else
                   const SizedBox(width: 12),
@@ -244,6 +287,19 @@ class _MixedContentEditorState extends State<MixedContentEditor> {
           },
         ),
       ),
+      if (hidden > 0)
+        Align(
+          alignment: Alignment.centerLeft,
+          child: TextButton.icon(
+            onPressed: widget.onShowDone,
+            icon: const Icon(Icons.visibility_outlined, size: 18),
+            label: Text(
+              hidden == 1
+                  ? '1 tarefa concluída escondida · Mostrar'
+                  : '$hidden tarefas concluídas escondidas · Mostrar',
+            ),
+          ),
+        ),
       Row(
         children: [
           Expanded(
@@ -264,5 +320,6 @@ class _MixedContentEditorState extends State<MixedContentEditor> {
         ],
       ),
     ],
-  );
+    );
+  }
 }

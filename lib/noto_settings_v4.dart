@@ -4,6 +4,8 @@ import 'noto_models.dart';
 import 'noto_settings.dart' as legacy;
 import 'noto_store.dart';
 import 'noto_theme.dart';
+import 'noto_tutorial.dart';
+import 'noto_vault.dart';
 
 class SettingsPageV4 extends StatelessWidget {
   const SettingsPageV4({super.key, required this.store});
@@ -147,7 +149,9 @@ class SettingsPageV4 extends StatelessWidget {
   }
 
   List<Note> get _activeNotes =>
-      store.notes.where((n) => n.deletedAt == null && !n.archived).toList()
+      store.notes
+          .where((n) => n.deletedAt == null && !n.archived && !n.locked)
+          .toList()
         ..sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
 
   String _widgetNoteLabel() {
@@ -290,6 +294,27 @@ class SettingsPageV4 extends StatelessWidget {
                   subtitle: _widgetNoteLabel(),
                   onTap: () => _pickWidgetNote(context),
                 ),
+                const SizedBox(height: 28),
+                const SectionTitle('Ajuda'),
+                NotoTile(
+                  icon: Icons.school_outlined,
+                  title: 'Ver tutorial de novo',
+                  subtitle: 'Como usar o Noto em 5 telas',
+                  onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => TutorialPage(
+                        onDone: () => Navigator.pop(context),
+                      ),
+                    ),
+                  ),
+                ),
+                if (store.hasVault)
+                  NotoTile(
+                    icon: Icons.password_rounded,
+                    title: 'Trocar senha',
+                    onTap: () => changeVaultPin(context, store),
+                  ),
                 const SizedBox(height: 28),
                 const SectionTitle('Dados'),
                 NotoTile(

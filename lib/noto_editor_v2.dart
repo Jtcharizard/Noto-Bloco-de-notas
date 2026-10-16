@@ -13,10 +13,8 @@ import 'noto_settings.dart' as settings;
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
-import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:intl/intl.dart';
 import 'package:share_plus/share_plus.dart';
-import 'package:timezone/timezone.dart' as tz;
 
 import 'noto_features.dart';
 import 'noto_formatting.dart';
@@ -24,6 +22,7 @@ import 'noto_models.dart';
 import 'noto_power_tools.dart';
 import 'noto_store.dart';
 import 'noto_theme.dart';
+import 'noto_vault.dart';
 
 class EditorPageV2 extends StatefulWidget {
   const EditorPageV2({
@@ -62,6 +61,7 @@ class _EditorPageV2State extends State<EditorPageV2>
   final List<String> undoStack = [];
   final List<String> redoStack = [];
   TextAlign alignment = TextAlign.left;
+  bool hideDone = false;
   Timer? autosaveTimer;
   SharedPreferences? editorPrefs;
   String saveLabel = 'Salvo';
@@ -75,6 +75,7 @@ class _EditorPageV2State extends State<EditorPageV2>
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     final metadata = widget.note.editor;
+    hideDone = metadata['hideDone'] == true;
     codeBlocks.addAll(
       ((metadata['code'] as List?) ?? []).map(
         (e) => Map<String, dynamic>.from(e as Map),
@@ -142,6 +143,21 @@ class _EditorPageV2State extends State<EditorPageV2>
     title.addListener(_editorChanged);
     body.addListener(_editorChanged);
     _loadEditorPreferences();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _maybeShowTaskTip());
+  }
+
+  void _maybeShowTaskTip() {
+    if (!mounted || !widget.note.checklist) return;
+    if (!widget.store.takeTip('tasks-enter')) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        duration: Duration(seconds: 6),
+        content: Text(
+          'Dica: Enter cria a próxima tarefa. Enter numa tarefa vazia volta '
+          'para texto. Tarefas marcadas descem para o fim.',
+        ),
+      ),
+    );
   }
 
   Map<String, dynamic> _editorData() => {
@@ -150,6 +166,7 @@ class _EditorPageV2State extends State<EditorPageV2>
     'styles': body.marks,
     'tables': tables.map((t) => t.toJson()).toList(),
     'align': alignment.index,
+    'hideDone': hideDone,
     'cursor': body.selection.isValid ? body.selection.extentOffset : 0,
     'scroll': editorScroll.hasClients ? editorScroll.offset : 0,
   };
@@ -590,6 +607,13 @@ class _EditorPageV2State extends State<EditorPageV2>
     _editorChanged();
   }
 
+  void _setHideDone(bool value) {
+    setState(() => hideDone = value);
+    dirty = true;
+    autosaveTimer?.cancel();
+    autosaveTimer = Timer(const Duration(milliseconds: 300), _autosave);
+  }
+
   void _setChecklistMode(bool on) {
     if (on == widget.note.checklist) return;
     widget.note.checklist = on;
@@ -611,6 +635,7 @@ class _EditorPageV2State extends State<EditorPageV2>
     }
     tableEpoch++;
     _editorChanged();
+    if (on) _maybeShowTaskTip();
   }
 
   Future<void> _showInsertMenu() async {
@@ -725,6 +750,20 @@ class _EditorPageV2State extends State<EditorPageV2>
               title: const Text('Copiar nota'),
               onTap: () => Navigator.pop(ctx, 'copy'),
             ),
+            if (widget.note.checklist)
+              ListTile(
+                leading: Icon(
+                  hideDone
+                      ? Icons.visibility_outlined
+                      : Icons.visibility_off_outlined,
+                ),
+                title: Text(
+                  hideDone
+                      ? 'Mostrar tarefas concluídas'
+                      : 'Esconder tarefas concluídas',
+                ),
+                onTap: () => Navigator.pop(ctx, 'hide-done'),
+              ),
             ListTile(
               leading: const Icon(Icons.visibility_outlined),
               title: const Text('Ver como vai ficar'),
@@ -734,6 +773,10 @@ class _EditorPageV2State extends State<EditorPageV2>
         ),
       ),
     );
+    if (value == 'hide-done') {
+      _setHideDone(!hideDone);
+      return;
+    }
     if (value == 'preview' && mounted) {
       Navigator.push(
         context,
@@ -868,70 +911,133 @@ class _EditorPageV2State extends State<EditorPageV2>
     final now = DateTime.now();
     final today = DateUtils.dateOnly(now);
     final current = widget.note.reminderAt;
-    final date = await showDatePicker(
-      context: context,
-      helpText: 'Dia do lembrete',
-      initialDate: current != null && !current.isBefore(today) ? current : today,
-      firstDate: today,
-      lastDate: today.add(const Duration(days: 3650)),
+    var date = current != null && !current.isBefore(today)
+        ? DateUtils.dateOnly(current)
+        : today;
+    var time = TimeOfDay.fromDateTime(
+      current ?? now.add(const Duration(hours: 1)),
     );
-    if (date == null || !mounted) return;
-    final time = await showTimePicker(
+    var repeat = widget.note.reminderRepeat;
+
+    final action = await showModalBottomSheet<String>(
       context: context,
-      helpText: 'Hora do lembrete',
-      initialTime: TimeOfDay.fromDateTime(
-        widget.note.reminderAt ?? now.add(const Duration(hours: 1)),
+      useSafeArea: true,
+      isScrollControlled: true,
+      builder: (sheetContext) => StatefulBuilder(
+        builder: (context, setModalState) => Padding(
+          padding: const EdgeInsets.fromLTRB(20, 14, 20, 24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Lembrete',
+                style: Theme.of(context).textTheme.titleLarge
+                    ?.copyWith(fontWeight: FontWeight.w900),
+              ),
+              const SizedBox(height: 8),
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: const Icon(Icons.event_outlined),
+                title: const Text('Dia'),
+                subtitle: Text(DateFormat("EEEE, dd 'de' MMMM", 'pt_BR').format(date)),
+                onTap: () async {
+                  final picked = await showDatePicker(
+                    context: context,
+                    initialDate: date,
+                    firstDate: today,
+                    lastDate: today.add(const Duration(days: 3650)),
+                  );
+                  if (picked != null) setModalState(() => date = picked);
+                },
+              ),
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: const Icon(Icons.schedule_rounded),
+                title: const Text('Hora'),
+                subtitle: Text(time.format(context)),
+                onTap: () async {
+                  final picked = await showTimePicker(
+                    context: context,
+                    initialTime: time,
+                  );
+                  if (picked != null) setModalState(() => time = picked);
+                },
+              ),
+              DropdownButtonFormField<int>(
+                initialValue: repeat,
+                decoration: const InputDecoration(labelText: 'Repetir'),
+                items: [
+                  for (var i = 0; i < reminderRepeatLabels.length; i++)
+                    DropdownMenuItem(
+                      value: i,
+                      child: Text(reminderRepeatLabels[i]),
+                    ),
+                ],
+                onChanged: (value) => setModalState(() => repeat = value ?? 0),
+              ),
+              const SizedBox(height: 18),
+              Row(
+                children: [
+                  if (current != null)
+                    TextButton.icon(
+                      onPressed: () => Navigator.pop(sheetContext, 'remove'),
+                      icon: const Icon(Icons.notifications_off_outlined),
+                      label: const Text('Tirar lembrete'),
+                    ),
+                  const Spacer(),
+                  FilledButton(
+                    onPressed: () => Navigator.pop(sheetContext, 'save'),
+                    child: const Text('Salvar'),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
       ),
     );
-    if (time == null) return;
-    final selected = DateTime(
+    if (action == null || !mounted) return;
+    if (action == 'remove') {
+      setState(() => widget.store.cancelReminder(widget.note));
+      await widget.store.save();
+      return;
+    }
+
+    var selected = DateTime(
       date.year,
       date.month,
       date.day,
       time.hour,
       time.minute,
     );
-    if (!mounted) return;
-    if (selected.isBefore(DateTime.now())) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Esse horário já passou. Escolha outro.')),
-      );
-      return;
+    if (!selected.isAfter(DateTime.now())) {
+      if (repeat == 0) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Esse horário já passou. Escolha outro.'),
+          ),
+        );
+        return;
+      }
+      // Repetido: começa na próxima vez que esse horário chegar.
+      selected = selected.add(const Duration(days: 1));
     }
 
-    const details = NotificationDetails(
-      android: AndroidNotificationDetails(
-        'noto_reminders',
-        'Lembretes do Noto',
-        channelDescription: 'Lembretes configurados nas notas',
-        importance: Importance.high,
-        priority: Priority.high,
+    _syncModel();
+    await widget.store.scheduleReminder(widget.note, selected, repeat);
+    if (!mounted) return;
+    setState(() {});
+    final when = DateFormat("dd/MM 'às' HH:mm").format(selected);
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          repeat == 0
+              ? 'Lembrete marcado para $when'
+              : 'Lembrete ${reminderRepeatLabels[repeat].toLowerCase()}, a partir de $when',
+        ),
       ),
     );
-    final id = widget.note.id.hashCode & 0x7fffffff;
-    await notifications.zonedSchedule(
-      id,
-      title.text.trim().isEmpty ? 'Lembrete do Noto' : title.text.trim(),
-      readablePreview(body.text).isEmpty
-          ? 'Você pediu para lembrar desta nota.'
-          : readablePreview(body.text).split('\n').first,
-      tz.TZDateTime.from(selected, tz.local),
-      details,
-      androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
-      payload: widget.note.id,
-    );
-    if (!mounted) return;
-    setState(() => widget.note.reminderAt = selected);
-    await widget.store.save();
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            'Lembrete marcado para ${DateFormat("dd/MM 'às' HH:mm").format(selected)}',
-          ),
-        ),
-      );
-    }
   }
 
   void openStyleSheet() {
@@ -943,6 +1049,34 @@ class _EditorPageV2State extends State<EditorPageV2>
         store: widget.store,
         note: widget.note,
         onChanged: _editorChanged,
+      ),
+    );
+  }
+
+  Future<void> _toggleVault() async {
+    if (widget.note.locked) {
+      widget.note.locked = false;
+      _syncModel();
+      await widget.store.save();
+      await widget.store.refreshReminder(widget.note);
+      if (!mounted) return;
+      setState(() {});
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Nota tirada do cofre.')),
+      );
+      return;
+    }
+    final ready = await ensureVault(context, widget.store);
+    if (!ready || !mounted) return;
+    widget.note.locked = true;
+    final messenger = ScaffoldMessenger.of(context);
+    await saveAndClose();
+    await widget.store.refreshReminder(widget.note);
+    messenger.showSnackBar(
+      const SnackBar(
+        content: Text(
+          'Nota guardada no cofre. Para abrir, segure o logo do Noto por 2 segundos.',
+        ),
       ),
     );
   }
@@ -1266,6 +1400,12 @@ class _EditorPageV2State extends State<EditorPageV2>
               onTap: () => Navigator.pop(sheetContext, 'txt'),
             ),
             ListTile(
+              leading: const Icon(Icons.picture_as_pdf_outlined),
+              title: const Text('Exportar PDF'),
+              subtitle: const Text('Bom para enviar ou imprimir'),
+              onTap: () => Navigator.pop(sheetContext, 'pdf'),
+            ),
+            ListTile(
               leading: const Icon(Icons.code_rounded),
               title: const Text('Exportar Markdown'),
               onTap: () => Navigator.pop(sheetContext, 'md'),
@@ -1276,7 +1416,49 @@ class _EditorPageV2State extends State<EditorPageV2>
     );
     if (choice == null) return;
     await _saveDraft();
+    if (choice == 'pdf') {
+      await exportNotePdf(widget.note);
+      return;
+    }
     await exportNoteFile(widget.note, markdown: choice == 'md');
+  }
+
+  Future<void> _saveAsTemplate() async {
+    final persisted = await _saveDraft();
+    if (!persisted || !mounted) return;
+    final controller = TextEditingController(
+      text: title.text.trim().isEmpty ? 'Meu modelo' : title.text.trim(),
+    );
+    final name = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Salvar como modelo'),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          decoration: const InputDecoration(labelText: 'Nome do modelo'),
+          onSubmitted: (value) => Navigator.pop(dialogContext, value.trim()),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('Cancelar'),
+          ),
+          FilledButton(
+            onPressed: () =>
+                Navigator.pop(dialogContext, controller.text.trim()),
+            child: const Text('Salvar'),
+          ),
+        ],
+      ),
+    );
+    controller.dispose();
+    if (name == null || name.trim().isEmpty) return;
+    await widget.store.addTemplateFromNote(widget.note, name);
+    if (mounted) {
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text('Modelo salvo')));
+    }
   }
 
   Future<void> _showOrganize() async {
@@ -1394,12 +1576,18 @@ class _EditorPageV2State extends State<EditorPageV2>
       builder: (sheetContext) => StatefulBuilder(
         builder: (context, setModalState) {
           final outbound = extractWikiLinks(body.text);
-          final backlinks = backlinksFor(widget.note, widget.store.notes);
+          final backlinks = backlinksFor(
+            widget.note,
+            widget.store.notes
+                .where((item) => !item.locked || widget.note.locked)
+                .toList(),
+          );
           final candidates =
               widget.store.notes
                   .where(
                     (item) =>
                         item.deletedAt == null &&
+                        !item.locked &&
                         item.id != widget.note.id &&
                         item.title.trim().isNotEmpty,
                   )
@@ -1796,12 +1984,14 @@ class _EditorPageV2State extends State<EditorPageV2>
                       if (value == 'connections') await _showConnections();
                       if (value == 'history') await _showHistory();
                       if (value == 'export') await _showExport();
+                      if (value == 'template') await _saveAsTemplate();
                       if (value == 'share') await shareNote();
                       if (value == 'duplicate') await _duplicate();
+                      if (value == 'vault') await _toggleVault();
                       if (value == 'archive') await _archiveAndClose();
                       if (value == 'delete') await _deleteAndClose();
                     },
-                    itemBuilder: (_) => const [
+                    itemBuilder: (_) => [
                       PopupMenuItem(
                         value: 'organize',
                         child: ListTile(
@@ -1831,6 +2021,13 @@ class _EditorPageV2State extends State<EditorPageV2>
                         ),
                       ),
                       PopupMenuItem(
+                        value: 'template',
+                        child: ListTile(
+                          leading: Icon(Icons.bookmark_add_outlined),
+                          title: Text('Salvar como modelo'),
+                        ),
+                      ),
+                      PopupMenuItem(
                         value: 'history',
                         child: ListTile(
                           leading: Icon(Icons.history_rounded),
@@ -1851,7 +2048,22 @@ class _EditorPageV2State extends State<EditorPageV2>
                           title: Text('Duplicar'),
                         ),
                       ),
-                      PopupMenuDivider(),
+                      PopupMenuItem(
+                        value: 'vault',
+                        child: ListTile(
+                          leading: Icon(
+                            widget.note.locked
+                                ? Icons.lock_open_rounded
+                                : Icons.lock_outline_rounded,
+                          ),
+                          title: Text(
+                            widget.note.locked
+                                ? 'Tirar do cofre'
+                                : 'Mover para o cofre',
+                          ),
+                        ),
+                      ),
+                      const PopupMenuDivider(),
                       PopupMenuItem(
                         value: 'archive',
                         child: ListTile(
@@ -1949,19 +2161,24 @@ class _EditorPageV2State extends State<EditorPageV2>
                           children: [
                             if (widget.note.reminderAt != null)
                               Chip(
-                                avatar: const Icon(
-                                  Icons.notifications_active_outlined,
+                                avatar: Icon(
+                                  widget.note.reminderRepeat == 0
+                                      ? Icons.notifications_active_outlined
+                                      : Icons.repeat_rounded,
                                   size: 16,
                                 ),
                                 label: Text(
-                                  DateFormat("dd/MM 'às' HH:mm")
-                                      .format(widget.note.reminderAt!),
+                                  widget.note.reminderRepeat == 0
+                                      ? DateFormat("dd/MM 'às' HH:mm")
+                                          .format(widget.note.reminderAt!)
+                                      : '${reminderRepeatLabels[widget.note.reminderRepeat]} · ${DateFormat('HH:mm').format(widget.note.reminderAt!)}',
                                 ),
-                                onDeleted: () async {
-                                  await notifications.cancel(
-                                    widget.note.id.hashCode & 0x7fffffff,
+                                onDeleted: () {
+                                  setState(
+                                    () => widget.store.cancelReminder(
+                                      widget.note,
+                                    ),
                                   );
-                                  setState(() => widget.note.reminderAt = null);
                                   widget.store.save();
                                 },
                               ),
@@ -2000,7 +2217,9 @@ class _EditorPageV2State extends State<EditorPageV2>
                               children: [
                                 Expanded(
                                   child: MixedContentEditor(
-                                    key: ValueKey('mixed-$tableEpoch'),
+                                    key: ValueKey('mixed-$tableEpoch-$hideDone'),
+                                    hideDone: hideDone,
+                                    onShowDone: () => _setHideDone(false),
                                     controller: body,
                                     family: bodyFamily,
                                     fontSize: widget.store.fontSize,

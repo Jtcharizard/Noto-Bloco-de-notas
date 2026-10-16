@@ -7,11 +7,15 @@ import 'dart:io';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart' show rootBundle;
+import 'package:pdf/pdf.dart';
+import 'package:pdf/widgets.dart' as pw;
 import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 
+import 'noto_features.dart';
 import 'noto_models.dart';
 import 'noto_settings.dart' as legacy;
 import 'noto_store.dart';
@@ -77,6 +81,160 @@ Future<void> exportNoteFile(Note note, {required bool markdown}) async {
   await Share.shareXFiles([XFile(file.path)], text: 'Exportado pelo Noto');
 }
 
+Future<pw.Font?> _pdfFont(String asset) async {
+  try {
+    return pw.Font.ttf(await rootBundle.load(asset));
+  } catch (_) {
+    return null;
+  }
+}
+
+/// Gera um PDF simples da nota (texto, tarefas, tabelas e código) e compartilha.
+Future<void> exportNotePdf(Note note) async {
+  final regular = await _pdfFont('assets/fonts/FiraSans-Regular.ttf');
+  final bold = await _pdfFont('assets/fonts/Poppins-Bold.ttf');
+  final doc = pw.Document(
+    title: note.title,
+    theme: regular == null
+        ? null
+        : pw.ThemeData.withFont(base: regular, bold: bold ?? regular),
+  );
+  final title = note.title.trim().isEmpty ? 'Sem título' : note.title.trim();
+  final task = RegExp(r'^\s*(?:[-*]\s*)?\[([ xX])\]\s?(.*)$');
+  final content = <pw.Widget>[
+    pw.Text(
+      title,
+      style: pw.TextStyle(fontSize: 22, fontWeight: pw.FontWeight.bold),
+    ),
+    pw.SizedBox(height: 4),
+    pw.Text(
+      '${note.folder} · ${DateFormat('dd/MM/yyyy').format(note.updatedAt)}',
+      style: const pw.TextStyle(fontSize: 9, color: PdfColors.grey600),
+    ),
+    pw.SizedBox(height: 16),
+  ];
+
+  for (final raw in note.body.split('\n')) {
+    final line = raw.replaceAll('**', '');
+    final match = task.firstMatch(line);
+    if (line.trim().isEmpty) {
+      content.add(pw.SizedBox(height: 6));
+    } else if (match != null) {
+      final done = match.group(1)!.toLowerCase() == 'x';
+      content.add(
+        pw.Padding(
+          padding: const pw.EdgeInsets.symmetric(vertical: 2),
+          child: pw.Row(
+            crossAxisAlignment: pw.CrossAxisAlignment.start,
+            children: [
+              pw.Container(
+                width: 9,
+                height: 9,
+                margin: const pw.EdgeInsets.only(top: 2, right: 7),
+                decoration: pw.BoxDecoration(
+                  border: pw.Border.all(width: .8),
+                  color: done ? PdfColors.grey400 : null,
+                ),
+              ),
+              pw.Expanded(
+                child: pw.Text(
+                  match.group(2) ?? '',
+                  style: pw.TextStyle(
+                    fontSize: 11,
+                    color: done ? PdfColors.grey600 : null,
+                    decoration: done ? pw.TextDecoration.lineThrough : null,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    } else if (RegExp(r'^\s*#{1,6}\s').hasMatch(line)) {
+      content.add(
+        pw.Padding(
+          padding: const pw.EdgeInsets.only(top: 6, bottom: 2),
+          child: pw.Text(
+            line.replaceFirst(RegExp(r'^\s*#{1,6}\s+'), ''),
+            style: pw.TextStyle(fontSize: 15, fontWeight: pw.FontWeight.bold),
+          ),
+        ),
+      );
+    } else if (line.trimLeft().startsWith('>')) {
+      content.add(
+        pw.Container(
+          padding: const pw.EdgeInsets.only(left: 8),
+          decoration: const pw.BoxDecoration(
+            border: pw.Border(
+              left: pw.BorderSide(color: PdfColors.grey500, width: 2),
+            ),
+          ),
+          child: pw.Text(
+            line.replaceFirst(RegExp(r'^\s*>\s?'), ''),
+            style: const pw.TextStyle(fontSize: 11, color: PdfColors.grey700),
+          ),
+        ),
+      );
+    } else {
+      content.add(
+        pw.Text(
+          line.replaceFirst(RegExp(r'^\s*[-*]\s+'), '•  '),
+          style: const pw.TextStyle(fontSize: 11, lineSpacing: 2),
+        ),
+      );
+    }
+  }
+
+  for (final table in ((note.editor['tables'] as List?) ?? const [])) {
+    final data = NotoTable.fromJson(Map<String, dynamic>.from(table as Map));
+    if (data.cells.isEmpty) continue;
+    content
+      ..add(pw.SizedBox(height: 12))
+      ..add(
+        pw.TableHelper.fromTextArray(
+          data: data.cells,
+          cellStyle: const pw.TextStyle(fontSize: 9),
+          headerStyle: pw.TextStyle(fontSize: 9, fontWeight: pw.FontWeight.bold),
+        ),
+      );
+  }
+  for (final code in ((note.editor['code'] as List?) ?? const [])) {
+    content
+      ..add(pw.SizedBox(height: 12))
+      ..add(
+        pw.Container(
+          padding: const pw.EdgeInsets.all(8),
+          color: PdfColors.grey200,
+          child: pw.Text(
+            ((code as Map)['text'] ?? '').toString(),
+            style: pw.TextStyle(font: pw.Font.courier(), fontSize: 9),
+          ),
+        ),
+      );
+  }
+
+  doc.addPage(
+    pw.MultiPage(
+      pageFormat: PdfPageFormat.a4,
+      margin: const pw.EdgeInsets.all(40),
+      maxPages: 200,
+      build: (_) => content,
+      footer: (context) => pw.Align(
+        alignment: pw.Alignment.centerRight,
+        child: pw.Text(
+          'Página ${context.pageNumber} de ${context.pagesCount}',
+          style: const pw.TextStyle(fontSize: 8, color: PdfColors.grey600),
+        ),
+      ),
+    ),
+  );
+
+  final dir = await getTemporaryDirectory();
+  final file = File('${dir.path}/${_safeFileName(title)}.pdf');
+  await file.writeAsBytes(await doc.save());
+  await Share.shareXFiles([XFile(file.path)], text: title);
+}
+
 Future<Note?> importTextNote({required int defaultFont}) async {
   final result = await FilePicker.platform.pickFiles(
     type: FileType.custom,
@@ -132,10 +290,11 @@ class _CalendarPageState extends State<CalendarPage> {
       a.year == b.year && a.month == b.month && a.day == b.day;
 
   List<Note> _notesFor(DateTime day) => widget.store.notes.where((note) {
-    if (note.deletedAt != null) return false;
+    if (note.deletedAt != null || note.locked) return false;
     return _sameDay(note.updatedAt, day) ||
+        _sameDay(note.createdAt, day) ||
         (note.dueAt != null && _sameDay(note.dueAt!, day)) ||
-        (note.reminderAt != null && _sameDay(note.reminderAt!, day));
+        reminderOccursOn(note, day);
   }).toList()..sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
 
   void _changeMonth(int delta) => setState(() {
@@ -179,9 +338,7 @@ class _CalendarPageState extends State<CalendarPage> {
                         final note = notes[index];
                         final dueHere =
                             note.dueAt != null && _sameDay(note.dueAt!, day);
-                        final reminderHere =
-                            note.reminderAt != null &&
-                            _sameDay(note.reminderAt!, day);
+                        final reminderHere = reminderOccursOn(note, day);
                         return ListTile(
                           leading: Text(
                             note.emoji.isEmpty ? '•' : note.emoji,
@@ -199,6 +356,9 @@ class _CalendarPageState extends State<CalendarPage> {
                                 ? note.priority > 0
                                       ? 'Prazo · prioridade ${priorityLabel(note.priority).toLowerCase()}'
                                       : 'Prazo'
+                                : _sameDay(note.createdAt, day) &&
+                                      !_sameDay(note.updatedAt, day)
+                                ? 'Criada neste dia'
                                 : 'Editada neste dia',
                           ),
                           onTap: () async {

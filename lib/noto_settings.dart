@@ -263,7 +263,7 @@ class ArchivePage extends StatelessWidget {
     animation: store,
     builder: (_, __) {
       final items = store.notes
-          .where((n) => n.archived && n.deletedAt == null)
+          .where((n) => n.archived && n.deletedAt == null && !n.locked)
           .toList();
       return Scaffold(
         appBar: AppBar(
@@ -371,7 +371,12 @@ class TrashPage extends StatelessWidget {
           ],
         ),
         body: items.isEmpty
-            ? const Center(child: Text('A lixeira está vazia.'))
+            ? const Center(
+                child: Text(
+                  'A lixeira está vazia.\nO que fica aqui por mais de 30 dias é apagado sozinho.',
+                  textAlign: TextAlign.center,
+                ),
+              )
             : ListView.separated(
                 padding: const EdgeInsets.all(16),
                 itemCount: items.length,
@@ -381,7 +386,11 @@ class TrashPage extends StatelessWidget {
                   return Card(
                     child: ListTile(
                       title: Text(
-                        note.title.trim().isEmpty ? 'Sem título' : note.title,
+                        note.locked
+                            ? 'Nota do cofre'
+                            : note.title.trim().isEmpty
+                            ? 'Sem título'
+                            : note.title,
                       ),
                       subtitle: Text(
                         'Apagada em ${DateFormat('dd/MM • HH:mm').format(note.deletedAt!)}',
@@ -587,7 +596,7 @@ Future<void> importBackup(BuildContext context, AppStore store) async {
 void showAboutNoto(BuildContext context) => showAboutDialog(
   context: context,
   applicationName: 'Noto',
-  applicationVersion: '2.0',
+  applicationVersion: '2.1',
   applicationIcon: ClipRRect(
     borderRadius: BorderRadius.circular(18),
     child: Image.asset('assets/noto_mark.png', width: 68, height: 68),

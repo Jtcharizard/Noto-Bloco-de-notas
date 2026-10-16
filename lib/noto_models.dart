@@ -29,9 +29,19 @@ class Note {
     this.priority = 0,
     this.dueAt,
     this.editor = const {},
-  });
+    DateTime? createdAt,
+    this.locked = false,
+    this.reminderRepeat = 0,
+  }) : createdAt = createdAt ?? updatedAt;
 
   final String id;
+  final DateTime createdAt;
+
+  /// Nota guardada no cofre: some de todas as listas e só abre com a senha.
+  bool locked;
+
+  /// 0 = não repete, 1 = todo dia, 2 = dias úteis, 3 = toda semana.
+  int reminderRepeat;
   String title;
   String body;
   DateTime updatedAt;
@@ -87,6 +97,9 @@ class Note {
     'priority': priority,
     'dueAt': dueAt?.toIso8601String(),
     'editor': editor,
+    'createdAt': createdAt.toIso8601String(),
+    'locked': locked,
+    'reminderRepeat': reminderRepeat,
   };
 
   factory Note.fromJson(Map<String, dynamic> json) => Note(
@@ -123,7 +136,31 @@ class Note {
     priority: (json['priority'] ?? 0).toInt().clamp(0, 3),
     dueAt: json['dueAt'] == null ? null : DateTime.tryParse(json['dueAt']),
     editor: Map<String, dynamic>.from(json['editor'] ?? const {}),
+    createdAt: DateTime.tryParse(json['createdAt']?.toString() ?? ''),
+    locked: json['locked'] == true,
+    reminderRepeat: ((json['reminderRepeat'] as num?)?.toInt() ?? 0).clamp(0, 3).toInt(),
   );
+}
+
+const reminderRepeatLabels = <String>[
+  'Não repete',
+  'Todo dia',
+  'Dias úteis (seg. a sex.)',
+  'Toda semana',
+];
+
+/// Busca sem diferenciar maiúsculas nem acentos ("quimica" acha "Química").
+String foldForSearch(String input) {
+  const from = 'áàâãäåéèêëíìîïóòôõöúùûüçñýÿ';
+  const to = 'aaaaaaeeeeiiiiooooouuuucnyy';
+  final lower = input.toLowerCase();
+  final buffer = StringBuffer();
+  for (final rune in lower.runes) {
+    final char = String.fromCharCode(rune);
+    final index = from.indexOf(char);
+    buffer.write(index < 0 ? char : to[index]);
+  }
+  return buffer.toString();
 }
 
 class NotoTemplate {

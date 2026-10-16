@@ -10,7 +10,7 @@
   [![Flutter](https://img.shields.io/badge/Flutter-3.x-02569B?logo=flutter&logoColor=white)](https://flutter.dev/)
   [![Dart](https://img.shields.io/badge/Dart-3.x-0175C2?logo=dart&logoColor=white)](https://dart.dev/)
   [![Android](https://img.shields.io/badge/Android-APK-3DDC84?logo=android&logoColor=white)](https://github.com/Jtcharizard/Noto-Bloco-de-notas/actions/workflows/gerar-apk.yml)
-  [![Versão](https://img.shields.io/badge/versão-2.0.0-8B5CF6)](https://github.com/Jtcharizard/Noto-Bloco-de-notas)
+  [![Versão](https://img.shields.io/badge/versão-2.1.0-8B5CF6)](https://github.com/Jtcharizard/Noto-Bloco-de-notas)
   [![Build APK](https://github.com/Jtcharizard/Noto-Bloco-de-notas/actions/workflows/gerar-apk.yml/badge.svg)](https://github.com/Jtcharizard/Noto-Bloco-de-notas/actions/workflows/gerar-apk.yml)
 </div>
 
@@ -42,6 +42,20 @@ O app funciona sem conta e sem internet. As notas e preferências ficam armazena
 - Compartilhamento e exportação em TXT
 - Apresentação inicial e tela Sobre
 - Salvamento local e funcionamento totalmente offline
+
+## Novidades da v2.1.0
+
+- Menu de criar mais simples: nota em branco, lista de tarefas e seus modelos
+- Busca que ignora acentos e maiúsculas, inclusive dentro de tabelas e código
+- Pastas e tags agora podem ser renomeadas e apagadas
+- Tarefas marcadas descem para o fim da lista, com opção de esconder
+- Lembretes que repetem: todo dia, dias úteis ou toda semana
+- Compartilhe texto de outros apps direto para o Noto
+- Lixeira se esvazia sozinha depois de 30 dias
+- Cofre escondido com senha para notas privadas
+- Data de criação das notas, com ordenação por ela
+- Exportação em PDF
+- Tutorial de uso na primeira abertura e dicas no momento certo
 
 ## Novidades da v2.0.0
 

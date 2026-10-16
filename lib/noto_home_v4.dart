@@ -1,7 +1,9 @@
 import 'dart:async';
 import 'dart:io';
 
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:home_widget/home_widget.dart';
 import 'package:intl/intl.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -14,6 +16,7 @@ import 'noto_settings.dart' as legacy;
 import 'noto_settings_v4.dart';
 import 'noto_store.dart';
 import 'noto_theme.dart';
+import 'noto_vault.dart';
 
 enum _NoteScope { all, favorites, pinned }
 
@@ -100,7 +103,7 @@ class _HomeShellV4State extends State<HomeShellV4> {
   DateTime? updatedFrom;
   DateTime? updatedTo;
 
-  final Set<String> savedFolders = {'Geral', 'Entrada'};
+  final Set<String> savedFolders = {'Geral'};
   final Set<String> savedTags = {};
 
   StreamSubscription<Uri?>? _widgetClicks;
@@ -110,11 +113,54 @@ class _HomeShellV4State extends State<HomeShellV4> {
     super.initState();
     _loadCollections();
     _listenToQuickWidget();
+    _listenToShares();
+  }
+
+  static const _shareChannel = MethodChannel('noto/share');
+
+  /// Texto compartilhado de outro app ("Compartilhar > Noto") vira uma nota.
+  Future<void> _listenToShares() async {
+    _shareChannel.setMethodCallHandler((call) async {
+      if (call.method == 'sharedText') await _takeShared();
+    });
+    await _takeShared();
+  }
+
+  Future<void> _takeShared() async {
+    try {
+      final data = await _shareChannel.invokeMapMethod<String, dynamic>(
+        'takeSharedText',
+      );
+      final text = (data?['text'] as String?)?.trim() ?? '';
+      if (text.isEmpty || !mounted) return;
+      final subject = (data?['subject'] as String?)?.trim() ?? '';
+      final firstLine = text.split('\n').first.trim();
+      final title = subject.isNotEmpty
+          ? subject
+          : firstLine.length <= 60
+          ? firstLine
+          : '${firstLine.substring(0, 57)}…';
+      final body = subject.isNotEmpty || text.contains('\n')
+          ? text
+          : (firstLine.length <= 60 ? '' : text);
+      final note = Note(
+        id: DateTime.now().microsecondsSinceEpoch.toString(),
+        title: title,
+        body: subject.isNotEmpty ? text : body,
+        updatedAt: DateTime.now(),
+        folder: folder ?? 'Geral',
+        font: widget.store.font,
+      );
+      await _openNote(note, isNew: true);
+    } catch (_) {
+      /* Sem compartilhamento nesta plataforma. */
+    }
   }
 
   @override
   void dispose() {
     _widgetClicks?.cancel();
+    _shareChannel.setMethodCallHandler(null);
     super.dispose();
   }
 
@@ -164,11 +210,11 @@ class _HomeShellV4State extends State<HomeShellV4> {
   }
 
   List<Note> get _active => widget.store.notes
-      .where((note) => note.deletedAt == null && !note.archived)
+      .where((note) => note.deletedAt == null && !note.archived && !note.locked)
       .toList();
 
   List<Note> get _visible {
-    final normalized = query.trim().toLowerCase();
+    final normalized = foldForSearch(query.trim());
     final list = _active.where((note) {
       if (scope == _NoteScope.favorites && !note.favorite) return false;
       if (scope == _NoteScope.pinned && !note.pinned) return false;
@@ -201,10 +247,11 @@ class _HomeShellV4State extends State<HomeShellV4> {
         if (note.updatedAt.isAfter(end)) return false;
       }
       if (normalized.isEmpty) return true;
-      return note.title.toLowerCase().contains(normalized) ||
-          note.body.toLowerCase().contains(normalized) ||
-          note.folder.toLowerCase().contains(normalized) ||
-          note.tags.any((item) => item.toLowerCase().contains(normalized));
+      return foldForSearch(note.title).contains(normalized) ||
+          foldForSearch(note.body).contains(normalized) ||
+          foldForSearch(note.folder).contains(normalized) ||
+          note.tags.any((item) => foldForSearch(item).contains(normalized)) ||
+          _attachmentText(note).contains(normalized);
     }).toList();
 
     list.sort((a, b) {
@@ -214,6 +261,8 @@ class _HomeShellV4State extends State<HomeShellV4> {
         return a.title.toLowerCase().compareTo(b.title.toLowerCase());
       if (sortOrder == 3)
         return b.title.toLowerCase().compareTo(a.title.toLowerCase());
+      if (sortOrder == 4) return b.createdAt.compareTo(a.createdAt);
+      if (sortOrder == 5) return a.createdAt.compareTo(b.createdAt);
       return b.updatedAt.compareTo(a.updatedAt);
     });
     return list;
@@ -313,11 +362,23 @@ class _HomeShellV4State extends State<HomeShellV4> {
               subtitle: 'Com caixas para marcar',
               onTap: () => Navigator.pop(sheetContext, 'checklist'),
             ),
+            if (widget.store.templates.isNotEmpty)
+              _CreateRow(
+                title: 'Usar um modelo',
+                subtitle: widget.store.templates.length == 1
+                    ? '1 modelo salvo'
+                    : '${widget.store.templates.length} modelos salvos',
+                onTap: () => Navigator.pop(sheetContext, 'template'),
+              ),
           ],
         ),
       ),
     );
     if (!mounted || choice == null) return;
+    if (choice == 'template') {
+      await _pickTemplate();
+      return;
+    }
 
     final checklist = choice == 'checklist';
     final targetFolder = folder ?? 'Geral';
@@ -339,8 +400,82 @@ class _HomeShellV4State extends State<HomeShellV4> {
     await _openNote(note, isNew: true);
   }
 
-  Future<String?> _askName(String title, String hint) async {
-    final controller = TextEditingController();
+  Future<void> _pickTemplate() async {
+    final selected = await showModalBottomSheet<NotoTemplate>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      builder: (sheetContext) => StatefulBuilder(
+        builder: (context, setModalState) => ConstrainedBox(
+          constraints: BoxConstraints(
+            maxHeight: MediaQuery.sizeOf(sheetContext).height * .7,
+          ),
+          child: ListView(
+            shrinkWrap: true,
+            padding: const EdgeInsets.fromLTRB(12, 14, 12, 24),
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(8, 0, 8, 8),
+                child: Text(
+                  'Meus modelos',
+                  style: Theme.of(context).textTheme.titleLarge
+                      ?.copyWith(fontWeight: FontWeight.w800),
+                ),
+              ),
+              if (widget.store.templates.isEmpty)
+                const Padding(
+                  padding: EdgeInsets.all(20),
+                  child: Text('Nenhum modelo salvo.'),
+                ),
+              for (final template in widget.store.templates)
+                ListTile(
+                  leading: Text(
+                    template.emoji.isEmpty ? '📄' : template.emoji,
+                    style: const TextStyle(fontSize: 20),
+                  ),
+                  title: Text(template.name),
+                  subtitle: template.title.trim().isEmpty
+                      ? null
+                      : Text(template.title, maxLines: 1),
+                  onTap: () => Navigator.pop(sheetContext, template),
+                  trailing: IconButton(
+                    tooltip: 'Apagar modelo',
+                    icon: const Icon(Icons.delete_outline_rounded),
+                    onPressed: () async {
+                      await widget.store.deleteTemplate(template);
+                      setModalState(() {});
+                    },
+                  ),
+                ),
+              const Padding(
+                padding: EdgeInsets.fromLTRB(16, 12, 16, 0),
+                child: Text(
+                  'Para criar um modelo, abra uma nota e use o menu ⋮ > '
+                  'Salvar como modelo.',
+                  style: TextStyle(fontSize: 12),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+    if (selected == null || !mounted) return;
+    final note = widget.store.noteFromTemplate(
+      selected,
+      folder: folder ?? 'Geral',
+      tags: tag == null ? const [] : [tag!],
+    );
+    await _openNote(note, isNew: true);
+  }
+
+  Future<String?> _askName(
+    String title,
+    String hint, {
+    String initial = '',
+    String action = 'Criar',
+  }) async {
+    final controller = TextEditingController(text: initial);
     final value = await showDialog<String>(
       context: context,
       builder: (dialogContext) => AlertDialog(
@@ -365,7 +500,7 @@ class _HomeShellV4State extends State<HomeShellV4> {
               final clean = controller.text.trim();
               if (clean.isNotEmpty) Navigator.pop(dialogContext, clean);
             },
-            child: const Text('Criar'),
+            child: Text(action),
           ),
         ],
       ),
@@ -406,6 +541,240 @@ class _HomeShellV4State extends State<HomeShellV4> {
       tag = clean;
       folder = null;
     });
+  }
+
+  String _attachmentText(Note note) {
+    final parts = <String>[];
+    for (final table in (note.editor['tables'] as List?) ?? const []) {
+      for (final row in ((table as Map)['cells'] as List?) ?? const []) {
+        parts.addAll((row as List).map((cell) => cell.toString()));
+      }
+    }
+    for (final code in (note.editor['code'] as List?) ?? const []) {
+      parts.add(((code as Map)['text'] ?? '').toString());
+    }
+    return foldForSearch(parts.join(' '));
+  }
+
+  String _cleanFolder(String raw) => raw
+      .split('/')
+      .map((part) => part.trim())
+      .where((part) => part.isNotEmpty)
+      .join('/');
+
+  bool _inFolder(String value, String target) =>
+      value == target || value.startsWith('$target/');
+
+  Future<void> _renameFolder(String old) async {
+    final raw = await _askName(
+      'Renomear pasta',
+      'Novo nome',
+      initial: old,
+      action: 'Salvar',
+    );
+    if (raw == null) return;
+    final clean = _cleanFolder(raw);
+    if (clean.isEmpty || clean == old) return;
+    String swap(String value) =>
+        _inFolder(value, old) ? clean + value.substring(old.length) : value;
+    for (final note in widget.store.notes) {
+      note.folder = swap(note.folder);
+    }
+    final renamed = savedFolders.map(swap).toSet();
+    savedFolders
+      ..clear()
+      ..addAll(renamed);
+    if (folder != null) folder = swap(folder!);
+    await _saveCollections();
+    await widget.store.save();
+    if (mounted) setState(() {});
+  }
+
+  Future<bool> _confirm(String title, String message, String action) async =>
+      await showDialog<bool>(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          title: Text(title),
+          content: Text(message),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext, false),
+              child: const Text('Cancelar'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(dialogContext, true),
+              child: Text(action),
+            ),
+          ],
+        ),
+      ) ==
+      true;
+
+  Future<void> _deleteFolder(String old) async {
+    final ok = await _confirm(
+      'Apagar a pasta "$old"?',
+      'As notas não são apagadas. Elas vão para a pasta Geral.',
+      'Apagar pasta',
+    );
+    if (!ok) return;
+    for (final note in widget.store.notes) {
+      if (_inFolder(note.folder, old)) note.folder = 'Geral';
+    }
+    savedFolders.removeWhere((value) => _inFolder(value, old));
+    if (folder != null && _inFolder(folder!, old)) folder = null;
+    await _saveCollections();
+    await widget.store.save();
+    if (mounted) setState(() {});
+  }
+
+  Future<void> _renameTag(String old) async {
+    final raw = await _askName(
+      'Renomear tag',
+      'Novo nome',
+      initial: old,
+      action: 'Salvar',
+    );
+    if (raw == null) return;
+    final clean = raw.replaceAll('#', '').trim();
+    if (clean.isEmpty || clean == old) return;
+    for (final note in widget.store.notes) {
+      final next = <String>[];
+      for (final item in note.tags) {
+        final value = item.toLowerCase() == old.toLowerCase() ? clean : item;
+        if (!next.any((e) => e.toLowerCase() == value.toLowerCase())) {
+          next.add(value);
+        }
+      }
+      note.tags = next;
+    }
+    savedTags
+      ..removeWhere((value) => value.toLowerCase() == old.toLowerCase())
+      ..add(clean);
+    if (tag != null && tag!.toLowerCase() == old.toLowerCase()) tag = clean;
+    await _saveCollections();
+    await widget.store.save();
+    if (mounted) setState(() {});
+  }
+
+  Future<void> _deleteTag(String old) async {
+    final ok = await _confirm(
+      'Apagar a tag #$old?',
+      'Ela sai de todas as notas. As notas continuam.',
+      'Apagar tag',
+    );
+    if (!ok) return;
+    for (final note in widget.store.notes) {
+      note.tags = note.tags
+          .where((item) => item.toLowerCase() != old.toLowerCase())
+          .toList();
+    }
+    savedTags.removeWhere((value) => value.toLowerCase() == old.toLowerCase());
+    if (tag != null && tag!.toLowerCase() == old.toLowerCase()) tag = null;
+    await _saveCollections();
+    await widget.store.save();
+    if (mounted) setState(() {});
+  }
+
+  Future<void> _manageCollection({required bool folders}) async {
+    final action = await showModalBottomSheet<String>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      builder: (sheetContext) {
+        final items = folders ? _allFolders : _allTags;
+        int count(String item) => _active
+            .where(
+              (note) => folders
+                  ? _inFolder(note.folder, item)
+                  : note.tags.any((t) => t.toLowerCase() == item.toLowerCase()),
+            )
+            .length;
+        return ConstrainedBox(
+          constraints: BoxConstraints(
+            maxHeight: MediaQuery.sizeOf(sheetContext).height * .75,
+          ),
+          child: ListView(
+            shrinkWrap: true,
+            padding: const EdgeInsets.fromLTRB(12, 12, 12, 24),
+            children: [
+              Row(
+                children: [
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      folders ? 'Pastas' : 'Tags',
+                      style: Theme.of(sheetContext).textTheme.titleLarge
+                          ?.copyWith(fontWeight: FontWeight.w800),
+                    ),
+                  ),
+                  FilledButton.tonalIcon(
+                    onPressed: () => Navigator.pop(sheetContext, 'new'),
+                    icon: const Icon(Icons.add_rounded),
+                    label: Text(folders ? 'Nova pasta' : 'Nova tag'),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              if (items.isEmpty)
+                Padding(
+                  padding: const EdgeInsets.all(20),
+                  child: Text(
+                    folders ? 'Nenhuma pasta ainda.' : 'Nenhuma tag ainda.',
+                    textAlign: TextAlign.center,
+                  ),
+                ),
+              for (final item in items)
+                ListTile(
+                  leading: Icon(
+                    folders ? Icons.folder_outlined : Icons.label_outline_rounded,
+                  ),
+                  title: Text(folders ? item : '#$item'),
+                  subtitle: Text(
+                    count(item) == 1 ? '1 nota' : '${count(item)} notas',
+                  ),
+                  onTap: () => Navigator.pop(sheetContext, 'open:$item'),
+                  trailing: folders && item == 'Geral'
+                      ? null
+                      : PopupMenuButton<String>(
+                          tooltip: 'Opções',
+                          onSelected: (value) =>
+                              Navigator.pop(sheetContext, '$value:$item'),
+                          itemBuilder: (_) => const [
+                            PopupMenuItem(
+                              value: 'rename',
+                              child: Text('Renomear'),
+                            ),
+                            PopupMenuItem(
+                              value: 'delete',
+                              child: Text('Apagar'),
+                            ),
+                          ],
+                        ),
+                ),
+            ],
+          ),
+        );
+      },
+    );
+    if (action == null || !mounted) return;
+    if (action == 'new') {
+      await (folders ? _createFolder() : _createTag());
+      return;
+    }
+    final split = action.indexOf(':');
+    final kind = action.substring(0, split);
+    final item = action.substring(split + 1);
+    if (kind == 'open') {
+      setState(() {
+        scope = _NoteScope.all;
+        folder = folders ? item : null;
+        tag = folders ? null : item;
+      });
+    } else if (kind == 'rename') {
+      await (folders ? _renameFolder(item) : _renameTag(item));
+    } else if (kind == 'delete') {
+      await (folders ? _deleteFolder(item) : _deleteTag(item));
+    }
   }
 
   Future<void> _showFilters() async {
@@ -714,7 +1083,6 @@ class _HomeShellV4State extends State<HomeShellV4> {
       final active = _active;
       final notes = _visible;
       final snapshot = buildTodaySnapshot(active);
-      final inbox = active.where((note) => note.folder == 'Entrada').length;
       final archived = widget.store.notes
           .where((note) => note.archived && note.deletedAt == null)
           .length;
@@ -728,7 +1096,23 @@ class _HomeShellV4State extends State<HomeShellV4> {
           titleSpacing: 20,
           title: Row(
             children: [
-              const NotoMark(size: 34),
+              RawGestureDetector(
+                gestures: {
+                  LongPressGestureRecognizer:
+                      GestureRecognizerFactoryWithHandlers<
+                        LongPressGestureRecognizer
+                      >(
+                        () => LongPressGestureRecognizer(
+                          duration: const Duration(seconds: 2),
+                        ),
+                        (instance) => instance.onLongPress = () {
+                          HapticFeedback.mediumImpact();
+                          openVault(context, widget.store);
+                        },
+                      ),
+                },
+                child: const NotoMark(size: 34),
+              ),
               const SizedBox(width: 8),
               const Text('Noto'),
             ],
@@ -772,8 +1156,8 @@ class _HomeShellV4State extends State<HomeShellV4> {
               trash: trash,
               onArchive: _openArchive,
               onTrash: _openTrash,
-              onCreateFolder: _createFolder,
-              onCreateTag: _createTag,
+              onCreateFolder: () => _manageCollection(folders: true),
+              onCreateTag: () => _manageCollection(folders: false),
             ),
           ),
         ),
@@ -793,8 +1177,19 @@ class _HomeShellV4State extends State<HomeShellV4> {
                   ),
                 ),
               if (widget.store.homeShowToday)
-                _TodayLine(snapshot: snapshot, inbox: inbox),
+                _TodayLine(snapshot: snapshot),
               if (_allFolders.length > 1) _folderChips(),
+              if (active.length >= 3 &&
+                  !widget.store.seenTips.contains('home-gestures'))
+                _TipCard(
+                  text:
+                      'Dica: segure uma nota para selecionar várias. Deslize '
+                      'para a direita para arquivar e para a esquerda para '
+                      'mandar para a lixeira.',
+                  onClose: () => setState(
+                    () => widget.store.takeTip('home-gestures'),
+                  ),
+                ),
               Padding(
                 padding: const EdgeInsets.fromLTRB(20, 14, 20, 8),
                 child: Row(
@@ -818,8 +1213,10 @@ class _HomeShellV4State extends State<HomeShellV4> {
                         await prefs.setInt('notoSortOrder', value);
                       },
                       itemBuilder: (_) => const [
-                        PopupMenuItem(value: 0, child: Text('Mais recentes')),
-                        PopupMenuItem(value: 1, child: Text('Mais antigas')),
+                        PopupMenuItem(value: 0, child: Text('Editadas por último')),
+                        PopupMenuItem(value: 1, child: Text('Editadas há mais tempo')),
+                        PopupMenuItem(value: 4, child: Text('Criadas por último')),
+                        PopupMenuItem(value: 5, child: Text('Criadas há mais tempo')),
                         PopupMenuItem(value: 2, child: Text('Título A–Z')),
                         PopupMenuItem(value: 3, child: Text('Título Z–A')),
                       ],
@@ -1015,17 +1412,15 @@ class _TopLibraryActions extends StatelessWidget {
         ),
         Expanded(
           child: _TopAction(
-            icon: Icons.create_new_folder_outlined,
-            label: 'Pasta',
-            prefixPlus: true,
+            icon: Icons.folder_outlined,
+            label: 'Pastas',
             onTap: onCreateFolder,
           ),
         ),
         Expanded(
           child: _TopAction(
-            icon: Icons.new_label_outlined,
-            label: 'Tag',
-            prefixPlus: true,
+            icon: Icons.label_outline_rounded,
+            label: 'Tags',
             onTap: onCreateTag,
           ),
         ),
@@ -1083,10 +1478,9 @@ class _TopAction extends StatelessWidget {
 }
 
 class _TodayLine extends StatelessWidget {
-  const _TodayLine({required this.snapshot, required this.inbox});
+  const _TodayLine({required this.snapshot});
 
   final TodaySnapshot snapshot;
-  final int inbox;
 
   @override
   Widget build(BuildContext context) {
@@ -1102,7 +1496,6 @@ class _TodayLine extends StatelessWidget {
     if (snapshot.touched > 0) {
       parts.add(plural(snapshot.touched, 'nota editada', 'notas editadas'));
     }
-    if (inbox > 0) parts.add('$inbox na Entrada');
     if (parts.isEmpty) parts.add('nada pendente');
 
     return Container(
@@ -1129,6 +1522,38 @@ class _TodayLine extends StatelessWidget {
           ],
         ),
         style: Theme.of(context).textTheme.bodySmall,
+      ),
+    );
+  }
+}
+
+class _TipCard extends StatelessWidget {
+  const _TipCard({required this.text, required this.onClose});
+  final String text;
+  final VoidCallback onClose;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    return Container(
+      margin: const EdgeInsets.fromLTRB(20, 12, 20, 0),
+      padding: const EdgeInsets.fromLTRB(14, 10, 4, 10),
+      decoration: BoxDecoration(
+        color: cs.primaryContainer,
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Row(
+        children: [
+          Icon(Icons.lightbulb_outline_rounded, color: cs.onPrimaryContainer),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              text,
+              style: TextStyle(color: cs.onPrimaryContainer, height: 1.35),
+            ),
+          ),
+          TextButton(onPressed: onClose, child: const Text('Entendi')),
+        ],
       ),
     );
   }

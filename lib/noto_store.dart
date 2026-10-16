@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:home_widget/home_widget.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:timezone/timezone.dart' as tz;
 
 import 'noto_features.dart';
 import 'noto_models.dart';
@@ -39,6 +40,24 @@ class AppStore extends ChangeNotifier {
   bool homeShowToday = true;
   bool homeShowRecents = true;
   bool _skipRevisionCapture = false;
+
+  // Cofre: só o resumo da senha fica salvo, nunca a senha em si.
+  String? vaultPinHash;
+  String vaultSalt = '';
+  String vaultQuestion = '';
+  String? vaultAnswerHash;
+  bool get hasVault => vaultPinHash != null;
+
+  final Set<String> seenTips = {};
+
+  /// Devolve true só na primeira vez que a dica é pedida.
+  bool takeTip(String id) {
+    if (!seenTips.add(id)) return false;
+    SharedPreferences.getInstance().then(
+      (prefs) => prefs.setStringList('notoSeenTips', seenTips.toList()),
+    );
+    return true;
+  }
 
   bool get grid => layoutMode == 0;
   set grid(bool value) => layoutMode = value ? 0 : 1;
@@ -133,6 +152,13 @@ class AppStore extends ChangeNotifier {
         .toDouble();
     widgetNoteId = prefs.getString('widgetNoteId');
     onboardingDone = prefs.getBool('onboardingDone') ?? false;
+    vaultPinHash = prefs.getString('vaultPinHash');
+    vaultSalt = prefs.getString('vaultSalt') ?? '';
+    vaultQuestion = prefs.getString('vaultQuestion') ?? '';
+    vaultAnswerHash = prefs.getString('vaultAnswerHash');
+    seenTips
+      ..clear()
+      ..addAll(prefs.getStringList('notoSeenTips') ?? const []);
     homeShowToday = prefs.getBool('homeShowToday') ?? true;
     await prefs.remove('homeShowPulse');
     await prefs.remove('editor.focus');
@@ -140,7 +166,9 @@ class AppStore extends ChangeNotifier {
     // Lembretes que já tocaram não ficam pendurados na nota para sempre.
     final now = DateTime.now();
     for (final note in notes) {
-      if (note.reminderAt != null && note.reminderAt!.isBefore(now)) {
+      if (note.reminderAt != null &&
+          note.reminderRepeat == 0 &&
+          note.reminderAt!.isBefore(now)) {
         note.reminderAt = null;
       }
     }
@@ -178,6 +206,17 @@ class AppStore extends ChangeNotifier {
       } catch (_) {
         /* A damaged journal must not block opening saved notes. */
       }
+    }
+
+    // A lixeira se esvazia sozinha: notas apagadas há mais de 30 dias somem.
+    final limit = now.subtract(const Duration(days: 30));
+    final expired = notes
+        .where((n) => n.deletedAt != null && n.deletedAt!.isBefore(limit))
+        .toList();
+    for (final note in expired) {
+      notes.remove(note);
+      histories.remove(note.id);
+      _savedContent.remove(note.id);
     }
 
     loaded = true;
@@ -237,6 +276,18 @@ class AppStore extends ChangeNotifier {
       await prefs.setString('widgetNoteId', widgetNoteId!);
     }
     await prefs.setBool('onboardingDone', onboardingDone);
+    for (final entry in {
+      'vaultPinHash': vaultPinHash,
+      'vaultAnswerHash': vaultAnswerHash,
+    }.entries) {
+      if (entry.value == null) {
+        await prefs.remove(entry.key);
+      } else {
+        await prefs.setString(entry.key, entry.value!);
+      }
+    }
+    await prefs.setString('vaultSalt', vaultSalt);
+    await prefs.setString('vaultQuestion', vaultQuestion);
     await prefs.setBool('homeShowToday', homeShowToday);
     await prefs.setBool('homeShowRecents', homeShowRecents);
 
@@ -357,7 +408,9 @@ class AppStore extends ChangeNotifier {
 
   Future<void> _syncWidget() async {
     final active =
-        notes.where((n) => n.deletedAt == null && !n.archived).toList()
+        notes
+            .where((n) => n.deletedAt == null && !n.archived && !n.locked)
+            .toList()
           ..sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
     Note? selected;
     for (final note in active) {
@@ -386,12 +439,109 @@ class AppStore extends ChangeNotifier {
     );
   }
 
+  static int reminderId(Note note) => note.id.hashCode & 0x7fffffff;
+  static int _weekdayReminderId(Note note, int weekday) =>
+      ((note.id.hashCode & 0x0fffffff) << 3) | weekday;
+
+  /// Próxima vez que o lembrete toca (para repetidos, a partir de agora).
+  DateTime? nextReminder(Note note, {DateTime? from}) {
+    final at = note.reminderAt;
+    if (at == null) return null;
+    final now = from ?? DateTime.now();
+    if (note.reminderRepeat == 0 || at.isAfter(now)) return at;
+    var day = DateTime(now.year, now.month, now.day, at.hour, at.minute);
+    for (var i = 0; i < 8; i++) {
+      final candidate = day.add(Duration(days: i));
+      if (!candidate.isAfter(now)) continue;
+      if (reminderOccursOn(note, candidate)) return candidate;
+    }
+    return null;
+  }
+
+  Future<void> scheduleReminder(Note note, DateTime when, int repeat) async {
+    await _cancelScheduled(note);
+    note.reminderAt = when;
+    note.reminderRepeat = repeat;
+    const details = NotificationDetails(
+      android: AndroidNotificationDetails(
+        'noto_reminders',
+        'Lembretes do Noto',
+        channelDescription: 'Lembretes marcados nas notas',
+        importance: Importance.high,
+        priority: Priority.high,
+      ),
+    );
+    final title = note.locked
+        ? 'Lembrete do Noto'
+        : (note.title.trim().isEmpty ? 'Lembrete do Noto' : note.title.trim());
+    final preview = readablePreview(note.body);
+    final text = note.locked || preview.isEmpty
+        ? 'Você pediu para lembrar desta nota.'
+        : preview.split('\n').first;
+    Future<void> schedule(int id, DateTime at, DateTimeComponents? match) =>
+        notifications.zonedSchedule(
+          id,
+          title,
+          text,
+          tz.TZDateTime.from(at, tz.local),
+          details,
+          androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
+          matchDateTimeComponents: match,
+          payload: note.id,
+        );
+    try {
+      if (repeat == 2) {
+        for (var weekday = 1; weekday <= 5; weekday++) {
+          var at = DateTime(when.year, when.month, when.day, when.hour, when.minute);
+          while (at.weekday != weekday || at.isBefore(DateTime.now())) {
+            at = at.add(const Duration(days: 1));
+          }
+          await schedule(
+            _weekdayReminderId(note, weekday),
+            at,
+            DateTimeComponents.dayOfWeekAndTime,
+          );
+        }
+      } else {
+        await schedule(
+          reminderId(note),
+          when,
+          switch (repeat) {
+            1 => DateTimeComponents.time,
+            3 => DateTimeComponents.dayOfWeekAndTime,
+            _ => null,
+          },
+        );
+      }
+    } catch (_) {
+      /* Sem notificações (ex.: testes): o lembrete fica salvo mesmo assim. */
+    }
+    await save();
+  }
+
+  /// Reagenda com o texto atual (ex.: ao mover para o cofre, esconde o conteúdo).
+  Future<void> refreshReminder(Note note) async {
+    final next = nextReminder(note);
+    if (next == null || !next.isAfter(DateTime.now())) return;
+    await scheduleReminder(note, next, note.reminderRepeat);
+  }
+
+  Future<void> _cancelScheduled(Note note) async {
+    try {
+      await notifications.cancel(reminderId(note));
+      for (var weekday = 1; weekday <= 5; weekday++) {
+        await notifications.cancel(_weekdayReminderId(note, weekday));
+      }
+    } catch (_) {
+      /* Sem notificações nesta plataforma. */
+    }
+  }
+
   void cancelReminder(Note note) {
     if (note.reminderAt == null) return;
     note.reminderAt = null;
-    notifications
-        .cancel(note.id.hashCode & 0x7fffffff)
-        .catchError((Object _) {});
+    note.reminderRepeat = 0;
+    _cancelScheduled(note);
   }
 
   void delete(Note note) {
@@ -456,6 +606,7 @@ class AppStore extends ChangeNotifier {
         titleFont: note.titleFont,
         bodyFont: note.bodyFont,
         favorite: note.favorite,
+        locked: note.locked,
         folder: note.folder,
         tags: List.of(note.tags),
         checklist: note.checklist,

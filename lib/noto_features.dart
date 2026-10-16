@@ -81,10 +81,25 @@ String readablePreview(String body) => body
     .replaceAll('**', '')
     .trim();
 
+/// Se o lembrete toca nesse dia (respeitando a repetição).
+bool reminderOccursOn(Note note, DateTime day) {
+  final at = note.reminderAt;
+  if (at == null) return false;
+  final date = DateTime(day.year, day.month, day.day);
+  final start = DateTime(at.year, at.month, at.day);
+  if (date.isBefore(start)) return false;
+  return switch (note.reminderRepeat) {
+    1 => true,
+    2 => day.weekday <= DateTime.friday,
+    3 => day.weekday == at.weekday,
+    _ => date == start,
+  };
+}
+
 TodaySnapshot buildTodaySnapshot(List<Note> allNotes, {DateTime? now}) {
   final today = now ?? DateTime.now();
   final notes = allNotes
-      .where((n) => n.deletedAt == null && !n.archived)
+      .where((n) => n.deletedAt == null && !n.archived && !n.locked)
       .toList();
   var touched = 0;
   var remindersToday = 0;
@@ -92,8 +107,7 @@ TodaySnapshot buildTodaySnapshot(List<Note> allNotes, {DateTime? now}) {
 
   for (final note in notes) {
     if (_sameDay(note.updatedAt, today)) touched++;
-    final reminder = note.reminderAt;
-    if (reminder != null && _sameDay(reminder, today)) remindersToday++;
+    if (reminderOccursOn(note, today)) remindersToday++;
     pendingTasks += countPendingTasks(note.body);
   }
 
