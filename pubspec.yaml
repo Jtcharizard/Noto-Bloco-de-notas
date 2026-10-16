@@ -28,6 +28,10 @@ dev_dependencies:
   flutter_lints: ^4.0.0
   flutter_launcher_icons: ^0.14.4
 
+# O pacote pdf ainda usa archive 3.x; versões novas do image exigem archive 4.
+dependency_overrides:
+  image: 4.3.0
+
 flutter:
   uses-material-design: true
   assets:
