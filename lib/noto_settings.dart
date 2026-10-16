@@ -5,7 +5,6 @@ import 'noto_library.dart';
 import 'noto_store.dart';
 import 'noto_theme.dart';
 import 'noto_tutorial.dart';
-import 'noto_vault.dart';
 
 class SettingsPage extends StatelessWidget {
   const SettingsPage({super.key, required this.store});
@@ -289,11 +288,11 @@ class SettingsPage extends StatelessWidget {
                   },
                 ),
                 const SizedBox(height: 28),
-                const SectionTitle('Tela de notas'),
+                const SectionTitle('Tela inicial'),
                 SwitchListTile(
                   contentPadding: EdgeInsets.zero,
                   title: const Text('Resumo de hoje'),
-                  subtitle: const Text('Tarefas e lembretes do dia em uma linha'),
+                  subtitle: const Text('Tarefas, lembretes e notas editadas hoje'),
                   value: store.homeShowToday,
                   onChanged: (value) {
                     store.homeShowToday = value;
@@ -307,7 +306,17 @@ class SettingsPage extends StatelessWidget {
                   onTap: () => _pickWidgetNote(context),
                 ),
                 const SizedBox(height: 28),
-                const SectionTitle('Ajuda'),
+                const SectionTitle('Dados e ajuda'),
+                NotoTile(
+                  icon: Icons.upload_file_outlined,
+                  title: 'Fazer backup',
+                  onTap: () => exportBackup(context, store),
+                ),
+                NotoTile(
+                  icon: Icons.settings_backup_restore_rounded,
+                  title: 'Restaurar backup',
+                  onTap: () => importBackup(context, store),
+                ),
                 NotoTile(
                   icon: Icons.school_outlined,
                   title: 'Ver tutorial de novo',
@@ -320,24 +329,6 @@ class SettingsPage extends StatelessWidget {
                       ),
                     ),
                   ),
-                ),
-                if (store.hasVault)
-                  NotoTile(
-                    icon: Icons.password_rounded,
-                    title: 'Trocar senha',
-                    onTap: () => changeVaultPin(context, store),
-                  ),
-                const SizedBox(height: 28),
-                const SectionTitle('Dados'),
-                NotoTile(
-                  icon: Icons.upload_file_outlined,
-                  title: 'Fazer backup',
-                  onTap: () => exportBackup(context, store),
-                ),
-                NotoTile(
-                  icon: Icons.settings_backup_restore_rounded,
-                  title: 'Restaurar backup',
-                  onTap: () => importBackup(context, store),
                 ),
               ],
             ),

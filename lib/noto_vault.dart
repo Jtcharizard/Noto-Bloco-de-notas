@@ -469,6 +469,13 @@ class VaultPage extends StatelessWidget {
             'Cofre',
             style: TextStyle(fontWeight: FontWeight.w900),
           ),
+          actions: [
+            IconButton(
+              tooltip: 'Trocar senha do cofre',
+              icon: const Icon(Icons.password_rounded),
+              onPressed: () => changeVaultPin(context, store),
+            ),
+          ],
         ),
         body: items.isEmpty
             ? const Center(

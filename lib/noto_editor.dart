@@ -1504,7 +1504,7 @@ class _EditorPageState extends State<EditorPage>
                 prefixIcon: Icon(Icons.folder_outlined),
               ),
             ),
-            if (existingFolders.isNotEmpty) ...[
+            if (existingFolders.length > 1) ...[
               const SizedBox(height: 10),
               SizedBox(
                 height: 38,

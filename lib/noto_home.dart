@@ -856,7 +856,7 @@ class _HomeShellState extends State<HomeShell> {
                   () => draftScope = value ?? _NoteScope.pinned,
                 ),
               ),
-              if (_allFolders.isNotEmpty) ...[
+              if (_allFolders.length > 1) ...[
                 const SizedBox(height: 8),
                 DropdownButtonFormField<String?>(
                   initialValue: draftFolder,
@@ -1493,44 +1493,63 @@ class _TodayLine extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final items = <(IconData, String)>[
+      if (snapshot.pendingTasks > 0)
+        (
+          Icons.check_box_outline_blank_rounded,
+          snapshot.pendingTasks == 1
+              ? '1 tarefa a fazer'
+              : '${snapshot.pendingTasks} tarefas a fazer',
+        ),
+      if (snapshot.remindersToday > 0)
+        (
+          Icons.notifications_none_rounded,
+          snapshot.remindersToday == 1
+              ? '1 lembrete hoje'
+              : '${snapshot.remindersToday} lembretes hoje',
+        ),
+      if (snapshot.touched > 0)
+        (
+          Icons.edit_outlined,
+          snapshot.touched == 1
+              ? '1 editada hoje'
+              : '${snapshot.touched} editadas hoje',
+        ),
+    ];
+    // Sem nada para mostrar, o resumo some em vez de ocupar espaço.
+    if (items.isEmpty) return const SizedBox.shrink();
     final cs = Theme.of(context).colorScheme;
-    final parts = <String>[];
-    String plural(int n, String one, String many) => '$n ${n == 1 ? one : many}';
-    if (snapshot.pendingTasks > 0) {
-      parts.add(plural(snapshot.pendingTasks, 'tarefa a fazer', 'tarefas a fazer'));
-    }
-    if (snapshot.remindersToday > 0) {
-      parts.add(plural(snapshot.remindersToday, 'lembrete', 'lembretes'));
-    }
-    if (snapshot.touched > 0) {
-      parts.add(plural(snapshot.touched, 'nota editada', 'notas editadas'));
-    }
-    if (parts.isEmpty) parts.add('nada pendente');
-
-    return Container(
-      width: double.infinity,
-      margin: const EdgeInsets.fromLTRB(20, 4, 20, 0),
-      padding: const EdgeInsets.fromLTRB(12, 10, 0, 10),
-      decoration: BoxDecoration(
-        border: Border(left: BorderSide(color: cs.primary, width: 3)),
-      ),
-      child: Text.rich(
-        TextSpan(
-          children: [
-            TextSpan(
-              text: 'Hoje  ',
-              style: TextStyle(
-                color: cs.onSurface,
-                fontWeight: FontWeight.w800,
+    return SizedBox(
+      height: 40,
+      child: ListView(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.fromLTRB(20, 6, 20, 0),
+        children: [
+          for (final item in items)
+            Container(
+              margin: const EdgeInsets.only(right: 8),
+              padding: const EdgeInsets.symmetric(horizontal: 11),
+              decoration: BoxDecoration(
+                color: cs.surfaceContainerHigh,
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(item.$1, size: 16, color: cs.primary),
+                  const SizedBox(width: 6),
+                  Text(
+                    item.$2,
+                    style: TextStyle(
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.w600,
+                      color: cs.onSurface.withValues(alpha: .82),
+                    ),
+                  ),
+                ],
               ),
             ),
-            TextSpan(
-              text: parts.join(' · '),
-              style: TextStyle(color: cs.onSurface.withValues(alpha: .68)),
-            ),
-          ],
-        ),
-        style: Theme.of(context).textTheme.bodySmall,
+        ],
       ),
     );
   }
