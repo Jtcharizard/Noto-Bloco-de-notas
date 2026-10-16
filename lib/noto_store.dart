@@ -1,8 +1,10 @@
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:home_widget/home_widget.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:timezone/timezone.dart' as tz;
 
@@ -19,7 +21,49 @@ class _SavedNoteContent {
   final Map<String, dynamic> editor;
 }
 
+/// Notas, modelos e histórico ficam num arquivo próprio, gravado com segurança:
+/// escreve num temporário, guarda a versão anterior como cópia e só então troca.
+class _NoteFiles {
+  _NoteFiles(this.dir);
+  final Directory dir;
+
+  File get _main => File('${dir.path}/noto_dados.json');
+  File get _backup => File('${dir.path}/noto_dados.bak.json');
+  File get _temp => File('${dir.path}/noto_dados.tmp');
+
+  static Future<_NoteFiles?> open() async {
+    try {
+      return _NoteFiles(await getApplicationDocumentsDirectory());
+    } catch (_) {
+      return null; // Sem acesso a arquivos (ex.: testes): usa as preferências.
+    }
+  }
+
+  Future<Map<String, dynamic>?> read() async {
+    for (final file in [_main, _backup]) {
+      try {
+        if (!await file.exists()) continue;
+        final data = jsonDecode(await file.readAsString());
+        if (data is Map && data['notes'] is List) {
+          return Map<String, dynamic>.from(data);
+        }
+      } catch (_) {
+        /* Arquivo danificado: tenta a cópia anterior. */
+      }
+    }
+    return null;
+  }
+
+  Future<void> write(Map<String, dynamic> data) async {
+    await _temp.writeAsString(jsonEncode(data), flush: true);
+    if (await _main.exists()) await _main.copy(_backup.path);
+    await _temp.rename(_main.path);
+  }
+}
+
 class AppStore extends ChangeNotifier {
+  _NoteFiles? _files;
+
   final List<Note> notes = [];
   final List<NotoTemplate> templates = [];
   final Map<String, List<NoteRevision>> histories = {};
@@ -64,46 +108,60 @@ class AppStore extends ChangeNotifier {
 
   Future<void> load() async {
     final prefs = await SharedPreferences.getInstance();
-    final raw = prefs.getString('notes');
-    if (raw != null) {
+    _files = await _NoteFiles.open();
+    final fileData = await _files?.read();
+
+    dynamic decode(String key) {
+      final raw = prefs.getString(key);
+      if (raw == null) return null;
       try {
-        notes
-          ..clear()
-          ..addAll(
-            (jsonDecode(raw) as List).map(
-              (e) => Note.fromJson(Map<String, dynamic>.from(e)),
-            ),
-          );
-      } catch (_) {}
+        return jsonDecode(raw);
+      } catch (_) {
+        return null;
+      }
+    }
+
+    // Versões antigas guardavam tudo nas preferências: migra na primeira vez.
+    final notesData = fileData?['notes'] ?? decode('notes');
+    final templatesData = fileData?['templates'] ?? decode('notoTemplates');
+    final historyData = fileData?['histories'] ?? decode('noteHistories');
+
+    notes.clear();
+    if (notesData is List) {
+      for (final item in notesData) {
+        try {
+          notes.add(Note.fromJson(Map<String, dynamic>.from(item as Map)));
+        } catch (_) {
+          /* Uma nota danificada não impede as outras de abrir. */
+        }
+      }
     }
 
     templates.clear();
-    final templateRaw = prefs.getString('notoTemplates');
-    if (templateRaw != null) {
-      try {
-        templates.addAll(
-          (jsonDecode(templateRaw) as List).map(
-            (e) => NotoTemplate.fromJson(Map<String, dynamic>.from(e)),
-          ),
-        );
-      } catch (_) {}
+    if (templatesData is List) {
+      for (final item in templatesData) {
+        try {
+          templates.add(
+            NotoTemplate.fromJson(Map<String, dynamic>.from(item as Map)),
+          );
+        } catch (_) {}
+      }
     }
 
     histories.clear();
-    final historyRaw = prefs.getString('noteHistories');
-    if (historyRaw != null) {
-      try {
-        final decoded = Map<String, dynamic>.from(jsonDecode(historyRaw));
-        for (final entry in decoded.entries) {
+    if (historyData is Map) {
+      for (final entry in historyData.entries) {
+        try {
           final list = (entry.value as List? ?? const [])
               .map(
-                (item) =>
-                    NoteRevision.fromJson(Map<String, dynamic>.from(item)),
+                (item) => NoteRevision.fromJson(
+                  Map<String, dynamic>.from(item as Map),
+                ),
               )
               .toList();
-          if (list.isNotEmpty) histories[entry.key] = list;
-        }
-      } catch (_) {}
+          if (list.isNotEmpty) histories[entry.key.toString()] = list;
+        } catch (_) {}
+      }
     }
 
     _savedContent
@@ -240,22 +298,35 @@ class AppStore extends ChangeNotifier {
     }
 
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(
-      'notes',
-      jsonEncode(notes.map((e) => e.toJson()).toList()),
+    final notesJson = notes.map((e) => e.toJson()).toList();
+    final templatesJson = templates.map((e) => e.toJson()).toList();
+    final historiesJson = histories.map(
+      (key, value) => MapEntry(key, value.map((e) => e.toJson()).toList()),
     );
-    await prefs.setString(
-      'notoTemplates',
-      jsonEncode(templates.map((e) => e.toJson()).toList()),
-    );
-    await prefs.setString(
-      'noteHistories',
-      jsonEncode(
-        histories.map(
-          (key, value) => MapEntry(key, value.map((e) => e.toJson()).toList()),
-        ),
-      ),
-    );
+    final files = _files;
+    var savedToFile = false;
+    if (files != null) {
+      try {
+        await files.write({
+          'version': 1,
+          'notes': notesJson,
+          'templates': templatesJson,
+          'histories': historiesJson,
+        });
+        savedToFile = true;
+      } catch (_) {
+        /* Se o arquivo falhar, guarda nas preferências para não perder nada. */
+      }
+    }
+    if (savedToFile) {
+      for (final key in ['notes', 'notoTemplates', 'noteHistories']) {
+        if (prefs.containsKey(key)) await prefs.remove(key);
+      }
+    } else {
+      await prefs.setString('notes', jsonEncode(notesJson));
+      await prefs.setString('notoTemplates', jsonEncode(templatesJson));
+      await prefs.setString('noteHistories', jsonEncode(historiesJson));
+    }
     await prefs.setInt('mode', mode.index);
     await prefs.setInt('accent', accent);
     await prefs.setInt('font', font);
@@ -458,8 +529,31 @@ class AppStore extends ChangeNotifier {
     return null;
   }
 
+  /// Pede permissão para notificar e, uma vez, para usar horário exato.
+  /// Devolve se o horário exato está liberado.
+  Future<bool> _prepareNotifications() async {
+    try {
+      final android = notifications
+          .resolvePlatformSpecificImplementation<
+            AndroidFlutterLocalNotificationsPlugin
+          >();
+      if (android == null) return false;
+      final enabled = await android.areNotificationsEnabled() ?? true;
+      if (!enabled) await android.requestNotificationsPermission();
+      var exact = await android.canScheduleExactNotifications() ?? false;
+      if (!exact && takeTip('ask-exact-alarm')) {
+        await android.requestExactAlarmsPermission();
+        exact = await android.canScheduleExactNotifications() ?? false;
+      }
+      return exact;
+    } catch (_) {
+      return false;
+    }
+  }
+
   Future<void> scheduleReminder(Note note, DateTime when, int repeat) async {
     await _cancelScheduled(note);
+    final exact = await _prepareNotifications();
     note.reminderAt = when;
     note.reminderRepeat = repeat;
     const details = NotificationDetails(
@@ -485,7 +579,9 @@ class AppStore extends ChangeNotifier {
           text,
           tz.TZDateTime.from(at, tz.local),
           details,
-          androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
+          androidScheduleMode: exact
+              ? AndroidScheduleMode.exactAllowWhileIdle
+              : AndroidScheduleMode.inexactAllowWhileIdle,
           matchDateTimeComponents: match,
           payload: note.id,
         );

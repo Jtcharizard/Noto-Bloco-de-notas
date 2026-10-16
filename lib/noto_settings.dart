@@ -1,249 +1,140 @@
-import 'dart:convert';
-import 'dart:io';
-
-import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
-import 'package:image_picker/image_picker.dart';
-import 'package:intl/intl.dart';
-import 'package:path_provider/path_provider.dart';
-import 'package:share_plus/share_plus.dart';
 
-import 'noto_editor_v2.dart';
 import 'noto_models.dart';
+import 'noto_library.dart';
 import 'noto_store.dart';
+import 'noto_theme.dart';
+import 'noto_tutorial.dart';
+import 'noto_vault.dart';
 
-class FontPickerSheet extends StatefulWidget {
-  const FontPickerSheet({super.key, required this.selected});
-  final int selected;
+class SettingsPage extends StatelessWidget {
+  const SettingsPage({super.key, required this.store});
 
-  @override
-  State<FontPickerSheet> createState() => _FontPickerSheetState();
-}
+  final AppStore store;
 
-class _FontPickerSheetState extends State<FontPickerSheet> {
-  String query = '';
-  String preview = 'Minha próxima grande ideia';
-
-  @override
-  Widget build(BuildContext context) {
-    final visible = List.generate(NotoAppearance.fonts.length, (i) => i)
-        .where(
-          (i) => NotoAppearance.fonts[i].name.toLowerCase().contains(
-            query.toLowerCase(),
+  Future<void> _pickTheme(BuildContext context) async {
+    final selected = await showModalBottomSheet<ThemeMode>(
+      context: context,
+      useSafeArea: true,
+      builder: (sheetContext) => Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const _SheetHeader('Tema'),
+          RadioListTile<ThemeMode>(
+            value: ThemeMode.system,
+            groupValue: store.mode,
+            title: const Text('Seguir o sistema'),
+            onChanged: (value) => Navigator.pop(sheetContext, value),
           ),
-        )
-        .toList();
-    return SafeArea(
-      child: SizedBox(
-        height: MediaQuery.sizeOf(context).height * .82,
+          RadioListTile<ThemeMode>(
+            value: ThemeMode.light,
+            groupValue: store.mode,
+            title: const Text('Claro'),
+            onChanged: (value) => Navigator.pop(sheetContext, value),
+          ),
+          RadioListTile<ThemeMode>(
+            value: ThemeMode.dark,
+            groupValue: store.mode,
+            title: const Text('Escuro'),
+            onChanged: (value) => Navigator.pop(sheetContext, value),
+          ),
+          const SizedBox(height: 12),
+        ],
+      ),
+    );
+    if (selected != null) {
+      store.mode = selected;
+      await store.save();
+    }
+  }
+
+  Future<void> _pickAccent(BuildContext context) async {
+    final selected = await showModalBottomSheet<int>(
+      context: context,
+      useSafeArea: true,
+      builder: (sheetContext) => Padding(
+        padding: const EdgeInsets.only(bottom: 24),
         child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            const _SheetHeader('Cor de destaque'),
             Padding(
-              padding: const EdgeInsets.fromLTRB(18, 4, 18, 12),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Fontes',
-                    style: Theme.of(context).textTheme.headlineSmall
-                        ?.copyWith(fontWeight: FontWeight.w900),
-                  ),
-                  const SizedBox(height: 6),
-                  Text(
-                    '${NotoAppearance.fonts.length} estilos para escolher',
-                    style: Theme.of(context).textTheme.bodyMedium,
-                  ),
-                  const SizedBox(height: 14),
-                  TextField(
-                    decoration: const InputDecoration(
-                      prefixIcon: Icon(Icons.search_rounded),
-                      hintText: 'Pesquisar fonte',
-                    ),
-                    onChanged: (value) => setState(() => query = value),
-                  ),
-                  TextField(
-                    decoration: const InputDecoration(
-                      labelText: 'Texto de exemplo',
-                      hintText: 'Minha próxima grande ideia',
-                    ),
-                    onChanged: (value) => setState(() => preview = value),
-                  ),
-                ],
-              ),
-            ),
-            Expanded(
-              child: ListView.builder(
-                padding: const EdgeInsets.fromLTRB(12, 0, 12, 20),
-                itemCount: visible.length,
-                itemBuilder: (_, position) {
-                  final index = visible[position];
-                  final font = NotoAppearance.fonts[index];
-                  final selected = widget.selected == index;
-                  return ListTile(
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                    selected: selected,
-                    selectedTileColor: Theme.of(context)
-                        .colorScheme
-                        .primaryContainer
-                        .withValues(alpha: .55),
-                    title: Text(
-                      font.name,
-                      style: TextStyle(
-                        fontFamily: font.family,
-                        fontSize: 20,
-                        fontWeight: FontWeight.w700,
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: Wrap(
+                spacing: 12,
+                runSpacing: 12,
+                children: List.generate(NotoAppearance.accents.length, (index) {
+                  final accent = NotoAppearance.accents[index];
+                  final active = index == store.accent;
+                  return Tooltip(
+                    message: accent.name,
+                    child: InkWell(
+                      borderRadius: BorderRadius.circular(8),
+                      onTap: () => Navigator.pop(sheetContext, index),
+                      child: Container(
+                        width: 40,
+                        height: 40,
+                        decoration: BoxDecoration(
+                          color: accent.color,
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(
+                            color: active
+                                ? Theme.of(context).colorScheme.onSurface
+                                : Colors.transparent,
+                            width: 2,
+                          ),
+                        ),
+                        child: active
+                            ? const Icon(
+                                Icons.check_rounded,
+                                color: Colors.white,
+                                size: 19,
+                              )
+                            : null,
                       ),
                     ),
-                    subtitle: Text(
-                      preview.trim().isEmpty ? font.subtitle : preview,
-                      style: TextStyle(fontFamily: font.family),
-                    ),
-                    trailing: selected
-                        ? const Icon(Icons.check_circle_rounded)
-                        : null,
-                    onTap: () => Navigator.pop(context, index),
                   );
-                },
+                }),
               ),
             ),
           ],
         ),
       ),
     );
-  }
-}
-
-class WallpaperSheet extends StatelessWidget {
-  const WallpaperSheet({super.key, required this.store, this.note});
-  final AppStore store;
-  final Note? note;
-
-  Future<void> _pickCustom(BuildContext context) async {
-    final picked = await ImagePicker().pickImage(
-      source: ImageSource.gallery,
-      imageQuality: 88,
-      maxWidth: 1800,
-    );
-    if (picked == null || !context.mounted) return;
-    final directory = await getApplicationDocumentsDirectory();
-    final saved = await File(picked.path).copy(
-      '${directory.path}/noto_wallpaper_${DateTime.now().microsecondsSinceEpoch}.jpg',
-    );
-    if (note == null) {
-      store.customWallpaper = saved.path;
-      store.wallpaper = 0;
-    } else {
-      note!.customWallpaper = saved.path;
-      note!.wallpaper = 0;
+    if (selected != null) {
+      store.accent = selected;
+      await store.save();
     }
-    await store.save();
-    if (context.mounted) Navigator.pop(context);
   }
 
-  @override
-  Widget build(BuildContext context) {
-    final selected = note?.wallpaper ?? store.wallpaper;
-    return SafeArea(
-      child: SizedBox(
-        height: MediaQuery.sizeOf(context).height * .66,
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(18, 4, 18, 16),
+  Future<void> _pickTextSize(BuildContext context) async {
+    var value = store.fontSize;
+    final selected = await showModalBottomSheet<double>(
+      context: context,
+      useSafeArea: true,
+      builder: (sheetContext) => StatefulBuilder(
+        builder: (context, setModalState) => Padding(
+          padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
           child: Column(
+            mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                note == null ? 'Fundo do aplicativo' : 'Fundo da nota',
-                style: Theme.of(context).textTheme.headlineSmall
-                    ?.copyWith(fontWeight: FontWeight.w900),
+              const _SheetHeader('Tamanho do texto'),
+              Text('O texto fica assim.', style: TextStyle(fontSize: value)),
+              Slider(
+                value: value,
+                min: 14,
+                max: 26,
+                divisions: 6,
+                label: '${value.round()}',
+                onChanged: (next) => setModalState(() => value = next),
               ),
-              const SizedBox(height: 12),
               SizedBox(
                 width: double.infinity,
-                child: FilledButton.tonalIcon(
-                  onPressed: () => _pickCustom(context),
-                  icon: const Icon(Icons.add_photo_alternate_outlined),
-                  label: const Text('Escolher imagem da galeria'),
-                ),
-              ),
-              const SizedBox(height: 16),
-              Expanded(
-                child: GridView.builder(
-                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                    crossAxisCount: 3,
-                    crossAxisSpacing: 10,
-                    mainAxisSpacing: 12,
-                    childAspectRatio: .78,
-                  ),
-                  itemCount: NotoAppearance.wallpaperPaths.length,
-                  itemBuilder: (_, index) {
-                    final isSelected =
-                        selected == index &&
-                        (note?.customWallpaper ?? store.customWallpaper) ==
-                            null;
-                    return GestureDetector(
-                      onTap: () {
-                        if (note == null) {
-                          store.wallpaper = index;
-                          store.customWallpaper = null;
-                        } else {
-                          note!.wallpaper = index;
-                          note!.customWallpaper = null;
-                        }
-                        store.save();
-                        Navigator.pop(context);
-                      },
-                      child: Column(
-                        children: [
-                          Expanded(
-                            child: Container(
-                              decoration: BoxDecoration(
-                                borderRadius: BorderRadius.circular(18),
-                                color: Theme.of(context)
-                                    .colorScheme
-                                    .surfaceContainerHighest,
-                                border: isSelected
-                                    ? Border.all(
-                                        color: Theme.of(context)
-                                            .colorScheme
-                                            .primary,
-                                        width: 3,
-                                      )
-                                    : null,
-                                image: index == 0
-                                    ? null
-                                    : DecorationImage(
-                                        image: AssetImage(
-                                          NotoAppearance.wallpaperPaths[index],
-                                        ),
-                                        fit: BoxFit.cover,
-                                      ),
-                              ),
-                              child: index == 0
-                                  ? const Center(
-                                      child: Icon(
-                                        Icons.block_rounded,
-                                        size: 30,
-                                      ),
-                                    )
-                                  : null,
-                            ),
-                          ),
-                          const SizedBox(height: 6),
-                          Text(
-                            NotoAppearance.wallpaperNames[index],
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                              fontSize: 11,
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
-                        ],
-                      ),
-                    );
-                  },
+                child: FilledButton(
+                  onPressed: () => Navigator.pop(sheetContext, value),
+                  child: const Text('Aplicar'),
                 ),
               ),
             ],
@@ -251,357 +142,269 @@ class WallpaperSheet extends StatelessWidget {
         ),
       ),
     );
+    if (selected != null) {
+      store.fontSize = selected;
+      await store.save();
+    }
   }
-}
 
-class ArchivePage extends StatelessWidget {
-  const ArchivePage({super.key, required this.store});
-  final AppStore store;
+  List<Note> get _activeNotes =>
+      store.notes
+          .where((n) => n.deletedAt == null && !n.archived && !n.locked)
+          .toList()
+        ..sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
 
-  @override
-  Widget build(BuildContext context) => AnimatedBuilder(
-    animation: store,
-    builder: (_, __) {
-      final items = store.notes
-          .where((n) => n.archived && n.deletedAt == null && !n.locked)
-          .toList();
-      return Scaffold(
-        appBar: AppBar(
-          title: const Text(
-            'Arquivadas',
-            style: TextStyle(fontWeight: FontWeight.w900),
-          ),
+  String _widgetNoteLabel() {
+    for (final note in _activeNotes) {
+      if (note.id == store.widgetNoteId) {
+        return note.title.trim().isEmpty ? 'Sem título' : note.title;
+      }
+    }
+    return 'A mais recente';
+  }
+
+  Future<void> _pickWidgetNote(BuildContext context) async {
+    final notes = _activeNotes;
+    final selected = await showModalBottomSheet<String>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      builder: (sheetContext) => ConstrainedBox(
+        constraints: BoxConstraints(
+          maxHeight: MediaQuery.sizeOf(sheetContext).height * .7,
         ),
-        body: items.isEmpty
-            ? const Center(child: Text('Nenhuma nota arquivada.'))
-            : ListView.separated(
-                padding: const EdgeInsets.all(16),
-                itemCount: items.length,
-                separatorBuilder: (_, __) => const SizedBox(height: 8),
-                itemBuilder: (_, index) {
-                  final note = items[index];
-                  return Card(
-                    child: ListTile(
-                      leading: const Icon(Icons.archive_outlined),
-                      title: Text(
-                        note.title.trim().isEmpty ? 'Sem título' : note.title,
-                      ),
-                      subtitle: Text(note.folder),
-                      onTap: () => Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => EditorPageV2(
-                            store: store,
-                            note: note,
-                            isNew: false,
-                          ),
-                        ),
-                      ),
-                      trailing: PopupMenuButton<String>(
-                        tooltip: 'Opções',
-                        onSelected: (value) {
-                          if (value == 'unarchive') store.unarchive(note);
-                          if (value == 'trash') store.delete(note);
-                        },
-                        itemBuilder: (_) => const [
-                          PopupMenuItem(
-                            value: 'unarchive',
-                            child: Text('Desarquivar'),
-                          ),
-                          PopupMenuItem(
-                            value: 'trash',
-                            child: Text('Mover para a lixeira'),
-                          ),
-                        ],
-                      ),
-                    ),
-                  );
-                },
+        child: ListView(
+          shrinkWrap: true,
+          children: [
+            const _SheetHeader('Nota do widget'),
+            RadioListTile<String>(
+              value: '',
+              groupValue: store.widgetNoteId ?? '',
+              title: const Text('Sempre a mais recente'),
+              onChanged: (value) => Navigator.pop(sheetContext, value),
+            ),
+            for (final note in notes)
+              RadioListTile<String>(
+                value: note.id,
+                groupValue: store.widgetNoteId ?? '',
+                title: Text(
+                  note.title.trim().isEmpty ? 'Sem título' : note.title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                onChanged: (value) => Navigator.pop(sheetContext, value),
               ),
-      );
-    },
-  );
-}
-
-class TrashPage extends StatelessWidget {
-  const TrashPage({super.key, required this.store});
-  final AppStore store;
-
-  @override
-  Widget build(BuildContext context) => AnimatedBuilder(
-    animation: store,
-    builder: (_, __) {
-      final items = store.notes.where((n) => n.deletedAt != null).toList()
-        ..sort((a, b) => b.deletedAt!.compareTo(a.deletedAt!));
-      return Scaffold(
-        appBar: AppBar(
-          title: const Text(
-            'Lixeira',
-            style: TextStyle(fontWeight: FontWeight.w900),
-          ),
-          actions: [
-            if (items.isNotEmpty)
-              TextButton(
-                onPressed: () async {
-                  final ok = await showDialog<bool>(
-                    context: context,
-                    builder: (dialogContext) => AlertDialog(
-                      title: const Text('Esvaziar a lixeira?'),
-                      content: Text(
-                        items.length == 1
-                            ? 'A nota será apagada de vez. Não dá para desfazer.'
-                            : 'As ${items.length} notas serão apagadas de vez. Não dá para desfazer.',
-                      ),
-                      actions: [
-                        TextButton(
-                          onPressed: () => Navigator.pop(dialogContext, false),
-                          child: const Text('Cancelar'),
-                        ),
-                        FilledButton(
-                          onPressed: () => Navigator.pop(dialogContext, true),
-                          child: const Text('Esvaziar'),
-                        ),
-                      ],
-                    ),
-                  );
-                  if (ok == true) store.emptyTrash();
-                },
-                child: const Text('Esvaziar'),
-              ),
+            const SizedBox(height: 12),
           ],
         ),
-        body: items.isEmpty
-            ? const Center(
-                child: Text(
-                  'A lixeira está vazia.\nO que fica aqui por mais de 30 dias é apagado sozinho.',
-                  textAlign: TextAlign.center,
-                ),
-              )
-            : ListView.separated(
-                padding: const EdgeInsets.all(16),
-                itemCount: items.length,
-                separatorBuilder: (_, __) => const SizedBox(height: 8),
-                itemBuilder: (_, index) {
-                  final note = items[index];
-                  return Card(
-                    child: ListTile(
-                      title: Text(
-                        note.locked
-                            ? 'Nota do cofre'
-                            : note.title.trim().isEmpty
-                            ? 'Sem título'
-                            : note.title,
-                      ),
-                      subtitle: Text(
-                        'Apagada em ${DateFormat('dd/MM • HH:mm').format(note.deletedAt!)}',
-                      ),
-                      trailing: PopupMenuButton<String>(
-                        onSelected: (value) {
-                          if (value == 'restore') store.restore(note);
-                          if (value == 'delete') store.deleteForever(note);
-
-                        },
-                        itemBuilder: (_) => const [
-                          PopupMenuItem(
-                            value: 'restore',
-                            child: Text('Restaurar'),
-                          ),
-                          PopupMenuItem(
-                            value: 'delete',
-                            child: Text(
-                              'Apagar de vez',
-                              style: TextStyle(color: Colors.red),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  );
-                },
-              ),
-      );
-    },
-  );
-}
-
-Future<void> exportBackup(BuildContext context, AppStore store) async {
-  final images = <String, String>{};
-  for (final note in store.notes) {
-    final path = note.customWallpaper;
-    if (path != null && await File(path).exists()) {
-      images['note_${note.id}'] = base64Encode(await File(path).readAsBytes());
-    }
-    final cover = note.coverImage;
-    if (cover != null && await File(cover).exists()) {
-      images['cover_${note.id}'] = base64Encode(await File(cover).readAsBytes());
-    }
-  }
-  if (store.customWallpaper != null &&
-      await File(store.customWallpaper!).exists()) {
-    images['global'] = base64Encode(
-      await File(store.customWallpaper!).readAsBytes(),
-    );
-  }
-
-  final data = {
-    'format': 'noto-backup',
-    'version': 3,
-    'createdAt': DateTime.now().toIso8601String(),
-    'notes': store.notes.map((n) => n.toJson()).toList(),
-    'templates': store.templates.map((t) => t.toJson()).toList(),
-    'settings': {
-      'mode': store.mode.index,
-      'accent': store.accent,
-      'font': store.font,
-      'fontSize': store.fontSize,
-      'grid': store.grid,
-      'wallpaper': store.wallpaper,
-      'wallpaperDarkness': store.wallpaperDarkness,
-      'wallpaperBlur': store.wallpaperBlur,
-      'widgetNoteId': store.widgetNoteId,
-    },
-    'images': images,
-  };
-
-  final dir = await getTemporaryDirectory();
-  final file = File(
-    '${dir.path}/Noto-backup-${DateFormat('yyyy-MM-dd').format(DateTime.now())}.noto',
-  );
-  await file.writeAsString(jsonEncode(data));
-  await Share.shareXFiles([XFile(file.path)], text: 'Backup completo do Noto');
-}
-
-Future<void> importBackup(BuildContext context, AppStore store) async {
-  final picked = await FilePicker.platform.pickFiles(
-    type: FileType.any,
-    allowMultiple: false,
-  );
-  final path = picked?.files.single.path;
-  if (path == null || !context.mounted) return;
-
-  try {
-    final data =
-        jsonDecode(await File(path).readAsString()) as Map<String, dynamic>;
-    if (data['format'] != 'noto-backup') throw const FormatException();
-    final notes = (data['notes'] as List)
-        .map((e) => Note.fromJson(Map<String, dynamic>.from(e)))
-        .toList();
-    final images = Map<String, dynamic>.from(data['images'] ?? {});
-    final settings = Map<String, dynamic>.from(data['settings'] ?? {});
-    final dir = await getApplicationDocumentsDirectory();
-
-    for (final note in notes) {
-      final encoded = images['note_${note.id}'];
-      if (encoded != null) {
-        final file = File('${dir.path}/restored_${note.id}.jpg');
-        await file.writeAsBytes(base64Decode(encoded));
-        note.customWallpaper = file.path;
-      }
-      final cover = images['cover_${note.id}'];
-      if (cover != null) {
-        final file = File('${dir.path}/restored_cover_${note.id}.jpg');
-        await file.writeAsBytes(base64Decode(cover));
-        note.coverImage = file.path;
-      }
-    }
-    final templates = data['templates'] is List
-        ? (data['templates'] as List)
-              .map((e) => NotoTemplate.fromJson(Map<String, dynamic>.from(e)))
-              .toList()
-        : null;
-
-    if (!context.mounted) return;
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: const Text('Restaurar este backup?'),
-        content: Text(
-          'As notas que estão no app agora serão trocadas pelas ${notes.length} notas deste backup.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext, false),
-            child: const Text('Cancelar'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(dialogContext, true),
-            child: const Text('Restaurar'),
-          ),
-        ],
       ),
     );
-    if (confirmed != true) return;
-
-    store.notes
-      ..clear()
-      ..addAll(notes);
-    if (templates != null) {
-      store.templates
-        ..clear()
-        ..addAll(templates);
-    }
-    store.mode =
-        ThemeMode.values[((settings['mode'] as num?)?.toInt() ?? 0).clamp(
-          0,
-          ThemeMode.values.length - 1,
-        )];
-    store.accent = ((settings['accent'] as num?)?.toInt() ?? 0).clamp(
-      0,
-      NotoAppearance.accents.length - 1,
-    );
-    store.font = ((settings['font'] as num?)?.toInt() ?? 0).clamp(
-      0,
-      NotoAppearance.fonts.length - 1,
-    );
-    store.fontSize = ((settings['fontSize'] as num?)?.toDouble() ?? 17).clamp(
-      14,
-      26,
-    );
-    store.grid = settings['grid'] ?? true;
-    store.wallpaper = ((settings['wallpaper'] as num?)?.toInt() ?? 0).clamp(
-      0,
-      NotoAppearance.wallpaperPaths.length - 1,
-    );
-    store.wallpaperDarkness =
-        ((settings['wallpaperDarkness'] as num?)?.toDouble() ?? .25).clamp(
-          0,
-          .8,
-        );
-    store.wallpaperBlur = ((settings['wallpaperBlur'] as num?)?.toDouble() ?? 0)
-        .clamp(0, 16);
-    store.widgetNoteId = settings['widgetNoteId'];
-    store.customWallpaper = null;
-    if (images['global'] != null) {
-      final file = File('${dir.path}/restored_global.jpg');
-      await file.writeAsBytes(base64Decode(images['global']));
-      store.customWallpaper = file.path;
-    }
+    if (selected == null) return;
+    store.widgetNoteId = selected.isEmpty ? null : selected;
     await store.save();
-    if (context.mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(notes.length == 1 ? '1 nota restaurada.' : '${notes.length} notas restauradas.')),
-      );
-    }
-  } catch (_) {
-    if (context.mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Esse arquivo não é um backup do Noto.'),
-        ),
-      );
-    }
   }
+
+  @override
+  Widget build(BuildContext context) => AnimatedBuilder(
+        animation: store,
+        builder: (_, __) {
+          final hasWallpaper = store.customWallpaper != null || store.wallpaper > 0;
+
+          return Scaffold(
+            appBar: AppBar(
+              title: const Text('Ajustes'),
+              actions: [
+                IconButton(
+                  tooltip: 'Sobre',
+                  icon: const Icon(Icons.info_outline_rounded),
+                  onPressed: () => showAboutNoto(context),
+                ),
+              ],
+            ),
+            body: ListView(
+              padding: const EdgeInsets.fromLTRB(20, 8, 20, 42),
+              children: [
+                const SectionTitle('Aparência'),
+                NotoTile(
+                  icon: Icons.brightness_6_outlined,
+                  title: 'Tema',
+                  subtitle: switch (store.mode) {
+                    ThemeMode.system => 'Sistema',
+                    ThemeMode.light => 'Claro',
+                    ThemeMode.dark => 'Escuro',
+                  },
+                  onTap: () => _pickTheme(context),
+                ),
+                NotoTile(
+                  icon: Icons.circle,
+                  iconColor: NotoAppearance.accents[store.accent].color,
+                  title: 'Cor de destaque',
+                  subtitle: NotoAppearance.accents[store.accent].name,
+                  onTap: () => _pickAccent(context),
+                ),
+                NotoTile(
+                  icon: Icons.text_fields_rounded,
+                  title: 'Fonte',
+                  subtitle: NotoAppearance.fonts[store.font].name,
+                  onTap: () async {
+                    final selected = await showModalBottomSheet<int>(
+                      context: context,
+                      isScrollControlled: true,
+                      useSafeArea: true,
+                      builder: (_) => FontPickerSheet(selected: store.font),
+                    );
+                    if (selected != null) {
+                      store.font = selected;
+                      await store.save();
+                    }
+                  },
+                ),
+                NotoTile(
+                  icon: Icons.format_size_rounded,
+                  title: 'Tamanho do texto',
+                  subtitle: '${store.fontSize.round()}',
+                  onTap: () => _pickTextSize(context),
+                ),
+                NotoTile(
+                  icon: Icons.wallpaper_outlined,
+                  title: 'Fundo do aplicativo',
+                  subtitle: hasWallpaper ? 'Personalizado' : 'Padrão',
+                  onTap: () => showModalBottomSheet<void>(
+                    context: context,
+                    isScrollControlled: true,
+                    useSafeArea: true,
+                    builder: (_) => WallpaperSheet(store: store),
+                  ),
+                ),
+                if (hasWallpaper) _WallpaperTuning(store: store),
+                NotoTile(
+                  icon: store.layoutMode == 1
+                      ? Icons.view_agenda_outlined
+                      : Icons.grid_view_rounded,
+                  title: 'Visualização das notas',
+                  subtitle: store.layoutMode == 1 ? 'Lista' : 'Grade',
+                  onTap: () {
+                    store.layoutMode = store.layoutMode == 1 ? 0 : 1;
+                    store.save();
+                  },
+                ),
+                const SizedBox(height: 28),
+                const SectionTitle('Tela de notas'),
+                SwitchListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: const Text('Resumo de hoje'),
+                  subtitle: const Text('Tarefas e lembretes do dia em uma linha'),
+                  value: store.homeShowToday,
+                  onChanged: (value) {
+                    store.homeShowToday = value;
+                    store.save();
+                  },
+                ),
+                NotoTile(
+                  icon: Icons.widgets_outlined,
+                  title: 'Nota do widget',
+                  subtitle: _widgetNoteLabel(),
+                  onTap: () => _pickWidgetNote(context),
+                ),
+                const SizedBox(height: 28),
+                const SectionTitle('Ajuda'),
+                NotoTile(
+                  icon: Icons.school_outlined,
+                  title: 'Ver tutorial de novo',
+                  subtitle: 'Como usar o Noto em 5 telas',
+                  onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => TutorialPage(
+                        onDone: () => Navigator.pop(context),
+                      ),
+                    ),
+                  ),
+                ),
+                if (store.hasVault)
+                  NotoTile(
+                    icon: Icons.password_rounded,
+                    title: 'Trocar senha',
+                    onTap: () => changeVaultPin(context, store),
+                  ),
+                const SizedBox(height: 28),
+                const SectionTitle('Dados'),
+                NotoTile(
+                  icon: Icons.upload_file_outlined,
+                  title: 'Fazer backup',
+                  onTap: () => exportBackup(context, store),
+                ),
+                NotoTile(
+                  icon: Icons.settings_backup_restore_rounded,
+                  title: 'Restaurar backup',
+                  onTap: () => importBackup(context, store),
+                ),
+              ],
+            ),
+          );
+        },
+      );
 }
 
-void showAboutNoto(BuildContext context) => showAboutDialog(
-  context: context,
-  applicationName: 'Noto',
-  applicationVersion: '2.1',
-  applicationIcon: ClipRRect(
-    borderRadius: BorderRadius.circular(18),
-    child: Image.asset('assets/noto_mark.png', width: 68, height: 68),
-  ),
-  children: const [
-    Text('Um bloco de notas simples, offline e do seu jeito.'),
-  ],
-);
+class _SheetHeader extends StatelessWidget {
+  const _SheetHeader(this.title);
+
+  final String title;
+
+  @override
+  Widget build(BuildContext context) => Padding(
+        padding: const EdgeInsets.fromLTRB(20, 20, 20, 12),
+        child: Text(
+          title,
+          style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                fontWeight: FontWeight.w800,
+                letterSpacing: -.3,
+              ),
+        ),
+      );
+}
+
+class _WallpaperTuning extends StatefulWidget {
+  const _WallpaperTuning({required this.store});
+  final AppStore store;
+
+  @override
+  State<_WallpaperTuning> createState() => _WallpaperTuningState();
+}
+
+class _WallpaperTuningState extends State<_WallpaperTuning> {
+  late double darkness = widget.store.wallpaperDarkness;
+  late double blur = widget.store.wallpaperBlur;
+
+  void _apply() {
+    widget.store
+      ..wallpaperDarkness = darkness
+      ..wallpaperBlur = blur;
+    widget.store.save();
+  }
+
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.only(top: 8),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('Escurecer fundo · ${(darkness * 100).round()}%'),
+        Slider(
+          value: darkness,
+          max: .8,
+          onChanged: (value) => setState(() => darkness = value),
+          onChangeEnd: (_) => _apply(),
+        ),
+        Text('Desfocar fundo · ${blur.round()}'),
+        Slider(
+          value: blur,
+          max: 16,
+          divisions: 16,
+          onChanged: (value) => setState(() => blur = value),
+          onChangeEnd: (_) => _apply(),
+        ),
+      ],
+    ),
+  );
+}

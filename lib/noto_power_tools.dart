@@ -17,7 +17,7 @@ import 'package:share_plus/share_plus.dart';
 
 import 'noto_features.dart';
 import 'noto_models.dart';
-import 'noto_settings.dart' as legacy;
+import 'noto_library.dart';
 import 'noto_store.dart';
 import 'noto_theme.dart';
 
@@ -580,7 +580,7 @@ class _PowerNoteStyleSheetState extends State<PowerNoteStyleSheet> {
     final selected = await showModalBottomSheet<int>(
       context: context,
       isScrollControlled: true,
-      builder: (_) => legacy.FontPickerSheet(
+      builder: (_) => FontPickerSheet(
         selected: NotoAppearance.safeFontIndex(current),
       ),
     );
@@ -732,7 +732,7 @@ class _PowerNoteStyleSheetState extends State<PowerNoteStyleSheet> {
                 context: context,
                 isScrollControlled: true,
                 builder: (_) =>
-                    legacy.WallpaperSheet(store: widget.store, note: note),
+                    WallpaperSheet(store: widget.store, note: note),
               ).then((_) => widget.onChanged()),
             ),
             const SizedBox(height: 8),

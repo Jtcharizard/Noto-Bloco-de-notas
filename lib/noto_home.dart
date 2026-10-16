@@ -8,28 +8,28 @@ import 'package:home_widget/home_widget.dart';
 import 'package:intl/intl.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-import 'noto_editor_v2.dart';
+import 'noto_editor.dart';
 import 'noto_features.dart';
 import 'noto_models.dart';
 import 'noto_power_tools.dart';
-import 'noto_settings.dart' as legacy;
-import 'noto_settings_v4.dart';
+import 'noto_library.dart';
+import 'noto_settings.dart';
 import 'noto_store.dart';
 import 'noto_theme.dart';
 import 'noto_vault.dart';
 
 enum _NoteScope { all, favorites, pinned }
 
-class HomeShellV4 extends StatefulWidget {
-  const HomeShellV4({super.key, required this.store});
+class HomeShell extends StatefulWidget {
+  const HomeShell({super.key, required this.store});
 
   final AppStore store;
 
   @override
-  State<HomeShellV4> createState() => _HomeShellV4State();
+  State<HomeShell> createState() => _HomeShellState();
 }
 
-class _HomeShellV4State extends State<HomeShellV4> {
+class _HomeShellState extends State<HomeShell> {
   int sortOrder = 0;
   final Set<String> selectedIds = {};
   void _select(Note note) => setState(() {
@@ -322,7 +322,7 @@ class _HomeShellV4State extends State<HomeShellV4> {
       context,
       MaterialPageRoute(
         builder: (_) =>
-            EditorPageV2(store: widget.store, note: note, isNew: isNew),
+            EditorPage(store: widget.store, note: note, isNew: isNew),
       ),
     );
   }
@@ -988,17 +988,17 @@ class _HomeShellV4State extends State<HomeShellV4> {
 
   void _openSettings() => Navigator.push(
     context,
-    MaterialPageRoute(builder: (_) => SettingsPageV4(store: widget.store)),
+    MaterialPageRoute(builder: (_) => SettingsPage(store: widget.store)),
   );
 
   void _openArchive() => Navigator.push(
     context,
-    MaterialPageRoute(builder: (_) => legacy.ArchivePage(store: widget.store)),
+    MaterialPageRoute(builder: (_) => ArchivePage(store: widget.store)),
   );
 
   void _openTrash() => Navigator.push(
     context,
-    MaterialPageRoute(builder: (_) => legacy.TrashPage(store: widget.store)),
+    MaterialPageRoute(builder: (_) => TrashPage(store: widget.store)),
   );
 
   void _openCalendar() => Navigator.push(
@@ -1040,6 +1040,47 @@ class _HomeShellV4State extends State<HomeShellV4> {
             widget.store.save();
           },
         ),
+      ),
+    );
+  }
+
+  Widget _noteTile(Note note) {
+    return Dismissible(
+      key: ValueKey('note-${note.id}'),
+      direction: selectedIds.isEmpty
+          ? DismissDirection.horizontal
+          : DismissDirection.none,
+      background: _SwipeBackground(
+        alignment: Alignment.centerLeft,
+        icon: Icons.archive_outlined,
+        label: 'Arquivar',
+        color: Theme.of(context).colorScheme.primary,
+      ),
+      secondaryBackground: _SwipeBackground(
+        alignment: Alignment.centerRight,
+        icon: Icons.delete_outline_rounded,
+        label: 'Lixeira',
+        color: Theme.of(context).colorScheme.error,
+      ),
+      onDismissed: (direction) {
+        if (direction ==
+            DismissDirection.startToEnd) {
+          _swipeArchive(note);
+        } else {
+          _swipeDelete(note);
+        }
+      },
+      child: _NoteCard(
+        note: note,
+        onTap: () {
+          if (selectedIds.isEmpty) {
+            _openNote(note);
+          } else {
+            _select(note);
+          }
+        },
+        onLongPress: () => _select(note),
+        selected: selectedIds.contains(note.id),
       ),
     );
   }
@@ -1254,6 +1295,16 @@ class _HomeShellV4State extends State<HomeShellV4> {
                     ? _EmptyNotes(
                         filtered: _hasFilters || query.trim().isNotEmpty,
                       )
+                    : widget.store.layoutMode == 1
+                    ? ListView.separated(
+                        padding: const EdgeInsets.fromLTRB(20, 0, 20, 110),
+                        itemCount: notes.length,
+                        separatorBuilder: (_, __) => const SizedBox(height: 10),
+                        itemBuilder: (_, index) => SizedBox(
+                          height: 184,
+                          child: _noteTile(notes[index]),
+                        ),
+                      )
                     : LayoutBuilder(
                         builder: (context, constraints) {
                           final columns = constraints.maxWidth >= 760 ? 3 : 2;
@@ -1264,50 +1315,10 @@ class _HomeShellV4State extends State<HomeShellV4> {
                                   crossAxisCount: columns,
                                   crossAxisSpacing: 12,
                                   mainAxisSpacing: 12,
-                                  mainAxisExtent: 206,
+                                  mainAxisExtent: 224,
                                 ),
                             itemCount: notes.length,
-                            itemBuilder: (_, index) {
-                              final note = notes[index];
-                              return Dismissible(
-                                key: ValueKey('note-${note.id}'),
-                                direction: selectedIds.isEmpty
-                                    ? DismissDirection.horizontal
-                                    : DismissDirection.none,
-                                background: _SwipeBackground(
-                                  alignment: Alignment.centerLeft,
-                                  icon: Icons.archive_outlined,
-                                  label: 'Arquivar',
-                                  color: Theme.of(context).colorScheme.primary,
-                                ),
-                                secondaryBackground: _SwipeBackground(
-                                  alignment: Alignment.centerRight,
-                                  icon: Icons.delete_outline_rounded,
-                                  label: 'Lixeira',
-                                  color: Theme.of(context).colorScheme.error,
-                                ),
-                                onDismissed: (direction) {
-                                  if (direction ==
-                                      DismissDirection.startToEnd) {
-                                    _swipeArchive(note);
-                                  } else {
-                                    _swipeDelete(note);
-                                  }
-                                },
-                                child: _NoteCard(
-                                  note: note,
-                                  onTap: () {
-                                    if (selectedIds.isEmpty) {
-                                      _openNote(note);
-                                    } else {
-                                      _select(note);
-                                    }
-                                  },
-                                  onLongPress: () => _select(note),
-                                  selected: selectedIds.contains(note.id),
-                                ),
-                              );
-                            },
+                            itemBuilder: (_, index) => _noteTile(notes[index]),
                           );
                         },
                       ),
@@ -1463,7 +1474,7 @@ class _TopAction extends StatelessWidget {
                 softWrap: false,
                 style: TextStyle(
                   color: cs.onSurface.withValues(alpha: .78),
-                  fontSize: 10.5,
+                  fontSize: 12,
                   fontWeight: FontWeight.w700,
                 ),
               ),
@@ -1702,7 +1713,7 @@ class _NoteCard extends StatelessWidget {
                                 style: TextStyle(
                                   color: contentColor,
                                   fontFamily: titleFont,
-                                  fontSize: 15.5,
+                                  fontSize: 16.5,
                                   height: 1.15,
                                   fontWeight: FontWeight.w800,
                                 ),
@@ -1735,7 +1746,7 @@ class _NoteCard extends StatelessWidget {
                             style: TextStyle(
                               color: contentSecondary,
                               fontFamily: bodyFont,
-                              fontSize: 11.5,
+                              fontSize: 13,
                               height: 1.35,
                             ),
                           ),
@@ -1754,7 +1765,7 @@ class _NoteCard extends StatelessWidget {
                                       (hasWallpaper
                                           ? Colors.white
                                           : cs.primary),
-                                  fontSize: 9.5,
+                                  fontSize: 11,
                                   fontWeight: FontWeight.w800,
                                 ),
                               ),
@@ -1765,7 +1776,7 @@ class _NoteCard extends StatelessWidget {
                                   color: note.priority == 3
                                       ? cs.error
                                       : metadataColor,
-                                  fontSize: 9.5,
+                                  fontSize: 11,
                                   fontWeight: FontWeight.w800,
                                 ),
                               ),
@@ -1774,7 +1785,7 @@ class _NoteCard extends StatelessWidget {
                                 'até ${DateFormat('dd/MM').format(note.dueAt!)}',
                                 style: TextStyle(
                                   color: metadataColor,
-                                  fontSize: 9.5,
+                                  fontSize: 11,
                                   fontWeight: FontWeight.w700,
                                 ),
                               ),
@@ -1791,7 +1802,7 @@ class _NoteCard extends StatelessWidget {
                           overflow: TextOverflow.ellipsis,
                           style: TextStyle(
                             color: metadataColor,
-                            fontSize: 9,
+                            fontSize: 10.5,
                             fontWeight: FontWeight.w600,
                           ),
                         ),

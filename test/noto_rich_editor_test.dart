@@ -2,7 +2,7 @@ import 'dart:convert';
 
 import 'package:bloco_personalizavel/noto_rich_editor.dart';
 import 'package:bloco_personalizavel/noto_models.dart';
-import 'package:bloco_personalizavel/noto_editor_v2.dart';
+import 'package:bloco_personalizavel/noto_editor.dart';
 import 'package:bloco_personalizavel/noto_store.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -132,7 +132,7 @@ void main() {
     store.notes.add(note);
     await tester.pumpWidget(
       MaterialApp(
-        home: EditorPageV2(store: store, note: note, isNew: false),
+        home: EditorPage(store: store, note: note, isNew: false),
       ),
     );
     await tester.pumpAndSettle();

@@ -3,7 +3,6 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:bloco_personalizavel/noto_theme.dart';
 import 'package:bloco_personalizavel/noto_store.dart';
 import 'package:bloco_personalizavel/noto_code_block.dart';
-import 'package:bloco_personalizavel/noto_editor.dart';
 import 'package:bloco_personalizavel/noto_mixed_editor.dart';
 import 'package:bloco_personalizavel/noto_power_tools.dart';
 import 'package:bloco_personalizavel/noto_models.dart';
@@ -44,36 +43,6 @@ void main() {
     final blue = notoTheme(store, Brightness.light).colorScheme;
     expect(purple.primaryContainer, isNot(blue.primaryContainer));
     expect(purple.secondaryContainer, isNot(blue.secondaryContainer));
-  });
-  testWidgets('markdown checklist items display working checkboxes', (
-    tester,
-  ) async {
-    final c = TextEditingController(text: '- [ ] Comprar\n- [x] Feito');
-    await tester.pumpWidget(
-      MaterialApp(
-        home: Scaffold(
-          body: ChecklistEditor(
-            controller: c,
-            family: null,
-            fontSize: 17,
-            textColor: null,
-            onChanged: () {},
-          ),
-        ),
-      ),
-    );
-    expect(find.byType(CheckboxListTile), findsNWidgets(2));
-    expect(
-      tester
-          .widget<CheckboxListTile>(find.byType(CheckboxListTile).at(1))
-          .value,
-      isTrue,
-    );
-    await tester.tap(find.byType(CheckboxListTile).first);
-    await tester.pump();
-    expect(c.text, contains('[x] Comprar'));
-    await tester.pumpWidget(const SizedBox());
-    c.dispose();
   });
   testWidgets(
     'code panel edits without smart punctuation and retains language',

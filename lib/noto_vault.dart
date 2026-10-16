@@ -6,7 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 
-import 'noto_editor_v2.dart';
+import 'noto_editor.dart';
 import 'noto_models.dart';
 import 'noto_store.dart';
 
@@ -451,7 +451,7 @@ class VaultPage extends StatelessWidget {
       Navigator.push(
         context,
         MaterialPageRoute(
-          builder: (_) => EditorPageV2(store: store, note: note, isNew: isNew),
+          builder: (_) => EditorPage(store: store, note: note, isNew: isNew),
         ),
       );
 

@@ -9,12 +9,13 @@ on:
 
 jobs:
   android:
-    runs-on: ubuntu-latest
+    # Versão fixa do sistema: evita que o build quebre quando o GitHub trocar o padrão.
+    runs-on: ubuntu-24.04
     permissions:
       contents: write
     steps:
       - name: Baixar projeto
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Preparar Flutter
         uses: subosito/flutter-action@v2
@@ -74,6 +75,8 @@ jobs:
           flutter create --platforms=android .
           sed -i 's/android:label="bloco_personalizavel"/android:label="Noto"/' android/app/src/main/AndroidManifest.xml
           sed -i '/<application/i\    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />' android/app/src/main/AndroidManifest.xml
+          sed -i '/<application/i\    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />\n    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />' android/app/src/main/AndroidManifest.xml
+          sed -i '/<\/application>/i\        <receiver android:exported="false" android:name="com.dexterous.flutterlocalnotifications.ScheduledNotificationReceiver" />\n        <receiver android:exported="false" android:name="com.dexterous.flutterlocalnotifications.ScheduledNotificationBootReceiver">\n            <intent-filter>\n                <action android:name="android.intent.action.BOOT_COMPLETED" />\n                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />\n                <action android:name="android.intent.action.QUICKBOOT_POWERON" />\n                <action android:name="com.htc.intent.action.QUICKBOOT_POWERON" />\n            </intent-filter>\n        </receiver>' android/app/src/main/AndroidManifest.xml
           sed -i '0,/<\/activity>/s//    <intent-filter><action android:name="es.antonborri.home_widget.action.LAUNCH" \/><\/intent-filter>\n            <intent-filter><action android:name="android.intent.action.SEND" \/><category android:name="android.intent.category.DEFAULT" \/><data android:mimeType="text\/plain" \/><\/intent-filter>\n        <\/activity>/' android/app/src/main/AndroidManifest.xml
           sed -i '/<\/application>/i\        <receiver android:name=".NotoWidgetProvider" android:exported="true">\n            <intent-filter><action android:name="android.appwidget.action.APPWIDGET_UPDATE" /></intent-filter>\n            <meta-data android:name="android.appwidget.provider" android:resource="@xml/noto_widget_info" />\n        </receiver>\n        <receiver android:name=".NotoQuickWidgetProvider" android:exported="true">\n            <intent-filter><action android:name="android.appwidget.action.APPWIDGET_UPDATE" /></intent-filter>\n            <meta-data android:name="android.appwidget.provider" android:resource="@xml/noto_quick_widget_info" />\n        </receiver>' android/app/src/main/AndroidManifest.xml
           mkdir -p android/app/src/main/res/layout android/app/src/main/res/xml android/app/src/main/res/drawable
@@ -81,6 +84,8 @@ jobs:
           cp android_widget/NotoQuickWidgetProvider.kt android/app/src/main/kotlin/com/example/bloco_personalizavel/
           cp android_widget/MainActivity.kt android/app/src/main/kotlin/com/example/bloco_personalizavel/MainActivity.kt
           grep -q 'android.intent.action.SEND' android/app/src/main/AndroidManifest.xml
+          grep -q 'ScheduledNotificationBootReceiver' android/app/src/main/AndroidManifest.xml
+          cat android/app/src/main/AndroidManifest.xml
           cp android_widget/noto_widget.xml android/app/src/main/res/layout/
           cp android_widget/noto_quick_widget.xml android/app/src/main/res/layout/
           cp android_widget/noto_widget_bg.xml android/app/src/main/res/drawable/
@@ -107,16 +112,27 @@ jobs:
           set -o pipefail
           flutter test 2>&1 | tee step.log || { grep -E "(error|warning) •|Error:|Expected:|Actual:|Because|EXCEPTION|Test failed|\[E\]|FAILURE|What went wrong|^e: |^> |Unresolved|Could not" step.log | tail -40 | sed 's/^/::error::/'; exit 1; }
 
+      - name: Preparar chave fixa de assinatura
+        env:
+          NOTO_KEY_PASSWORD: ${{ secrets.NOTO_KEY_PASSWORD }}
+        run: |
+          if [ -z "$NOTO_KEY_PASSWORD" ]; then
+            echo "::error::Falta o segredo NOTO_KEY_PASSWORD no repositório. Sem ele o APK não instala por cima da versão anterior."
+            exit 1
+          fi
+          mkdir -p ~/.android
+          openssl enc -d -aes-256-cbc -pbkdf2 -iter 200000 -in android_widget/noto.keystore.enc -out ~/.android/debug.keystore -pass env:NOTO_KEY_PASSWORD
+
       - name: Compilar APK
         run: |
           set -o pipefail
-          flutter build apk --release 2>&1 | tee step.log || { grep -E "(error|warning) •|Error:|Expected:|Actual:|Because|EXCEPTION|Test failed|\[E\]|FAILURE|What went wrong|^e: |^> |Unresolved|Could not" step.log | tail -40 | sed 's/^/::error::/'; exit 1; }
+          flutter build apk --release --split-per-abi 2>&1 | tee step.log || { grep -E "(error|warning) •|Error:|Expected:|Actual:|Because|EXCEPTION|Test failed|\[E\]|FAILURE|What went wrong|^e: |^> |Unresolved|Could not" step.log | tail -40 | sed 's/^/::error::/'; exit 1; }
 
       - name: Disponibilizar APK
         uses: actions/upload-artifact@v4
         with:
           name: Noto-APK
-          path: build/app/outputs/flutter-apk/app-release.apk
+          path: build/app/outputs/flutter-apk/app-*-release.apk
           retention-days: 30
 
       - name: Publicar APK para download sem login
@@ -125,6 +141,8 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           version=$(grep '^version:' pubspec.yaml | sed 's/version: //; s/+.*//')
-          cp build/app/outputs/flutter-apk/app-release.apk "Noto-$version.apk"
+          cp build/app/outputs/flutter-apk/app-arm64-v8a-release.apk "Noto-$version.apk"
+          cp build/app/outputs/flutter-apk/app-armeabi-v7a-release.apk "Noto-$version-celulares-antigos.apk"
+          keytool -printcert -jarfile "Noto-$version.apk" | grep -m1 SHA256 | sed 's/^/::notice::Assinatura /'
           gh release delete "v$version" -y --cleanup-tag || true
-          gh release create "v$version" "Noto-$version.apk" --target "$GITHUB_SHA" --title "Noto $version" --notes "APK do Noto $version. Baixe o arquivo Noto-$version.apk abaixo e abra no celular." --prerelease
+          gh release create "v$version" "Noto-$version.apk" "Noto-$version-celulares-antigos.apk" --target "$GITHUB_SHA" --title "Noto $version" --notes "Baixe Noto-$version.apk e abra no celular. Se não instalar, seu aparelho é mais antigo: use o arquivo celulares-antigos." --prerelease
