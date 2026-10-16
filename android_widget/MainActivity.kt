@@ -36,13 +36,15 @@ class MainActivity : FlutterActivity() {
         channel?.invokeMethod("sharedText", null)
     }
 
-    private fun sharedText(intent: Intent?): Map<String, String>? {
-        if (intent?.action != Intent.ACTION_SEND) return null
-        if (intent.type?.startsWith("text/") != true) return null
-        val text = intent.getStringExtra(Intent.EXTRA_TEXT) ?: return null
-        val subject = intent.getStringExtra(Intent.EXTRA_SUBJECT) ?: ""
+    private fun sharedText(source: Intent?): Map<String, String>? {
+        val received: Intent = source ?: return null
+        if (received.action != Intent.ACTION_SEND) return null
+        val type: String = received.type ?: return null
+        if (!type.startsWith("text/")) return null
+        val text: String = received.getStringExtra(Intent.EXTRA_TEXT) ?: return null
+        val subject: String = received.getStringExtra(Intent.EXTRA_SUBJECT) ?: ""
         // Evita abrir a mesma nota de novo se o app for recriado.
-        intent.action = Intent.ACTION_MAIN
+        received.action = Intent.ACTION_MAIN
         return mapOf("text" to text, "subject" to subject)
     }
 }

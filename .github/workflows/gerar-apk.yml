@@ -93,22 +93,22 @@ jobs:
       - name: Aplicar icone do Noto
         run: |
           set -o pipefail
-          dart run flutter_launcher_icons 2>&1 | tee step.log || { grep -E "(error|warning) •|Error:|Expected:|Actual:|Because|EXCEPTION|Test failed|\[E\]|FAILURE|What went wrong" step.log | tail -40 | sed 's/^/::error::/'; exit 1; }
+          dart run flutter_launcher_icons 2>&1 | tee step.log || { grep -E "(error|warning) •|Error:|Expected:|Actual:|Because|EXCEPTION|Test failed|\[E\]|FAILURE|What went wrong|^e: |^> |Unresolved|Could not" step.log | tail -40 | sed 's/^/::error::/'; exit 1; }
 
       - name: Verificar codigo
         run: |
           set -o pipefail
-          flutter analyze --no-fatal-infos 2>&1 | tee step.log || { grep -E "(error|warning) •|Error:|Expected:|Actual:|Because|EXCEPTION|Test failed|\[E\]|FAILURE|What went wrong" step.log | tail -40 | sed 's/^/::error::/'; exit 1; }
+          flutter analyze --no-fatal-infos 2>&1 | tee step.log || { grep -E "(error|warning) •|Error:|Expected:|Actual:|Because|EXCEPTION|Test failed|\[E\]|FAILURE|What went wrong|^e: |^> |Unresolved|Could not" step.log | tail -40 | sed 's/^/::error::/'; exit 1; }
 
       - name: Rodar testes
         run: |
           set -o pipefail
-          flutter test 2>&1 | tee step.log || { grep -E "(error|warning) •|Error:|Expected:|Actual:|Because|EXCEPTION|Test failed|\[E\]|FAILURE|What went wrong" step.log | tail -40 | sed 's/^/::error::/'; exit 1; }
+          flutter test 2>&1 | tee step.log || { grep -E "(error|warning) •|Error:|Expected:|Actual:|Because|EXCEPTION|Test failed|\[E\]|FAILURE|What went wrong|^e: |^> |Unresolved|Could not" step.log | tail -40 | sed 's/^/::error::/'; exit 1; }
 
       - name: Compilar APK
         run: |
           set -o pipefail
-          flutter build apk --release 2>&1 | tee step.log || { grep -E "(error|warning) •|Error:|Expected:|Actual:|Because|EXCEPTION|Test failed|\[E\]|FAILURE|What went wrong" step.log | tail -40 | sed 's/^/::error::/'; exit 1; }
+          flutter build apk --release 2>&1 | tee step.log || { grep -E "(error|warning) •|Error:|Expected:|Actual:|Because|EXCEPTION|Test failed|\[E\]|FAILURE|What went wrong|^e: |^> |Unresolved|Could not" step.log | tail -40 | sed 's/^/::error::/'; exit 1; }
 
       - name: Disponibilizar APK
         uses: actions/upload-artifact@v4
