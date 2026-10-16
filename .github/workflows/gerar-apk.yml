@@ -10,6 +10,8 @@ on:
 jobs:
   android:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - name: Baixar projeto
         uses: actions/checkout@v4
@@ -116,3 +118,13 @@ jobs:
           name: Noto-APK
           path: build/app/outputs/flutter-apk/app-release.apk
           retention-days: 30
+
+      - name: Publicar APK para download sem login
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          version=$(grep '^version:' pubspec.yaml | sed 's/version: //; s/+.*//')
+          cp build/app/outputs/flutter-apk/app-release.apk "Noto-$version.apk"
+          gh release delete "v$version" -y --cleanup-tag || true
+          gh release create "v$version" "Noto-$version.apk" --target "$GITHUB_SHA" --title "Noto $version" --notes "APK do Noto $version. Baixe o arquivo Noto-$version.apk abaixo e abra no celular." --prerelease
