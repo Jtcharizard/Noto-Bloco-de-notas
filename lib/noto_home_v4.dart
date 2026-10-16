@@ -1435,14 +1435,12 @@ class _TopAction extends StatelessWidget {
     required this.label,
     required this.onTap,
     this.count,
-    this.prefixPlus = false,
   });
 
   final IconData icon;
   final String label;
   final VoidCallback onTap;
   final int? count;
-  final bool prefixPlus;
 
   @override
   Widget build(BuildContext context) {
@@ -1459,7 +1457,7 @@ class _TopAction extends StatelessWidget {
             const SizedBox(width: 5),
             Flexible(
               child: Text(
-                '${prefixPlus ? '+ ' : ''}$label${count == null ? '' : ' $count'}',
+                '$label${count == null ? '' : ' $count'}',
                 maxLines: 1,
                 overflow: TextOverflow.fade,
                 softWrap: false,
