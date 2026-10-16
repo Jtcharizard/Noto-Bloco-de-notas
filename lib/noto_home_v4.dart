@@ -278,290 +278,48 @@ class _HomeShellV4State extends State<HomeShellV4> {
     );
   }
 
-  Future<void> _quickCapture() async {
-    final controller = TextEditingController();
-    final text = await showModalBottomSheet<String>(
+  Future<void> _createNote() async {
+    final choice = await showModalBottomSheet<String>(
       context: context,
-      isScrollControlled: true,
       useSafeArea: true,
       builder: (sheetContext) => Padding(
         padding: EdgeInsets.fromLTRB(
           20,
-          18,
+          14,
           20,
-          MediaQuery.viewInsetsOf(sheetContext).bottom + 28,
+          MediaQuery.viewPaddingOf(sheetContext).bottom + 24,
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              'Nota rápida',
+              'Nova nota',
               style: Theme.of(context).textTheme.titleLarge
                   ?.copyWith(fontWeight: FontWeight.w800),
             ),
-            const SizedBox(height: 4),
-            const Text('Fica salva na pasta Entrada.'),
-            const SizedBox(height: 14),
-            TextField(
-              controller: controller,
-              autofocus: true,
-              minLines: 1,
-              maxLines: 5,
-              textCapitalization: TextCapitalization.sentences,
-              decoration: const InputDecoration(hintText: 'Digite aqui'),
+            const SizedBox(height: 10),
+            _CreateRow(
+              title: 'Em branco',
+              subtitle: folder != null
+                  ? 'Vai para a pasta $folder'
+                  : tag != null
+                  ? 'Já vem com a tag #$tag'
+                  : 'Nota vazia',
+              onTap: () => Navigator.pop(sheetContext, 'blank'),
             ),
-            const SizedBox(height: 16),
-            Align(
-              alignment: Alignment.centerRight,
-              child: FilledButton(
-                onPressed: () {
-                  final value = controller.text.trim();
-                  if (value.isNotEmpty) Navigator.pop(sheetContext, value);
-                },
-                child: const Text('Salvar'),
-              ),
+            _CreateRow(
+              title: 'Lista de tarefas',
+              subtitle: 'Com caixas para marcar',
+              onTap: () => Navigator.pop(sheetContext, 'checklist'),
             ),
           ],
         ),
       ),
     );
-    controller.dispose();
-    if (text == null || text.isEmpty) return;
-
-    final firstLine = text.split('\n').first.trim();
-    final note = Note(
-      id: DateTime.now().microsecondsSinceEpoch.toString(),
-      title: firstLine.length <= 48
-          ? firstLine
-          : '${firstLine.substring(0, 45)}…',
-      body: text,
-      updatedAt: DateTime.now(),
-      folder: 'Entrada',
-      font: widget.store.font,
-    );
-    widget.store.notes.add(note);
-    savedFolders.add('Entrada');
-    await _saveCollections();
-    await widget.store.save();
-  }
-
-  Future<void> _manageTemplates() async {
-    await showModalBottomSheet<void>(
-      context: context,
-      isScrollControlled: true,
-      useSafeArea: true,
-      builder: (sheetContext) => StatefulBuilder(
-        builder: (context, setModalState) => SizedBox(
-          height: MediaQuery.sizeOf(context).height * .62,
-          child: Column(
-            children: [
-              Padding(
-                padding: const EdgeInsets.fromLTRB(20, 14, 12, 8),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        'Meus modelos',
-                        style: Theme.of(context).textTheme.titleLarge
-                            ?.copyWith(fontWeight: FontWeight.w900),
-                      ),
-                    ),
-                    Text('${widget.store.templates.length}/30'),
-                  ],
-                ),
-              ),
-              const Divider(height: 1),
-              Expanded(
-                child: widget.store.templates.isEmpty
-                    ? const Center(
-                        child: Text(
-                          'Para criar um modelo, abra uma nota e use o menu ⋮ > Salvar como modelo.',
-                        ),
-                      )
-                    : ListView.builder(
-                        itemCount: widget.store.templates.length,
-                        itemBuilder: (_, index) {
-                          final template = widget.store.templates[index];
-                          return ListTile(
-                            leading: Text(
-                              template.emoji.isEmpty ? '▣' : template.emoji,
-                              style: const TextStyle(fontSize: 20),
-                            ),
-                            title: Text(template.name),
-                            subtitle: Text(
-                              template.title.trim().isEmpty
-                                  ? 'Sem título definido'
-                                  : template.title,
-                              maxLines: 1,
-                            ),
-                            trailing: IconButton(
-                              tooltip: 'Excluir modelo',
-                              icon: const Icon(Icons.delete_outline_rounded),
-                              onPressed: () async {
-                                await widget.store.deleteTemplate(template);
-                                setModalState(() {});
-                              },
-                            ),
-                          );
-                        },
-                      ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Future<void> _createNote() async {
-    final choice = await showModalBottomSheet<String>(
-      context: context,
-      isScrollControlled: true,
-      useSafeArea: true,
-      builder: (sheetContext) {
-        final bottom = MediaQuery.viewPaddingOf(sheetContext).bottom;
-        return ConstrainedBox(
-          constraints: BoxConstraints(
-            maxHeight: MediaQuery.sizeOf(sheetContext).height * .78,
-          ),
-          child: ListView(
-            shrinkWrap: true,
-            padding: EdgeInsets.fromLTRB(20, 14, 20, bottom + 30),
-            children: [
-              Text(
-                'Nova nota',
-                style: Theme.of(context).textTheme.titleLarge
-                    ?.copyWith(fontWeight: FontWeight.w800),
-              ),
-              const SizedBox(height: 10),
-              _CreateRow(
-                title: 'Nota rápida',
-                subtitle: 'Anote algo sem abrir o editor',
-                onTap: () => Navigator.pop(sheetContext, 'quick'),
-              ),
-              _CreateRow(
-                title: 'Em branco',
-                subtitle: folder != null
-                    ? 'Vai para a pasta $folder'
-                    : tag != null
-                    ? 'Já vem com a tag #$tag'
-                    : 'Nota vazia',
-                onTap: () => Navigator.pop(sheetContext, 'blank'),
-              ),
-              _CreateRow(
-                title: 'Lista de tarefas',
-                subtitle: 'Com caixas para marcar',
-                onTap: () => Navigator.pop(sheetContext, 'checklist'),
-              ),
-              _CreateRow(
-                title: 'Estudo',
-                subtitle: 'Tema, pontos principais e dúvidas',
-                onTap: () => Navigator.pop(sheetContext, 'study'),
-              ),
-              _CreateRow(
-                title: 'RPG',
-                subtitle: 'Sessão, acontecimentos e pistas',
-                onTap: () => Navigator.pop(sheetContext, 'rpg'),
-              ),
-              _CreateRow(
-                title: 'Diário',
-                subtitle: 'Página com a data de hoje',
-                onTap: () => Navigator.pop(sheetContext, 'diary'),
-              ),
-              _CreateRow(
-                title: 'Importar arquivo',
-                subtitle: 'Abre um arquivo .txt ou .md como nota',
-                onTap: () => Navigator.pop(sheetContext, 'import'),
-              ),
-              if (widget.store.templates.isNotEmpty) ...[
-                const SizedBox(height: 14),
-                Text(
-                  'MEUS MODELOS',
-                  style: Theme.of(context).textTheme.labelSmall
-                      ?.copyWith(fontWeight: FontWeight.w900),
-                ),
-                ...widget.store.templates
-                    .take(8)
-                    .map(
-                      (template) => _CreateRow(
-                        title:
-                            '${template.emoji.isEmpty ? '' : '${template.emoji} '}${template.name}',
-                        subtitle: template.title.trim().isEmpty
-                            ? 'Modelo personalizado'
-                            : template.title,
-                        onTap: () => Navigator.pop(
-                          sheetContext,
-                          'template:${template.id}',
-                        ),
-                      ),
-                    ),
-                _CreateRow(
-                  title: 'Gerenciar modelos',
-                  subtitle: '${widget.store.templates.length} salvos',
-                  onTap: () => Navigator.pop(sheetContext, 'manage_templates'),
-                ),
-              ],
-            ],
-          ),
-        );
-      },
-    );
-
     if (!mounted || choice == null) return;
-    if (choice == 'quick') {
-      await _quickCapture();
-      return;
-    }
-    if (choice == 'manage_templates') {
-      await _manageTemplates();
-      return;
-    }
-    if (choice == 'import') {
-      final imported = await importTextNote(defaultFont: widget.store.font);
-      if (imported == null || !mounted) return;
-      imported.folder = folder ?? 'Geral';
-      if (tag != null) imported.tags = [tag!];
-      await _openNote(imported, isNew: true);
-      return;
-    }
-    if (choice.startsWith('template:')) {
-      final id = choice.substring('template:'.length);
-      NotoTemplate? selected;
-      for (final template in widget.store.templates) {
-        if (template.id == id) {
-          selected = template;
-          break;
-        }
-      }
-      if (selected == null) return;
-      final note = widget.store.noteFromTemplate(
-        selected,
-        folder: folder ?? 'Geral',
-        tags: tag == null ? const [] : [tag!],
-      );
-      await _openNote(note, isNew: true);
-      return;
-    }
 
-    var title = '';
-    var body = '';
-    var checklist = false;
-    if (choice == 'checklist') {
-      title = 'Minha lista';
-      body = '- [ ] ';
-      checklist = true;
-    } else if (choice == 'study') {
-      title = 'Resumo de estudo';
-      body = 'Tema:\n\nPontos principais:\n• \n\nDúvidas:\n';
-    } else if (choice == 'rpg') {
-      title = 'Sessão de RPG';
-      body = 'Personagens:\n\nAcontecimentos:\n\nPistas e ideias:\n';
-    } else if (choice == 'diary') {
-      title = DateFormat('dd/MM/yyyy').format(DateTime.now());
-      body = 'Como foi meu dia?\n\n';
-    }
-
+    final checklist = choice == 'checklist';
     final targetFolder = folder ?? 'Geral';
     final targetTags = tag == null ? <String>[] : <String>[tag!];
     savedFolders.add(targetFolder);
@@ -570,8 +328,8 @@ class _HomeShellV4State extends State<HomeShellV4> {
 
     final note = Note(
       id: DateTime.now().microsecondsSinceEpoch.toString(),
-      title: title,
-      body: body,
+      title: '',
+      body: checklist ? '- [ ] ' : '',
       updatedAt: DateTime.now(),
       folder: targetFolder,
       tags: targetTags,

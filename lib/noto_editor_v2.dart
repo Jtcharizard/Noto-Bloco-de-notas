@@ -1279,44 +1279,6 @@ class _EditorPageV2State extends State<EditorPageV2>
     await exportNoteFile(widget.note, markdown: choice == 'md');
   }
 
-  Future<void> _saveAsTemplate() async {
-    final persisted = await _saveDraft();
-    if (!persisted || !mounted) return;
-    final controller = TextEditingController(
-      text: title.text.trim().isEmpty ? 'Meu modelo' : title.text.trim(),
-    );
-    final name = await showDialog<String>(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: const Text('Salvar como modelo'),
-        content: TextField(
-          controller: controller,
-          autofocus: true,
-          decoration: const InputDecoration(labelText: 'Nome do modelo'),
-          onSubmitted: (value) => Navigator.pop(dialogContext, value.trim()),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext),
-            child: const Text('Cancelar'),
-          ),
-          FilledButton(
-            onPressed: () =>
-                Navigator.pop(dialogContext, controller.text.trim()),
-            child: const Text('Salvar'),
-          ),
-        ],
-      ),
-    );
-    controller.dispose();
-    if (name == null || name.trim().isEmpty) return;
-    await widget.store.addTemplateFromNote(widget.note, name);
-    if (mounted) {
-      ScaffoldMessenger.of(context)
-          .showSnackBar(const SnackBar(content: Text('Modelo salvo')));
-    }
-  }
-
   Future<void> _showOrganize() async {
     final folderController = TextEditingController(text: widget.note.folder);
     final tagsController = TextEditingController(
@@ -1834,7 +1796,6 @@ class _EditorPageV2State extends State<EditorPageV2>
                       if (value == 'connections') await _showConnections();
                       if (value == 'history') await _showHistory();
                       if (value == 'export') await _showExport();
-                      if (value == 'template') await _saveAsTemplate();
                       if (value == 'share') await shareNote();
                       if (value == 'duplicate') await _duplicate();
                       if (value == 'archive') await _archiveAndClose();
@@ -1867,13 +1828,6 @@ class _EditorPageV2State extends State<EditorPageV2>
                         child: ListTile(
                           leading: Icon(Icons.file_upload_outlined),
                           title: Text('Exportar'),
-                        ),
-                      ),
-                      PopupMenuItem(
-                        value: 'template',
-                        child: ListTile(
-                          leading: Icon(Icons.bookmark_add_outlined),
-                          title: Text('Salvar como modelo'),
                         ),
                       ),
                       PopupMenuItem(
