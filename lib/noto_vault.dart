@@ -106,7 +106,7 @@ Future<bool> resetVaultPin(BuildContext context, AppStore store) async {
   return true;
 }
 
-/// Trocar a senha pelos Ajustes: pede a atual (ou a pergunta secreta).
+/// Trocar a senha (botão dentro do cofre): pede a atual ou a pergunta secreta.
 Future<void> changeVaultPin(BuildContext context, AppStore store) async {
   final current = await _askPin(
     context,

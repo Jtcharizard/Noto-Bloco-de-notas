@@ -93,6 +93,11 @@ jobs:
           cp android_widget/noto_quick_widget_info.xml android/app/src/main/res/xml/
           sed -i '/compileOptions {/a\        isCoreLibraryDesugaringEnabled = true' android/app/build.gradle.kts
           printf '\ndependencies {\n    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")\n}\n' >> android/app/build.gradle.kts
+          # Assinatura fixa do Noto: o arquivo da chave vem do passo "Preparar chave fixa".
+          grep -q 'signingConfigs.getByName("debug")' android/app/build.gradle.kts
+          sed -i 's/signingConfigs.getByName("debug")/signingConfigs.getByName("noto")/' android/app/build.gradle.kts
+          sed -i '0,/    buildTypes {/s//    signingConfigs {\n        create("noto") {\n            storeFile = file(System.getenv("NOTO_KEYSTORE") ?: "noto-sem-chave.keystore")\n            storePassword = "android"\n            keyAlias = "androiddebugkey"\n            keyPassword = "android"\n        }\n    }\n\n    buildTypes {/' android/app/build.gradle.kts
+          grep -n -A8 'signingConfigs {' android/app/build.gradle.kts
 
       - name: Baixar dependencias
         run: flutter pub get
@@ -120,13 +125,16 @@ jobs:
             echo "::error::Falta o segredo NOTO_KEY_PASSWORD no repositório. Sem ele o APK não instala por cima da versão anterior."
             exit 1
           fi
-          mkdir -p ~/.android
-          openssl enc -d -aes-256-cbc -pbkdf2 -iter 200000 -in android_widget/noto.keystore.enc -out ~/.android/debug.keystore -pass env:NOTO_KEY_PASSWORD
+          openssl enc -d -aes-256-cbc -pbkdf2 -iter 200000 -in android_widget/noto.keystore.enc -out "$RUNNER_TEMP/noto.keystore" -pass env:NOTO_KEY_PASSWORD
+          echo "NOTO_KEYSTORE=$RUNNER_TEMP/noto.keystore" >> "$GITHUB_ENV"
 
       - name: Compilar APK
         run: |
           set -o pipefail
           flutter build apk --release --split-per-abi 2>&1 | tee step.log || { grep -E "(error|warning) •|Error:|Expected:|Actual:|Because|EXCEPTION|Test failed|\[E\]|FAILURE|What went wrong|^e: |^> |Unresolved|Could not" step.log | tail -40 | sed 's/^/::error::/'; exit 1; }
+
+      - name: Conferir a assinatura
+        run: python3 android_widget/check_signature.py build/app/outputs/flutter-apk/app-*-release.apk
 
       - name: Disponibilizar APK
         uses: actions/upload-artifact@v4
