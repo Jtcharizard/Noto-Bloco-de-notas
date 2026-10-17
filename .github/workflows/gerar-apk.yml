@@ -73,7 +73,7 @@ jobs:
       - name: Gerar estrutura Android
         run: |
           trap 'echo "::error::Falhou: $BASH_COMMAND"; grep -n "buildTypes\|signingConfig\|release {" android/app/build.gradle.kts | head -10 | sed "s/^/::error::/"' ERR
-          flutter create --platforms=android .
+          flutter create --platforms=android --no-pub .
           sed -i 's/android:label="bloco_personalizavel"/android:label="Noto"/' android/app/src/main/AndroidManifest.xml
           sed -i '/<application/i\    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />' android/app/src/main/AndroidManifest.xml
           sed -i '/<application/i\    <uses-permission android:name="android.permission.RECORD_AUDIO" />' android/app/src/main/AndroidManifest.xml
@@ -107,7 +107,8 @@ jobs:
 
       - name: Baixar dependencias
         run: |
-          flutter pub get
+          set -o pipefail
+          flutter pub get 2>&1 | tee step.log || { grep -vE "^\s*$" step.log | tail -15 | sed 's/^/::error::/'; exit 1; }
           grep -A3 'shared_preferences_android:' pubspec.lock | sed 's/^/::notice::/' | head -4
 
       - name: Aplicar icone do Noto
