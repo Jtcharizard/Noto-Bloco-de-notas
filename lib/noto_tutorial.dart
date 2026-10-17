@@ -52,6 +52,18 @@ const _steps = <_TutorialStep>[
     ],
   ),
   _TutorialStep(
+    Icons.lock_outline_rounded,
+    'Cofre para notas privadas',
+    'Notas no cofre ficam escondidas de tudo e só abrem com a sua senha.',
+    [
+      (Icons.drive_file_move_outline, 'Para guardar: menu ⋮ da nota > Mover para o cofre.'),
+      (Icons.touch_app_outlined, 'Para abrir: segure o logo do Noto, no topo, por 2 segundos.'),
+      (Icons.visibility_off_outlined, 'Elas somem da tela inicial, da busca, do calendário e do widget.'),
+      (Icons.timer_outlined, 'O cofre trava sozinho quando você sai do app.'),
+      (Icons.help_outline_rounded, 'Esqueceu a senha? A pergunta secreta cria outra sem apagar nada.'),
+    ],
+  ),
+  _TutorialStep(
     Icons.palette_outlined,
     'Deixe com a sua cara',
     'Cada nota pode ter cor, fonte e fundo próprios. O app também.',
@@ -63,7 +75,7 @@ const _steps = <_TutorialStep>[
   ),
 ];
 
-/// Tutorial de uso em 5 telas. Aparece na primeira vez e pelos Ajustes.
+/// Tutorial de uso em 6 telas. Aparece na primeira vez e pelos Ajustes.
 class TutorialPage extends StatefulWidget {
   const TutorialPage({super.key, required this.onDone});
 

@@ -78,7 +78,7 @@ class _EditorPageState extends State<EditorPage>
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     if (widget.note.locked) {
-      widget.store.vaultScreensOpen++;
+      widget.store.vaultScreenOpened();
       _countsAsVault = true;
     }
     final metadata = widget.note.editor;
@@ -690,6 +690,107 @@ class _EditorPageState extends State<EditorPage>
     );
   }
 
+  void _checkAllTasks() {
+    final pending = RegExp(r'^(\s*(?:[-*]\s*)?)\[ \](.*)$');
+    var changed = 0;
+    body.text = body.text.split('\n').map((line) {
+      final match = pending.firstMatch(line);
+      if (match == null) return line;
+      changed++;
+      return '${match.group(1)}[x]${match.group(2)}';
+    }).join('\n');
+    if (changed == 0) return;
+    tableEpoch++;
+    _editorChanged();
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: const Text('Tudo feito! 🎉'),
+        action: SnackBarAction(
+          label: 'Desfazer',
+          onPressed: () => _historyEdit(false),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _copyPending() async {
+    final pending = RegExp(r'^\s*(?:[-*]\s*)?\[ \]\s?(.*)$');
+    final items = [
+      for (final line in body.text.split('\n'))
+        if (pending.firstMatch(line)?.group(1)?.trim().isNotEmpty ?? false)
+          '• ${pending.firstMatch(line)!.group(1)!.trim()}',
+    ];
+    if (items.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Nada pendente nesta lista.')),
+      );
+      return;
+    }
+    final header = title.text.trim().isEmpty ? '' : '${title.text.trim()}\n';
+    await Clipboard.setData(ClipboardData(text: '$header${items.join('\n')}'));
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          items.length == 1 ? '1 item copiado' : '${items.length} itens copiados',
+        ),
+      ),
+    );
+  }
+
+  Future<void> _showNoteInfo() async {
+    String date(DateTime value) =>
+        DateFormat("dd/MM/yyyy 'às' HH:mm").format(value);
+    final pending = countPendingTasks(body.text);
+    final done = countDoneTasks(body.text);
+    final rows = <(String, String)>[
+      ('Criada', date(widget.note.createdAt)),
+      ('Editada', date(widget.note.updatedAt)),
+      ('Pasta', widget.note.folder),
+      if (widget.note.tags.isNotEmpty)
+        ('Tags', widget.note.tags.map((t) => '#$t').join(' ')),
+      ('Palavras', '$words'),
+      ('Caracteres', '$characters'),
+      ('Tempo de leitura', readingMinutes <= 1 ? 'menos de 1 min' : '$readingMinutes min'),
+      if (pending + done > 0) ('Tarefas', '$done de ${pending + done} feitas'),
+      if (widget.note.reminderAt != null)
+        ('Lembrete', date(widget.note.reminderAt!)),
+      if (widget.note.dueAt != null)
+        ('Prazo', DateFormat('dd/MM/yyyy').format(widget.note.dueAt!)),
+      ('Versões guardadas', '${widget.store.historyFor(widget.note).length}'),
+    ];
+    await showModalBottomSheet<void>(
+      context: context,
+      useSafeArea: true,
+      isScrollControlled: true,
+      builder: (sheetContext) => SafeArea(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.fromLTRB(4, 12, 4, 20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const ListTile(
+                title: Text(
+                  'Informações da nota',
+                  style: TextStyle(fontWeight: FontWeight.w900, fontSize: 20),
+                ),
+              ),
+              for (final row in rows)
+                ListTile(
+                  dense: true,
+                  title: Text(row.$1),
+                  trailing: Text(
+                    row.$2,
+                    style: const TextStyle(fontWeight: FontWeight.w700),
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   void _setHideDone(bool value) {
     setState(() => hideDone = value);
     dirty = true;
@@ -701,7 +802,18 @@ class _EditorPageState extends State<EditorPage>
     if (on == widget.note.checklist) return;
     widget.note.checklist = on;
     if (on) {
-      if (!hasTaskLines(body.text)) {
+      // Itens de lista ("- leite", "1- pão", "• ovos") viram tarefas.
+      final item = RegExp(r'^(\s*)(?:[-*•]|\d+\s?[.)\-–])\s+(.+)$');
+      var converted = 0;
+      final lines = body.text.split('\n').map((line) {
+        if (RegExp(r'^\s*(?:[-*]\s*)?\[[ xX]\]').hasMatch(line)) return line;
+        final match = item.firstMatch(line);
+        if (match == null) return line;
+        converted++;
+        return '${match.group(1)}- [ ] ${match.group(2)}';
+      }).toList();
+      body.text = lines.join('\n');
+      if (converted == 0 && !hasTaskLines(body.text)) {
         body.text = body.text.trim().isEmpty
             ? '- [ ] '
             : '${body.text.trimRight()}\n- [ ] ';
@@ -874,6 +986,17 @@ class _EditorPageState extends State<EditorPage>
                 title: const Text('Apagar tarefas concluídas'),
                 onTap: () => Navigator.pop(ctx, 'remove-done'),
               ),
+              ListTile(
+                leading: const Icon(Icons.done_all_rounded),
+                title: const Text('Marcar todas como feitas'),
+                onTap: () => Navigator.pop(ctx, 'check-all'),
+              ),
+              ListTile(
+                leading: const Icon(Icons.content_copy_rounded),
+                title: const Text('Copiar só o que falta fazer'),
+                subtitle: const Text('Bom para mandar a lista de compras'),
+                onTap: () => Navigator.pop(ctx, 'copy-pending'),
+              ),
             ] else
               ListTile(
                 leading: Icon(
@@ -899,6 +1022,11 @@ class _EditorPageState extends State<EditorPage>
               onTap: () => Navigator.pop(ctx, 'pin-notification'),
             ),
             ListTile(
+              leading: const Icon(Icons.info_outline_rounded),
+              title: const Text('Informações da nota'),
+              onTap: () => Navigator.pop(ctx, 'info'),
+            ),
+            ListTile(
               leading: const Icon(Icons.visibility_outlined),
               title: const Text('Ver como vai ficar'),
               onTap: () => Navigator.pop(ctx, 'preview'),
@@ -914,6 +1042,18 @@ class _EditorPageState extends State<EditorPage>
     }
     if (value == 'uncheck-all' || value == 'remove-done') {
       _rewriteTasks(remove: value == 'remove-done');
+      return;
+    }
+    if (value == 'check-all') {
+      _checkAllTasks();
+      return;
+    }
+    if (value == 'copy-pending') {
+      await _copyPending();
+      return;
+    }
+    if (value == 'info') {
+      await _showNoteInfo();
       return;
     }
     if (value == 'read-mode') {
@@ -1698,6 +1838,10 @@ class _EditorPageState extends State<EditorPage>
     final tagsController = TextEditingController(
       text: widget.note.tags.join(', '),
     );
+    final existingTags = <String>{
+      for (final item in widget.store.notes)
+        if (item.deletedAt == null) ...item.tags,
+    }.toList()..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
     final existingFolders = <String>{
       for (final item in widget.store.notes)
         if (item.deletedAt == null && item.folder.trim().isNotEmpty)
@@ -1761,6 +1905,39 @@ class _EditorPageState extends State<EditorPage>
                 prefixIcon: Icon(Icons.tag_rounded),
               ),
             ),
+            if (existingTags.isNotEmpty) ...[
+              const SizedBox(height: 10),
+              // Toque numa tag que você já usa para adicionar.
+              SizedBox(
+                height: 38,
+                child: ListView.separated(
+                  scrollDirection: Axis.horizontal,
+                  itemCount: existingTags.length,
+                  separatorBuilder: (_, __) => const SizedBox(width: 7),
+                  itemBuilder: (_, index) => ActionChip(
+                    label: Text('#${existingTags[index]}'),
+                    onPressed: () {
+                      final current = tagsController.text
+                          .split(RegExp(r'[,#\n]'))
+                          .map((item) => item.trim())
+                          .where((item) => item.isNotEmpty)
+                          .toList();
+                      if (current.any(
+                        (item) =>
+                            item.toLowerCase() ==
+                            existingTags[index].toLowerCase(),
+                      )) {
+                        return;
+                      }
+                      tagsController.text = [
+                        ...current,
+                        existingTags[index],
+                      ].join(', ');
+                    },
+                  ),
+                ),
+              ),
+            ],
             const SizedBox(height: 16),
             SizedBox(
               width: double.infinity,
@@ -2138,7 +2315,7 @@ class _EditorPageState extends State<EditorPage>
 
   @override
   void dispose() {
-    if (_countsAsVault) widget.store.vaultScreensOpen--;
+    if (_countsAsVault) widget.store.vaultScreenClosed();
     WidgetsBinding.instance.removeObserver(this);
     autosaveTimer?.cancel();
     title.removeListener(_editorChanged);
@@ -2211,6 +2388,20 @@ class _EditorPageState extends State<EditorPage>
                   PopupMenuButton<String>(
                     onSelected: (value) async {
                       if (value == 'organize') await _showOrganize();
+                      if (value == 'pin') {
+                        setState(() => widget.store.togglePin(widget.note));
+                        if (context.mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text(
+                                widget.note.pinned
+                                    ? 'Fixada no topo da tela inicial'
+                                    : 'Tirada do topo',
+                              ),
+                            ),
+                          );
+                        }
+                      }
                       if (value == 'task') await _showTaskDetails();
                       if (value == 'connections') await _showConnections();
                       if (value == 'history') await _showHistory();
@@ -2223,6 +2414,21 @@ class _EditorPageState extends State<EditorPage>
                       if (value == 'delete') await _deleteAndClose();
                     },
                     itemBuilder: (_) => [
+                      PopupMenuItem(
+                        value: 'pin',
+                        child: ListTile(
+                          leading: Icon(
+                            widget.note.pinned
+                                ? Icons.push_pin
+                                : Icons.push_pin_outlined,
+                          ),
+                          title: Text(
+                            widget.note.pinned
+                                ? 'Tirar do topo'
+                                : 'Fixar no topo',
+                          ),
+                        ),
+                      ),
                       PopupMenuItem(
                         value: 'organize',
                         child: ListTile(

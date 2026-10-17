@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:home_widget/home_widget.dart';
 import 'package:path_provider/path_provider.dart';
@@ -101,11 +102,78 @@ class AppStore extends ChangeNotifier {
   double editorLineHeight = 1.6;
   String homeTitle = '';
 
+  /// O que o botão + faz: 0 = perguntar, 1 = nota em branco, 2 = lista de tarefas.
+  int plusAction = 0;
+
+  /// Cor das notas novas (índice em NotoAppearance.noteColors; 0 = sem cor).
+  int newNoteColor = 0;
+
+  /// Mostra a barra Arquivadas · Lixeira · Pastas · Tags no topo.
+  bool showShortcutsBar = true;
+
+  /// Últimas buscas feitas (mais recente primeiro).
+  final List<String> recentSearches = [];
+
+  void rememberSearch(String query) {
+    final clean = query.trim();
+    if (clean.length < 2) return;
+    recentSearches
+      ..removeWhere((item) => item.toLowerCase() == clean.toLowerCase())
+      ..insert(0, clean);
+    if (recentSearches.length > 6) recentSearches.removeRange(6, recentSearches.length);
+    save();
+  }
+
   /// Nota fixada na barra de notificações (null = nenhuma).
   String? pinnedNotificationNoteId;
 
   /// Quantas telas do cofre estão abertas agora (para bloquear ao sair do app).
   int vaultScreensOpen = 0;
+
+  /// Segundos fora do app até o cofre pedir a senha de novo (0 = na hora).
+  int vaultLockSeconds = 30;
+
+  /// Senhas erradas seguidas e até quando esperar para tentar de novo.
+  int vaultFailedAttempts = 0;
+  DateTime? vaultBlockedUntil;
+
+  static const _secureChannel = MethodChannel('noto/share');
+
+  void vaultScreenOpened() {
+    vaultScreensOpen++;
+    if (vaultScreensOpen == 1) {
+      _secureChannel.invokeMethod('setSecure', true).catchError((Object _) {});
+    }
+  }
+
+  void vaultScreenClosed() {
+    vaultScreensOpen = (vaultScreensOpen - 1).clamp(0, 999).toInt();
+    if (vaultScreensOpen == 0) {
+      _secureChannel.invokeMethod('setSecure', false).catchError((Object _) {});
+    }
+  }
+
+  /// Registra uma tentativa de senha. Depois de 5 erros, espera 30 segundos.
+  void registerVaultAttempt(bool ok) {
+    if (ok) {
+      vaultFailedAttempts = 0;
+      vaultBlockedUntil = null;
+      return;
+    }
+    vaultFailedAttempts++;
+    if (vaultFailedAttempts >= 5) {
+      vaultFailedAttempts = 0;
+      vaultBlockedUntil = DateTime.now().add(const Duration(seconds: 30));
+    }
+  }
+
+  /// Segundos que ainda faltam para poder tentar a senha (0 = pode tentar).
+  int get vaultWaitSeconds {
+    final until = vaultBlockedUntil;
+    if (until == null) return 0;
+    final left = until.difference(DateTime.now()).inSeconds;
+    return left > 0 ? left + 1 : 0;
+  }
   bool vaultLockRequested = false;
 
   void requestVaultLock() {
@@ -279,6 +347,15 @@ class AppStore extends ChangeNotifier {
         .clamp(1.2, 2.2)
         .toDouble();
     homeTitle = prefs.getString('homeTitle') ?? '';
+    plusAction = (prefs.getInt('plusAction') ?? 0).clamp(0, 2).toInt();
+    newNoteColor = (prefs.getInt('newNoteColor') ?? 0)
+        .clamp(0, NotoAppearance.noteColors.length - 1)
+        .toInt();
+    showShortcutsBar = prefs.getBool('showShortcutsBar') ?? true;
+    recentSearches
+      ..clear()
+      ..addAll(prefs.getStringList('recentSearches') ?? const []);
+    vaultLockSeconds = (prefs.getInt('vaultLockSeconds') ?? 30).clamp(0, 3600).toInt();
     pinnedNotificationNoteId = prefs.getString('pinnedNotificationNoteId');
     await prefs.remove('homeShowPulse');
     await prefs.remove('editor.focus');
@@ -443,6 +520,11 @@ class AppStore extends ChangeNotifier {
     await prefs.setBool('cardShowTags', cardShowTags);
     await prefs.setDouble('editorLineHeight', editorLineHeight);
     await prefs.setString('homeTitle', homeTitle);
+    await prefs.setInt('plusAction', plusAction);
+    await prefs.setInt('newNoteColor', newNoteColor);
+    await prefs.setBool('showShortcutsBar', showShortcutsBar);
+    await prefs.setStringList('recentSearches', recentSearches);
+    await prefs.setInt('vaultLockSeconds', vaultLockSeconds);
     if (pinnedNotificationNoteId == null) {
       await prefs.remove('pinnedNotificationNoteId');
     } else {
@@ -583,11 +665,14 @@ class AppStore extends ChangeNotifier {
     }
     selected ??= active.isEmpty ? null : active.first;
 
+    final pending = selected == null ? 0 : countPendingTasks(selected.body);
     await HomeWidget.saveWidgetData<String>(
       'note_title',
       selected == null
           ? 'Noto'
-          : (displayTitle(selected)),
+          : pending > 0
+          ? '${displayTitle(selected)} · $pending a fazer'
+          : displayTitle(selected),
     );
     await HomeWidget.saveWidgetData<String>(
       'note_body',
@@ -612,7 +697,7 @@ class AppStore extends ChangeNotifier {
     final now = from ?? DateTime.now();
     if (note.reminderRepeat == 0 || at.isAfter(now)) return at;
     var day = DateTime(now.year, now.month, now.day, at.hour, at.minute);
-    for (var i = 0; i < 8; i++) {
+    for (var i = 0; i < (note.reminderRepeat == 4 ? 32 : 8); i++) {
       final candidate = day.add(Duration(days: i));
       if (!candidate.isAfter(now)) continue;
       if (reminderOccursOn(note, candidate)) return candidate;
@@ -696,6 +781,7 @@ class AppStore extends ChangeNotifier {
           switch (repeat) {
             1 => DateTimeComponents.time,
             3 => DateTimeComponents.dayOfWeekAndTime,
+            4 => DateTimeComponents.dayOfMonthAndTime,
             _ => null,
           },
         );

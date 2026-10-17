@@ -92,6 +92,11 @@ bool reminderOccursOn(Note note, DateTime day) {
     1 => true,
     2 => day.weekday <= DateTime.friday,
     3 => day.weekday == at.weekday,
+    // Todo mês: no mesmo dia; em meses mais curtos, no último dia do mês.
+    4 => day.day ==
+        (at.day <= DateTime(day.year, day.month + 1, 0).day
+            ? at.day
+            : DateTime(day.year, day.month + 1, 0).day),
     _ => date == start,
   };
 }

@@ -261,6 +261,12 @@ class _HomeShellState extends State<HomeShell> {
           setState(() => searching = true);
           return;
         }
+        if (type == 'ultima') {
+          final recent = _active
+            ..sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
+          if (recent.isNotEmpty) _openNote(recent.first);
+          return;
+        }
         final checklist = type == 'nova-lista';
         _openNote(
           Note(
@@ -278,6 +284,7 @@ class _HomeShellState extends State<HomeShell> {
         ShortcutItem(type: 'nova-nota', localizedTitle: 'Nova nota'),
         ShortcutItem(type: 'nova-lista', localizedTitle: 'Nova lista de tarefas'),
         ShortcutItem(type: 'buscar', localizedTitle: 'Buscar'),
+        ShortcutItem(type: 'ultima', localizedTitle: 'Última nota editada'),
       ]);
     } catch (_) {
       /* Sem atalhos nesta plataforma. */
@@ -442,6 +449,11 @@ class _HomeShellState extends State<HomeShell> {
         if (note.updatedAt.isAfter(end)) return false;
       }
       if (normalized.isEmpty) return true;
+      // "#escola" busca só nas tags.
+      if (normalized.startsWith('#') && normalized.length > 1) {
+        final wanted = normalized.substring(1);
+        return note.tags.any((item) => foldForSearch(item).startsWith(wanted));
+      }
       return foldForSearch(note.title).contains(normalized) ||
           foldForSearch(note.body).contains(normalized) ||
           foldForSearch(note.folder).contains(normalized) ||
@@ -522,6 +534,7 @@ class _HomeShellState extends State<HomeShell> {
   }
 
   Future<void> _openNote(Note note, {bool isNew = false}) async {
+    if (query.trim().isNotEmpty) widget.store.rememberSearch(query);
     await Navigator.push<bool>(
       context,
       MaterialPageRoute(
@@ -531,8 +544,14 @@ class _HomeShellState extends State<HomeShell> {
     );
   }
 
-  Future<void> _createNote() async {
-    final choice = await showModalBottomSheet<String>(
+  Future<void> _createNote({String? direct}) async {
+    final shortcut = direct ??
+        switch (widget.store.plusAction) {
+          1 => 'blank',
+          2 => 'checklist',
+          _ => null,
+        };
+    final choice = shortcut ?? await showModalBottomSheet<String>(
       context: context,
       useSafeArea: true,
       builder: (sheetContext) => Padding(
@@ -600,6 +619,7 @@ class _HomeShellState extends State<HomeShell> {
       tags: targetTags,
       checklist: checklist,
       font: widget.store.font,
+      color: widget.store.newNoteColor,
     );
     await _openNote(note, isNew: true);
   }
@@ -1309,6 +1329,42 @@ class _HomeShellState extends State<HomeShell> {
     );
   }
 
+  bool _hasQuickFilters(List<Note> active) => active.any(
+    (n) => n.favorite || n.reminderAt != null || _isOverdue(n),
+  );
+
+  Widget _quickChip(String label, bool selected, VoidCallback toggle) => Padding(
+    padding: const EdgeInsets.only(right: 8),
+    child: FilterChip(
+      label: Text(label),
+      selected: selected,
+      showCheckmark: false,
+      onSelected: (_) => setState(toggle),
+    ),
+  );
+
+  Widget _recentSearches() => SizedBox(
+    height: 42,
+    child: ListView(
+      scrollDirection: Axis.horizontal,
+      padding: const EdgeInsets.fromLTRB(20, 0, 20, 6),
+      children: [
+        for (final item in widget.store.recentSearches)
+          Padding(
+            padding: const EdgeInsets.only(right: 8),
+            child: ActionChip(
+              avatar: const Icon(Icons.history_rounded, size: 16),
+              label: Text(item),
+              onPressed: () {
+                _searchController.text = item;
+                setState(() => query = item);
+              },
+            ),
+          ),
+      ],
+    ),
+  );
+
   Widget _folderChips() {
     final folders = _allFolders;
     return SizedBox(
@@ -1321,10 +1377,35 @@ class _HomeShellState extends State<HomeShell> {
             padding: const EdgeInsets.only(right: 8),
             child: ChoiceChip(
               label: const Text('Todas'),
-              selected: folder == null,
-              onSelected: (_) => setState(() => folder = null),
+              selected: folder == null &&
+                  scope == _NoteScope.all &&
+                  !reminderOnly &&
+                  !overdueOnly,
+              onSelected: (_) => setState(() {
+                folder = null;
+                scope = _NoteScope.all;
+                reminderOnly = false;
+                overdueOnly = false;
+              }),
             ),
           ),
+          if (_active.any((n) => n.favorite))
+            _quickChip(
+              '★ Favoritas',
+              scope == _NoteScope.favorites,
+              () => scope = scope == _NoteScope.favorites
+                  ? _NoteScope.all
+                  : _NoteScope.favorites,
+            ),
+          if (_active.any((n) => n.reminderAt != null))
+            _quickChip(
+              'Com lembrete',
+              reminderOnly,
+              () => reminderOnly = !reminderOnly,
+            ),
+          if (_active.any(_isOverdue))
+            _quickChip('Atrasadas', overdueOnly, () => overdueOnly = !overdueOnly),
+          if (folders.length > 1)
           for (final item in folders)
             Padding(
               padding: const EdgeInsets.only(right: 8),
@@ -1355,7 +1436,22 @@ class _HomeShellState extends State<HomeShell> {
           .where((note) => note.deletedAt != null)
           .length;
 
-      return Scaffold(
+      // Voltar fecha a busca ou a seleção antes de sair do app.
+      return PopScope(
+        canPop: !searching && selectedIds.isEmpty,
+        onPopInvokedWithResult: (didPop, _) {
+          if (didPop) return;
+          setState(() {
+            if (selectedIds.isNotEmpty) {
+              selectedIds.clear();
+            } else {
+              searching = false;
+              query = '';
+              _searchController.clear();
+            }
+          });
+        },
+        child: Scaffold(
         backgroundColor: _hasWallpaper ? Colors.transparent : null,
         appBar: AppBar(
           titleSpacing: 20,
@@ -1424,7 +1520,9 @@ class _HomeShellState extends State<HomeShell> {
             ),
             const SizedBox(width: 6),
           ],
-          bottom: PreferredSize(
+          bottom: !widget.store.showShortcutsBar
+              ? null
+              : PreferredSize(
             preferredSize: const Size.fromHeight(52),
             child: _TopLibraryActions(
               archived: archived,
@@ -1460,11 +1558,17 @@ class _HomeShellState extends State<HomeShell> {
                             ),
                     ),
                     onChanged: (value) => setState(() => query = value),
+                    onSubmitted: widget.store.rememberSearch,
                   ),
                 ),
+              if (searching &&
+                  query.isEmpty &&
+                  widget.store.recentSearches.isNotEmpty)
+                _recentSearches(),
               if (widget.store.homeShowToday)
                 _TodayLine(snapshot: snapshot),
-              if (_allFolders.length > 1) _folderChips(),
+              if (_allFolders.length > 1 || _hasQuickFilters(active))
+                _folderChips(),
               if (widget.store.shouldNudgeBackup)
                 _TipCard(
                   text:
@@ -1656,11 +1760,23 @@ class _HomeShellState extends State<HomeShell> {
               ),
         floatingActionButton: selectedIds.isNotEmpty
             ? null
-            : FloatingActionButton(
-                onPressed: _createNote,
-                tooltip: 'Nova nota',
-                child: const Icon(Icons.add_rounded),
+            : GestureDetector(
+                // Segurar o + cria direto o outro tipo de nota.
+                onLongPress: () {
+                  HapticFeedback.mediumImpact();
+                  _createNote(
+                    direct: widget.store.plusAction == 2 ? 'blank' : 'checklist',
+                  );
+                },
+                child: FloatingActionButton(
+                  onPressed: _createNote,
+                  tooltip: widget.store.plusAction == 2
+                      ? 'Nova lista (segure para nota em branco)'
+                      : 'Nova nota (segure para lista de tarefas)',
+                  child: const Icon(Icons.add_rounded),
+                ),
               ),
+      ),
       );
     },
   );

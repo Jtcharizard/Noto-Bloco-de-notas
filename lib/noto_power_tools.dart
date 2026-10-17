@@ -4,10 +4,8 @@ import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
 import 'package:markdown/markdown.dart' as md;
 import 'package:url_launcher/url_launcher.dart';
 
-import 'dart:convert';
 import 'dart:io';
 
-import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show rootBundle;
 import 'package:pdf/pdf.dart';
@@ -237,44 +235,6 @@ Future<void> exportNotePdf(Note note) async {
   await Share.shareXFiles([XFile(file.path)], text: title);
 }
 
-Future<Note?> importTextNote({required int defaultFont}) async {
-  final result = await FilePicker.platform.pickFiles(
-    type: FileType.custom,
-    allowedExtensions: const ['txt', 'md', 'markdown'],
-    withData: true,
-  );
-  if (result == null || result.files.isEmpty) return null;
-  final selected = result.files.single;
-  String content;
-  if (selected.bytes != null) {
-    content = utf8.decode(selected.bytes!, allowMalformed: true);
-  } else if (selected.path != null) {
-    content = await File(selected.path!).readAsString();
-  } else {
-    return null;
-  }
-  final filename = selected.name.replaceFirst(
-    RegExp(r'\.(txt|md|markdown)$', caseSensitive: false),
-    '',
-  );
-  final lines = content.split('\n');
-  var title = filename;
-  var body = content;
-  if (selected.extension?.toLowerCase() != 'txt' &&
-      lines.isNotEmpty &&
-      lines.first.trim().startsWith('# ')) {
-    title = lines.first.trim().substring(2).trim();
-    body = lines.skip(1).join('\n').trimLeft();
-  }
-  return Note(
-    id: DateTime.now().microsecondsSinceEpoch.toString(),
-    title: title,
-    body: body,
-    updatedAt: DateTime.now(),
-    font: defaultFont,
-  );
-}
-
 class CalendarPage extends StatefulWidget {
   const CalendarPage({
     super.key,
@@ -424,6 +384,19 @@ class _CalendarPageState extends State<CalendarPage> {
         title: const Text('Calendário'),
         actions: [
           IconButton(
+            tooltip: 'Próximos lembretes',
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => UpcomingRemindersPage(
+                  store: widget.store,
+                  onOpen: widget.onOpen,
+                ),
+              ),
+            ),
+            icon: const Icon(Icons.notifications_active_outlined),
+          ),
+          IconButton(
             tooltip: 'Hoje',
             onPressed: () => setState(() {
               final now = DateTime.now();
@@ -478,7 +451,14 @@ class _CalendarPageState extends State<CalendarPage> {
             ),
           ),
           Expanded(
-            child: GridView.builder(
+            // Deslizar para o lado troca de mês.
+            child: GestureDetector(
+              onHorizontalDragEnd: (details) {
+                final speed = details.primaryVelocity ?? 0;
+                if (speed.abs() < 250) return;
+                _changeMonth(speed < 0 ? 1 : -1);
+              },
+              child: GridView.builder(
               padding: const EdgeInsets.fromLTRB(14, 2, 14, 28),
               gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
                 crossAxisCount: 7,
@@ -492,6 +472,10 @@ class _CalendarPageState extends State<CalendarPage> {
                 final day = DateTime(month.year, month.month, dayNumber);
                 final notes = _notesFor(day);
                 final today = _sameDay(day, DateTime.now());
+                final late = day.isBefore(DateUtils.dateOnly(DateTime.now())) &&
+                    notes.any(
+                      (n) => n.dueAt != null && _sameDay(n.dueAt!, day),
+                    );
                 return InkWell(
                   onTap: () => _openDay(day),
                   borderRadius: BorderRadius.circular(10),
@@ -523,7 +507,9 @@ class _CalendarPageState extends State<CalendarPage> {
                             width: 6,
                             height: 6,
                             decoration: BoxDecoration(
-                              color: Theme.of(context).colorScheme.primary,
+                              color: late
+                                  ? Theme.of(context).colorScheme.error
+                                  : Theme.of(context).colorScheme.primary,
                               shape: BoxShape.circle,
                             ),
                           ),
@@ -539,11 +525,81 @@ class _CalendarPageState extends State<CalendarPage> {
                 );
               },
             ),
+            ),
           ),
         ],
       ),
     );
   }
+}
+
+/// Todos os lembretes que ainda vão tocar, do mais próximo ao mais distante.
+class UpcomingRemindersPage extends StatelessWidget {
+  const UpcomingRemindersPage({
+    super.key,
+    required this.store,
+    required this.onOpen,
+  });
+
+  final AppStore store;
+  final Future<void> Function(Note note) onOpen;
+
+  @override
+  Widget build(BuildContext context) => AnimatedBuilder(
+    animation: store,
+    builder: (_, __) {
+      final items = <(Note, DateTime)>[
+        for (final note in store.notes)
+          if (note.deletedAt == null && !note.locked && note.reminderAt != null)
+            if (store.nextReminder(note) case final next?)
+              if (next.isAfter(DateTime.now())) (note, next),
+      ]..sort((a, b) => a.$2.compareTo(b.$2));
+      String when(DateTime at) {
+        final today = DateUtils.dateOnly(DateTime.now());
+        final day = DateUtils.dateOnly(at);
+        final hour = DateFormat('HH:mm').format(at);
+        if (day == today) return 'Hoje às $hour';
+        if (day == today.add(const Duration(days: 1))) return 'Amanhã às $hour';
+        return DateFormat("EEE, dd/MM 'às' HH:mm", 'pt_BR').format(at);
+      }
+
+      return Scaffold(
+        appBar: AppBar(title: const Text('Próximos lembretes')),
+        body: items.isEmpty
+            ? const Center(
+                child: Padding(
+                  padding: EdgeInsets.all(32),
+                  child: Text(
+                    'Nenhum lembrete marcado.\nToque no sino dentro de uma nota para criar um.',
+                    textAlign: TextAlign.center,
+                  ),
+                ),
+              )
+            : ListView.separated(
+                padding: const EdgeInsets.fromLTRB(12, 8, 12, 24),
+                itemCount: items.length,
+                separatorBuilder: (_, __) => const Divider(height: 1),
+                itemBuilder: (_, index) {
+                  final (note, next) = items[index];
+                  return ListTile(
+                    leading: Icon(
+                      note.reminderRepeat > 0
+                          ? Icons.repeat_rounded
+                          : Icons.notifications_none_rounded,
+                    ),
+                    title: Text(displayTitle(note)),
+                    subtitle: Text(
+                      note.reminderRepeat > 0
+                          ? '${when(next)} · ${reminderRepeatLabels[note.reminderRepeat]}'
+                          : when(next),
+                    ),
+                    onTap: () => onOpen(note),
+                  );
+                },
+              ),
+      );
+    },
+  );
 }
 
 class MarkdownPreviewPage extends StatelessWidget {

@@ -174,6 +174,13 @@ class _MixedContentEditorState extends State<MixedContentEditor> {
       lines.replaceRange(start, end + 1, ordered);
     });
     _sync();
+    final tasks = lines.where((item) => item.task).toList();
+    if (checked && tasks.length >= 2 && tasks.every((item) => item.checked)) {
+      HapticFeedback.mediumImpact();
+      ScaffoldMessenger.maybeOf(context)?.showSnackBar(
+        const SnackBar(content: Text('Tudo feito! 🎉')),
+      );
+    }
   }
 
   /// Apaga a linha e oferece "Desfazer" por alguns segundos.
@@ -220,8 +227,38 @@ class _MixedContentEditorState extends State<MixedContentEditor> {
   Widget build(BuildContext context) {
     final visible = _visible;
     final hidden = lines.length - visible.length;
+    final total = lines.where((line) => line.task).length;
+    final done = lines.where((line) => line.task && line.checked).length;
+    final cs = Theme.of(context).colorScheme;
     return Column(
     children: [
+      if (total > 0)
+        Padding(
+          padding: const EdgeInsets.fromLTRB(12, 0, 12, 6),
+          child: Row(
+            children: [
+              Expanded(
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(6),
+                  child: LinearProgressIndicator(
+                    value: done / total,
+                    minHeight: 6,
+                    backgroundColor: cs.primary.withValues(alpha: .15),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Text(
+                done == total ? 'Tudo feito' : '$done de $total feitas',
+                style: TextStyle(
+                  fontSize: 12.5,
+                  fontWeight: FontWeight.w700,
+                  color: widget.textColor ?? cs.onSurface.withValues(alpha: .7),
+                ),
+              ),
+            ],
+          ),
+        ),
       Expanded(
         child: ReorderableListView.builder(
           padding: const EdgeInsets.only(bottom: 12),

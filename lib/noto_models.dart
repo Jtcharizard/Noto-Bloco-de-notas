@@ -157,7 +157,7 @@ class Note {
     editor: Map<String, dynamic>.from(json['editor'] ?? const {}),
     createdAt: DateTime.tryParse(json['createdAt']?.toString() ?? ''),
     locked: json['locked'] == true,
-    reminderRepeat: ((json['reminderRepeat'] as num?)?.toInt() ?? 0).clamp(0, 3).toInt(),
+    reminderRepeat: ((json['reminderRepeat'] as num?)?.toInt() ?? 0).clamp(0, 4).toInt(),
   );
 }
 
@@ -166,6 +166,7 @@ const reminderRepeatLabels = <String>[
   'Todo dia',
   'Dias úteis (seg. a sex.)',
   'Toda semana',
+  'Todo mês',
 ];
 
 /// Busca sem diferenciar maiúsculas nem acentos ("quimica" acha "Química").

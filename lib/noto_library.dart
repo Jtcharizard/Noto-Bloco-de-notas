@@ -504,6 +504,27 @@ Future<void> exportBackup(BuildContext context, AppStore store) async {
       'wallpaperDarkness': store.wallpaperDarkness,
       'wallpaperBlur': store.wallpaperBlur,
       'widgetNoteId': store.widgetNoteId,
+      'layoutMode': store.layoutMode,
+      'homeShowToday': store.homeShowToday,
+      'pureBlack': store.pureBlack,
+      'cardRadius': store.cardRadius,
+      'gridColumns': store.gridColumns,
+      'previewLines': store.previewLines,
+      'cardShowFolder': store.cardShowFolder,
+      'cardShowDate': store.cardShowDate,
+      'cardShowTags': store.cardShowTags,
+      'editorLineHeight': store.editorLineHeight,
+      'homeTitle': store.homeTitle,
+      'plusAction': store.plusAction,
+      'newNoteColor': store.newNoteColor,
+      'showShortcutsBar': store.showShortcutsBar,
+      // Só o resumo da senha, nunca a senha: o cofre continua funcionando
+      // ao restaurar em outro celular.
+      'vaultPinHash': store.vaultPinHash,
+      'vaultSalt': store.vaultSalt,
+      'vaultQuestion': store.vaultQuestion,
+      'vaultAnswerHash': store.vaultAnswerHash,
+      'vaultLockSeconds': store.vaultLockSeconds,
     },
     'images': images,
   };
@@ -563,26 +584,81 @@ Future<void> importBackup(BuildContext context, AppStore store) async {
         : null;
 
     if (!context.mounted) return;
-    final confirmed = await showDialog<bool>(
+    final currentCount = store.notes.where((n) => n.deletedAt == null).length;
+    final choice = await showDialog<String>(
       context: context,
       builder: (dialogContext) => AlertDialog(
         title: const Text('Restaurar este backup?'),
         content: Text(
-          'As notas que estão no app agora serão trocadas pelas ${notes.length} notas deste backup.',
+          'O backup tem ${notes.length} ${notes.length == 1 ? 'nota' : 'notas'}. '
+          'Você tem $currentCount no app agora.\n\n'
+          '"Juntar" mantém as suas e adiciona as do backup (a versão mais nova '
+          'de cada nota vale). "Substituir" troca tudo pelo backup, inclusive '
+          'os ajustes.',
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(dialogContext, false),
+            onPressed: () => Navigator.pop(dialogContext),
             child: const Text('Cancelar'),
           ),
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, 'replace'),
+            child: const Text('Substituir'),
+          ),
           FilledButton(
-            onPressed: () => Navigator.pop(dialogContext, true),
-            child: const Text('Restaurar'),
+            onPressed: () => Navigator.pop(dialogContext, 'merge'),
+            child: const Text('Juntar'),
           ),
         ],
       ),
     );
-    if (confirmed != true) return;
+    if (choice == null) return;
+
+    if (choice == 'merge') {
+      final byId = {for (final note in store.notes) note.id: note};
+      var added = 0;
+      var updated = 0;
+      for (final note in notes) {
+        final current = byId[note.id];
+        if (current == null) {
+          store.notes.add(note);
+          added++;
+        } else if (note.updatedAt.isAfter(current.updatedAt)) {
+          store.notes[store.notes.indexOf(current)] = note;
+          updated++;
+        }
+      }
+      for (final template in templates ?? const <NotoTemplate>[]) {
+        if (!store.templates.any((t) => t.id == template.id)) {
+          store.templates.add(template);
+        }
+      }
+      // Notas do cofre vindas do backup precisam de um cofre para abrir.
+      if (!store.hasVault && settings['vaultPinHash'] is String) {
+        store.vaultPinHash = settings['vaultPinHash'] as String;
+        store.vaultSalt = settings['vaultSalt']?.toString() ?? '';
+        store.vaultQuestion = settings['vaultQuestion']?.toString() ?? '';
+        store.vaultAnswerHash = settings['vaultAnswerHash']?.toString();
+      }
+      FileCache.clear();
+      await store.save();
+      for (final note in store.notes.where((n) => n.reminderAt != null)) {
+        await store.refreshReminder(note);
+      }
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              added + updated == 0
+                  ? 'Nada novo: você já tinha tudo deste backup.'
+                  : '$added ${added == 1 ? 'nota adicionada' : 'notas adicionadas'}'
+                        '${updated > 0 ? ', $updated ${updated == 1 ? 'atualizada' : 'atualizadas'}' : ''}.',
+            ),
+          ),
+        );
+      }
+      return;
+    }
 
     store.notes
       ..clear()
@@ -591,6 +667,36 @@ Future<void> importBackup(BuildContext context, AppStore store) async {
       store.templates
         ..clear()
         ..addAll(templates);
+    }
+    T pick<T>(String key, T fallback) =>
+        settings[key] is T ? settings[key] as T : fallback;
+    store.layoutMode = pick<num>('layoutMode', store.layoutMode).toInt().clamp(0, 2).toInt();
+    store.homeShowToday = pick('homeShowToday', store.homeShowToday);
+    store.pureBlack = pick('pureBlack', store.pureBlack);
+    store.cardRadius = pick<num>('cardRadius', store.cardRadius).toInt().clamp(0, 28).toInt();
+    store.gridColumns = pick<num>('gridColumns', store.gridColumns).toInt().clamp(2, 3).toInt();
+    store.previewLines = pick<num>('previewLines', store.previewLines).toInt().clamp(0, 8).toInt();
+    store.cardShowFolder = pick('cardShowFolder', store.cardShowFolder);
+    store.cardShowDate = pick('cardShowDate', store.cardShowDate);
+    store.cardShowTags = pick('cardShowTags', store.cardShowTags);
+    store.editorLineHeight = pick<num>('editorLineHeight', store.editorLineHeight)
+        .toDouble()
+        .clamp(1.2, 2.2)
+        .toDouble();
+    store.homeTitle = pick('homeTitle', store.homeTitle);
+    store.plusAction = pick<num>('plusAction', store.plusAction).toInt().clamp(0, 2).toInt();
+    store.newNoteColor = pick<num>('newNoteColor', store.newNoteColor)
+        .toInt()
+        .clamp(0, NotoAppearance.noteColors.length - 1)
+        .toInt();
+    store.showShortcutsBar = pick('showShortcutsBar', store.showShortcutsBar);
+    if (settings['vaultPinHash'] is String) {
+      store.vaultPinHash = settings['vaultPinHash'] as String;
+      store.vaultSalt = pick('vaultSalt', store.vaultSalt);
+      store.vaultQuestion = pick('vaultQuestion', store.vaultQuestion);
+      store.vaultAnswerHash = settings['vaultAnswerHash']?.toString();
+      store.vaultLockSeconds =
+          pick<num>('vaultLockSeconds', store.vaultLockSeconds).toInt();
     }
     store.mode =
         ThemeMode.values[((settings['mode'] as num?)?.toInt() ?? 0).clamp(
@@ -723,4 +829,61 @@ Future<void> exportAllNotes(AppStore store) async {
   );
   await file.writeAsString(buffer.toString());
   await Share.shareXFiles([XFile(file.path)], text: 'Minhas notas do Noto');
+}
+
+/// Importa vários arquivos .txt ou .md de uma vez, cada um vira uma nota.
+Future<void> importTextFiles(BuildContext context, AppStore store) async {
+  final result = await FilePicker.platform.pickFiles(
+    type: FileType.custom,
+    allowedExtensions: const ['txt', 'md', 'markdown'],
+    allowMultiple: true,
+    withData: true,
+  );
+  if (result == null || result.files.isEmpty) return;
+  var count = 0;
+  for (final file in result.files) {
+    try {
+      final content = file.bytes != null
+          ? utf8.decode(file.bytes!, allowMalformed: true)
+          : await File(file.path!).readAsString();
+      var title = file.name.replaceFirst(
+        RegExp(r'\.(txt|md|markdown)$', caseSensitive: false),
+        '',
+      );
+      var body = content;
+      final lines = content.split('\n');
+      if (lines.isNotEmpty && lines.first.trim().startsWith('# ')) {
+        title = lines.first.trim().substring(2).trim();
+        body = lines.skip(1).join('\n').trimLeft();
+      }
+      store.notes.add(
+        Note(
+          id: '${DateTime.now().microsecondsSinceEpoch}$count',
+          title: title,
+          body: body,
+          updatedAt: DateTime.now(),
+          folder: 'Importadas',
+          font: store.font,
+          checklist: hasTaskLines(body),
+        ),
+      );
+      count++;
+    } catch (_) {
+      /* Arquivo ilegível: pula e segue com os outros. */
+    }
+  }
+  await store.save();
+  if (context.mounted) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          count == 0
+              ? 'Não consegui ler esses arquivos.'
+              : count == 1
+              ? '1 nota importada na pasta Importadas'
+              : '$count notas importadas na pasta Importadas',
+        ),
+      ),
+    );
+  }
 }

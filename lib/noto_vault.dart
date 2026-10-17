@@ -42,6 +42,8 @@ Future<void> openVault(BuildContext context, AppStore store) async {
   if (!store.hasVault) {
     final created = await ensureVault(context, store);
     if (!created || !context.mounted) return;
+    await showVaultGuide(context);
+    if (!context.mounted) return;
   } else {
     final ok = await unlockVault(context, store);
     if (!ok || !context.mounted) return;
@@ -75,10 +77,26 @@ Future<bool> unlockVault(BuildContext context, AppStore store) async {
     );
     if (pin == null || !context.mounted) return false;
     if (pin == _forgot) return resetVaultPin(context, store);
-    if (_checkPin(store, pin)) return true;
+    final wait = store.vaultWaitSeconds;
+    if (wait > 0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Muitas tentativas. Espere $wait segundos.')),
+      );
+      return false;
+    }
+    final ok = _checkPin(store, pin);
+    store.registerVaultAttempt(ok);
+    if (ok) return true;
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Senha errada. Tente de novo.')),
+      SnackBar(
+        content: Text(
+          store.vaultWaitSeconds > 0
+              ? 'Senha errada 5 vezes. Espere 30 segundos.'
+              : 'Senha errada. Tente de novo.',
+        ),
+      ),
     );
+    if (store.vaultWaitSeconds > 0) return false;
   }
   return false;
 }
@@ -461,12 +479,12 @@ class _VaultSessionGuardState extends State<VaultSessionGuard> {
   @override
   void initState() {
     super.initState();
-    widget.store.vaultScreensOpen++;
+    widget.store.vaultScreenOpened();
   }
 
   @override
   void dispose() {
-    widget.store.vaultScreensOpen--;
+    widget.store.vaultScreenClosed();
     super.dispose();
   }
 
@@ -499,10 +517,21 @@ class _VaultLockScreenState extends State<VaultLockScreen> {
   }
 
   void _try() {
-    if (checkVaultPin(widget.store, controller.text.trim())) {
+    final wait = widget.store.vaultWaitSeconds;
+    if (wait > 0) {
+      setState(() => error = 'Muitas tentativas. Espere $wait s.');
+      return;
+    }
+    final ok = checkVaultPin(widget.store, controller.text.trim());
+    widget.store.registerVaultAttempt(ok);
+    if (ok) {
       widget.store.releaseVaultLock();
     } else {
-      setState(() => error = 'Senha errada.');
+      setState(
+        () => error = widget.store.vaultWaitSeconds > 0
+            ? 'Senha errada 5 vezes. Espere 30 s.'
+            : 'Senha errada.',
+      );
       controller.clear();
     }
   }
@@ -565,112 +594,296 @@ class _VaultLockScreenState extends State<VaultLockScreen> {
   }
 }
 
-class VaultPage extends StatelessWidget {
+/// Explica como o cofre funciona. Aparece ao criar o cofre e no botão ⓘ dele.
+Future<void> showVaultGuide(BuildContext context) => showModalBottomSheet<void>(
+  context: context,
+  isScrollControlled: true,
+  useSafeArea: true,
+  builder: (sheetContext) {
+    final cs = Theme.of(sheetContext).colorScheme;
+    Widget item(IconData icon, String title, String text) => Padding(
+      padding: const EdgeInsets.only(bottom: 16),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, color: cs.primary),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(title, style: const TextStyle(fontWeight: FontWeight.w800)),
+                const SizedBox(height: 2),
+                Text(text, style: const TextStyle(height: 1.35)),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+    return ConstrainedBox(
+      constraints: BoxConstraints(
+        maxHeight: MediaQuery.sizeOf(sheetContext).height * .88,
+      ),
+      child: ListView(
+        shrinkWrap: true,
+        padding: const EdgeInsets.fromLTRB(22, 20, 22, 24),
+        children: [
+          Text(
+            'Como funciona o cofre',
+            style: Theme.of(sheetContext).textTheme.headlineSmall?.copyWith(
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+          const SizedBox(height: 18),
+          item(
+            Icons.touch_app_outlined,
+            'Para abrir',
+            'Segure o logo do Noto, no topo da tela inicial, por 2 segundos. '
+                'Depois digite a senha.',
+          ),
+          item(
+            Icons.lock_outline_rounded,
+            'Para guardar uma nota',
+            'No menu ⋮ da nota, toque em "Mover para o cofre". Também dá '
+                'para criar notas direto aqui dentro, no +.',
+          ),
+          item(
+            Icons.visibility_off_outlined,
+            'O que fica escondido',
+            'Notas do cofre não aparecem na tela inicial, na busca, no '
+                'calendário, no widget nem no resumo do dia. Lembretes delas '
+                'avisam só "Lembrete do Noto", sem mostrar o texto.',
+          ),
+          item(
+            Icons.timer_outlined,
+            'Trava sozinho',
+            'Se você sair do app com o cofre aberto, ele pede a senha de novo '
+                'ao voltar. O tempo dá para mudar no menu ⋮ do cofre. Com o '
+                'cofre aberto, o celular não deixa tirar print.',
+          ),
+          item(
+            Icons.help_outline_rounded,
+            'Esqueceu a senha?',
+            'Toque em "Esqueci a senha" e responda a pergunta secreta. Você '
+                'cria uma senha nova e nenhuma nota é apagada.',
+          ),
+          item(
+            Icons.warning_amber_rounded,
+            'Atenção com o backup',
+            'O arquivo de backup leva as notas do cofre junto, sem senha. '
+                'Guarde o arquivo num lugar seguro.',
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(sheetContext),
+            child: const Text('Entendi'),
+          ),
+        ],
+      ),
+    );
+  },
+);
+
+class VaultPage extends StatefulWidget {
   const VaultPage({super.key, required this.store});
   final AppStore store;
 
-  Future<void> _open(BuildContext context, Note note, {bool isNew = false}) =>
-      Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (_) => EditorPage(store: store, note: note, isNew: isNew),
+  @override
+  State<VaultPage> createState() => _VaultPageState();
+}
+
+class _VaultPageState extends State<VaultPage> {
+  AppStore get store => widget.store;
+  bool searching = false;
+  String query = '';
+
+  Future<void> _open(Note note, {bool isNew = false}) => Navigator.push(
+    context,
+    MaterialPageRoute(
+      builder: (_) => EditorPage(store: store, note: note, isNew: isNew),
+    ),
+  );
+
+  Future<void> _pickLockTime() async {
+    const options = [
+      (0, 'Assim que sair do app'),
+      (30, 'Depois de 30 segundos'),
+      (120, 'Depois de 2 minutos'),
+      (600, 'Depois de 10 minutos'),
+    ];
+    final picked = await showModalBottomSheet<int>(
+      context: context,
+      useSafeArea: true,
+      builder: (sheetContext) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const ListTile(
+              title: Text(
+                'Pedir a senha de novo',
+                style: TextStyle(fontWeight: FontWeight.w800),
+              ),
+            ),
+            for (final option in options)
+              RadioListTile<int>(
+                value: option.$1,
+                groupValue: store.vaultLockSeconds,
+                title: Text(option.$2),
+                onChanged: (value) => Navigator.pop(sheetContext, value),
+              ),
+            const SizedBox(height: 12),
+          ],
         ),
-      );
+      ),
+    );
+    if (picked == null) return;
+    store.vaultLockSeconds = picked;
+    await store.save();
+  }
 
   @override
   Widget build(BuildContext context) => AnimatedBuilder(
     animation: store,
-    builder: (_, __) => VaultSessionGuard(
-      store: store,
-      child: Builder(builder: (context) {
-      final items = store.notes
-          .where((n) => n.locked && n.deletedAt == null)
-          .toList()
-        ..sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
-      return Scaffold(
-        appBar: AppBar(
-          title: const Text(
-            'Cofre',
-            style: TextStyle(fontWeight: FontWeight.w900),
-          ),
-          actions: [
-            IconButton(
-              tooltip: 'Trocar senha do cofre',
-              icon: const Icon(Icons.password_rounded),
-              onPressed: () => changeVaultPin(context, store),
-            ),
-          ],
-        ),
-        body: items.isEmpty
-            ? const Center(
-                child: Padding(
-                  padding: EdgeInsets.all(32),
-                  child: Text(
-                    'O cofre está vazio.\nCrie uma nota aqui ou use '
-                    '"Mover para o cofre" no menu de qualquer nota.',
-                    textAlign: TextAlign.center,
-                  ),
-                ),
-              )
-            : ListView.separated(
-                padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
-                itemCount: items.length,
-                separatorBuilder: (_, __) => const SizedBox(height: 8),
-                itemBuilder: (_, index) {
-                  final note = items[index];
-                  return Card(
-                    child: ListTile(
-                      leading: const Icon(Icons.lock_outline_rounded),
-                      title: Text(
-                        displayTitle(note),
-                      ),
-                      subtitle: Text(
-                        'Editada em ${DateFormat('dd/MM/yyyy').format(note.updatedAt)}',
-                      ),
-                      onTap: () => _open(context, note),
-                      trailing: PopupMenuButton<String>(
-                        tooltip: 'Opções',
-                        onSelected: (value) async {
-                          if (value == 'unlock') {
-                            note.locked = false;
-                            await store.save();
-                            await store.refreshReminder(note);
-                          }
-                          if (value == 'trash') store.delete(note);
-                        },
-                        itemBuilder: (_) => const [
-                          PopupMenuItem(
-                            value: 'unlock',
-                            child: Text('Tirar do cofre'),
-                          ),
-                          PopupMenuItem(
-                            value: 'trash',
-                            child: Text('Mover para a lixeira'),
-                          ),
-                        ],
-                      ),
+    builder: (_, __) {
+      final folded = foldForSearch(query.trim());
+      final items = store.notes.where((n) {
+        if (!n.locked || n.deletedAt != null) return false;
+        if (folded.isEmpty) return true;
+        return foldForSearch(n.title).contains(folded) ||
+            foldForSearch(n.body).contains(folded);
+      }).toList()..sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
+      return VaultSessionGuard(
+        store: store,
+        child: Scaffold(
+          appBar: AppBar(
+            title: searching
+                ? TextField(
+                    autofocus: true,
+                    decoration: const InputDecoration(
+                      hintText: 'Buscar no cofre',
+                      border: InputBorder.none,
+                      enabledBorder: InputBorder.none,
+                      focusedBorder: InputBorder.none,
                     ),
-                  );
-                },
+                    onChanged: (value) => setState(() => query = value),
+                  )
+                : const Text(
+                    'Cofre',
+                    style: TextStyle(fontWeight: FontWeight.w900),
+                  ),
+            actions: [
+              IconButton(
+                tooltip: searching ? 'Fechar busca' : 'Buscar no cofre',
+                icon: Icon(
+                  searching ? Icons.close_rounded : Icons.search_rounded,
+                ),
+                onPressed: () => setState(() {
+                  searching = !searching;
+                  if (!searching) query = '';
+                }),
               ),
-        floatingActionButton: FloatingActionButton(
-          tooltip: 'Nova nota no cofre',
-          onPressed: () => _open(
-            context,
-            Note(
-              id: DateTime.now().microsecondsSinceEpoch.toString(),
-              title: '',
-              body: '',
-              updatedAt: DateTime.now(),
-              font: store.font,
-              locked: true,
-            ),
-            isNew: true,
+              PopupMenuButton<String>(
+                tooltip: 'Opções do cofre',
+                onSelected: (value) {
+                  if (value == 'guide') showVaultGuide(context);
+                  if (value == 'lock') _pickLockTime();
+                  if (value == 'pin') changeVaultPin(context, store);
+                },
+                itemBuilder: (_) => const [
+                  PopupMenuItem(
+                    value: 'guide',
+                    child: ListTile(
+                      leading: Icon(Icons.info_outline_rounded),
+                      title: Text('Como funciona o cofre'),
+                    ),
+                  ),
+                  PopupMenuItem(
+                    value: 'lock',
+                    child: ListTile(
+                      leading: Icon(Icons.timer_outlined),
+                      title: Text('Quando pedir a senha'),
+                    ),
+                  ),
+                  PopupMenuItem(
+                    value: 'pin',
+                    child: ListTile(
+                      leading: Icon(Icons.password_rounded),
+                      title: Text('Trocar senha'),
+                    ),
+                  ),
+                ],
+              ),
+            ],
           ),
-          child: const Icon(Icons.add_rounded),
+          body: items.isEmpty
+              ? Center(
+                  child: Padding(
+                    padding: const EdgeInsets.all(32),
+                    child: Text(
+                      query.trim().isNotEmpty
+                          ? 'Nada encontrado no cofre.'
+                          : 'O cofre está vazio.\nCrie uma nota aqui ou use '
+                                '"Mover para o cofre" no menu de qualquer nota.',
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
+                )
+              : ListView.separated(
+                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
+                  itemCount: items.length,
+                  separatorBuilder: (_, __) => const SizedBox(height: 8),
+                  itemBuilder: (_, index) {
+                    final note = items[index];
+                    return Card(
+                      child: ListTile(
+                        leading: const Icon(Icons.lock_outline_rounded),
+                        title: Text(displayTitle(note)),
+                        subtitle: Text(
+                          'Editada em ${DateFormat('dd/MM/yyyy').format(note.updatedAt)}',
+                        ),
+                        onTap: () => _open(note),
+                        trailing: PopupMenuButton<String>(
+                          tooltip: 'Opções',
+                          onSelected: (value) async {
+                            if (value == 'unlock') {
+                              note.locked = false;
+                              await store.save();
+                              await store.refreshReminder(note);
+                            }
+                            if (value == 'trash') store.delete(note);
+                          },
+                          itemBuilder: (_) => const [
+                            PopupMenuItem(
+                              value: 'unlock',
+                              child: Text('Tirar do cofre'),
+                            ),
+                            PopupMenuItem(
+                              value: 'trash',
+                              child: Text('Mover para a lixeira'),
+                            ),
+                          ],
+                        ),
+                      ),
+                    );
+                  },
+                ),
+          floatingActionButton: FloatingActionButton(
+            tooltip: 'Nova nota no cofre',
+            onPressed: () => _open(
+              Note(
+                id: DateTime.now().microsecondsSinceEpoch.toString(),
+                title: '',
+                body: '',
+                updatedAt: DateTime.now(),
+                font: store.font,
+                locked: true,
+              ),
+              isNew: true,
+            ),
+            child: const Icon(Icons.add_rounded),
+          ),
         ),
       );
-      }),
-    ),
+    },
   );
 }

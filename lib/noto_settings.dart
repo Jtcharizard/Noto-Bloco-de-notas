@@ -207,6 +207,11 @@ class SettingsPage extends StatelessWidget {
     await store.save();
   }
 
+  static const _plusOptions = [
+    (0, 'Perguntar o tipo de nota'),
+    (1, 'Criar nota em branco direto'),
+    (2, 'Criar lista de tarefas direto'),
+  ];
   static const _radiusOptions = [
     (4, 'Retos'),
     (10, 'Suaves'),
@@ -257,6 +262,48 @@ class SettingsPage extends StatelessWidget {
       ),
     ),
   );
+
+  Future<void> _pickNewNoteColor(BuildContext context) async {
+    final picked = await showModalBottomSheet<int>(
+      context: context,
+      useSafeArea: true,
+      builder: (sheetContext) => Padding(
+        padding: const EdgeInsets.fromLTRB(20, 0, 20, 28),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const _SheetHeader('Cor das notas novas'),
+            Wrap(
+              spacing: 10,
+              runSpacing: 10,
+              children: [
+                for (var i = 0; i < NotoAppearance.noteColors.length; i++)
+                  InkWell(
+                    customBorder: const CircleBorder(),
+                    onTap: () => Navigator.pop(sheetContext, i),
+                    child: CircleAvatar(
+                      radius: 20,
+                      backgroundColor: i == 0
+                          ? Theme.of(sheetContext).colorScheme.surfaceContainerHighest
+                          : NotoAppearance.noteColors[i],
+                      child: store.newNoteColor == i
+                          ? const Icon(Icons.check_rounded, color: Colors.black87)
+                          : i == 0
+                          ? const Icon(Icons.block_rounded, size: 18)
+                          : null,
+                    ),
+                  ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+    if (picked == null) return;
+    store.newNoteColor = picked;
+    await store.save();
+  }
 
   Future<void> _editHomeTitle(BuildContext context) async {
     final controller = TextEditingController(text: store.homeTitle);
@@ -585,6 +632,42 @@ class SettingsPage extends StatelessWidget {
                     store.save();
                   },
                 ),
+                SwitchListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: const Text('Barra de atalhos no topo'),
+                  subtitle: const Text('Arquivadas, Lixeira, Pastas e Tags'),
+                  value: store.showShortcutsBar,
+                  onChanged: (value) {
+                    store.showShortcutsBar = value;
+                    store.save();
+                  },
+                ),
+                NotoTile(
+                  icon: Icons.add_circle_outline_rounded,
+                  title: 'Botão +',
+                  subtitle: _label(_plusOptions, store.plusAction),
+                  onTap: () async {
+                    final value = await _choose(
+                      context,
+                      'O que o botão + faz',
+                      _plusOptions,
+                      store.plusAction,
+                    );
+                    if (value != null) {
+                      store.plusAction = value;
+                      await store.save();
+                    }
+                  },
+                ),
+                NotoTile(
+                  icon: Icons.format_color_fill_rounded,
+                  iconColor: store.newNoteColor == 0
+                      ? null
+                      : NotoAppearance.noteColors[store.newNoteColor],
+                  title: 'Cor das notas novas',
+                  subtitle: store.newNoteColor == 0 ? 'Sem cor' : 'Personalizada',
+                  onTap: () => _pickNewNoteColor(context),
+                ),
                 // Só faz sentido escolher quando há notas para escolher.
                 if (_activeNotes.isNotEmpty)
                   NotoTile(
@@ -606,6 +689,12 @@ class SettingsPage extends StatelessWidget {
                   onTap: () => importBackup(context, store),
                 ),
                 NotoTile(
+                  icon: Icons.file_open_outlined,
+                  title: 'Importar arquivos de texto',
+                  subtitle: 'Vários .txt ou .md de uma vez, cada um vira uma nota',
+                  onTap: () => importTextFiles(context, store),
+                ),
+                NotoTile(
                   icon: Icons.ios_share_rounded,
                   title: 'Exportar todas as notas',
                   subtitle: 'Um arquivo de texto fácil de ler em qualquer lugar',
@@ -619,7 +708,7 @@ class SettingsPage extends StatelessWidget {
                 NotoTile(
                   icon: Icons.school_outlined,
                   title: 'Ver tutorial de novo',
-                  subtitle: 'Como usar o Noto em 5 telas',
+                  subtitle: 'Como usar o Noto em 6 telas',
                   onTap: () => Navigator.push(
                     context,
                     MaterialPageRoute(

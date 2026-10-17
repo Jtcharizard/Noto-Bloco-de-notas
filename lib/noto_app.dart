@@ -70,7 +70,7 @@ class _NotoAppState extends State<NotoApp> with WidgetsBindingObserver {
       final left = _leftAt;
       _leftAt = null;
       if (left != null &&
-          DateTime.now().difference(left) > const Duration(seconds: 30)) {
+          DateTime.now().difference(left).inSeconds >= store.vaultLockSeconds) {
         store.requestVaultLock();
       }
     }
