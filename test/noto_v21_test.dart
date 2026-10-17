@@ -56,6 +56,20 @@ void main() {
     expect(reminderOccursOn(note, DateTime(2026, 10, 13)), isFalse);
   });
 
+  test('lembrete mensal cai no mesmo dia, ou no último dia de meses curtos', () {
+    final note = Note(
+      id: 'm',
+      title: 'Aluguel',
+      body: '',
+      updatedAt: DateTime(2026, 1, 1),
+      reminderAt: DateTime(2026, 1, 31, 9),
+      reminderRepeat: 4,
+    );
+    expect(reminderOccursOn(note, DateTime(2026, 3, 31)), isTrue);
+    expect(reminderOccursOn(note, DateTime(2026, 2, 28)), isTrue);
+    expect(reminderOccursOn(note, DateTime(2026, 3, 30)), isFalse);
+  });
+
   test('notas do cofre ficam fora do resumo do dia', () {
     final now = DateTime(2026, 10, 16, 12);
     final notes = [

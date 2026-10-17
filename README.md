@@ -10,7 +10,7 @@
   [![Flutter](https://img.shields.io/badge/Flutter-3.x-02569B?logo=flutter&logoColor=white)](https://flutter.dev/)
   [![Dart](https://img.shields.io/badge/Dart-3.x-0175C2?logo=dart&logoColor=white)](https://dart.dev/)
   [![Android](https://img.shields.io/badge/Android-APK-3DDC84?logo=android&logoColor=white)](https://github.com/Jtcharizard/Noto-Bloco-de-notas/actions/workflows/gerar-apk.yml)
-  [![Versão](https://img.shields.io/badge/versão-2.5.1-8B5CF6)](https://github.com/Jtcharizard/Noto-Bloco-de-notas)
+  [![Versão](https://img.shields.io/badge/versão-2.6.0-8B5CF6)](https://github.com/Jtcharizard/Noto-Bloco-de-notas)
   [![Build APK](https://github.com/Jtcharizard/Noto-Bloco-de-notas/actions/workflows/gerar-apk.yml/badge.svg)](https://github.com/Jtcharizard/Noto-Bloco-de-notas/actions/workflows/gerar-apk.yml)
 </div>
 
@@ -42,6 +42,30 @@ O app funciona sem conta e sem internet. As notas e preferências ficam armazena
 - Compartilhamento e exportação em TXT
 - Apresentação inicial e tela Sobre
 - Salvamento local e funcionamento totalmente offline
+
+## Novidades da v2.6.0
+
+**Mais leve:** fontes reduzidas (só os caracteres usados em português), APK sem símbolos de depuração, tela inicial sem acessar o armazenamento a cada redesenho e código sem uso removido.
+
+**Pedidos:** tutorial com uma página sobre o cofre e explicação completa ao criar o cofre; listas como 1- 2- 3-, 1 - e a) continuam sozinhas com Enter.
+
+**Tela inicial:** voltar fecha a busca ou a seleção antes de sair; atalhos Favoritas, Com lembrete e Atrasadas; segurar o + cria o outro tipo de nota.
+
+**Editor:** fixar no topo pelo menu da nota; informações da nota (criada, editada, palavras, leitura); ligar a lista de tarefas transforma itens de lista em tarefas.
+
+**Listas de tarefas:** barra de progresso; marcar todas como feitas; copiar só o que falta; aviso quando tudo fica pronto.
+
+**Lembretes e calendário:** lembrete todo mês; página de próximos lembretes; deslizar para trocar de mês e dias atrasados em vermelho.
+
+**Organização e busca:** buscas recentes; #tag busca só nas tags; sugestões de tags ao organizar.
+
+**Cofre:** escolher quando pede a senha de novo; busca dentro do cofre; sem print e conteúdo escondido nos apps recentes; espera de 30 s depois de 5 senhas erradas.
+
+**Personalização:** o que o botão + faz; mostrar ou esconder a barra de atalhos; cor das notas novas.
+
+**Dados:** restaurar backup juntando com as notas atuais; importar vários .txt e .md de uma vez; backup leva os ajustes e o cofre.
+
+**Android:** receber arquivos de texto compartilhados; atalho "Última nota editada" no ícone; widget mostra quantas tarefas faltam.
 
 ## Novidades da v2.5.1
 
