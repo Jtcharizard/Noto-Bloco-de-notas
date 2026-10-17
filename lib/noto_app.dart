@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -21,6 +23,7 @@ class _NotoAppState extends State<NotoApp> with WidgetsBindingObserver {
   DateTime? _leftAt;
   Object? _loadError;
   bool _slow = false;
+  Timer? _slowTimer;
 
   @override
   void initState() {
@@ -36,7 +39,8 @@ class _NotoAppState extends State<NotoApp> with WidgetsBindingObserver {
       _loadError = null;
       _slow = false;
     });
-    Future<void>.delayed(const Duration(seconds: 6), () {
+    _slowTimer?.cancel();
+    _slowTimer = Timer(const Duration(seconds: 6), () {
       if (mounted && !store.loaded && _loadError == null) {
         setState(() => _slow = true);
       }
@@ -45,11 +49,14 @@ class _NotoAppState extends State<NotoApp> with WidgetsBindingObserver {
       await store.load().timeout(const Duration(seconds: 25));
     } catch (error) {
       if (mounted) setState(() => _loadError = error);
+    } finally {
+      _slowTimer?.cancel();
     }
   }
 
   @override
   void dispose() {
+    _slowTimer?.cancel();
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
   }
