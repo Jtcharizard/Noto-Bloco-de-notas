@@ -38,7 +38,7 @@ dev_dependencies:
 dependency_overrides:
   image: 4.3.0
   # 2.5.0 passou a usar JNI e quebra no APK otimizado (o app travava ao abrir).
-  shared_preferences_android: 2.4.29
+  shared_preferences_android: 2.4.28
 
 flutter:
   uses-material-design: true
