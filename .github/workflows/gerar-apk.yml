@@ -156,3 +156,47 @@ jobs:
           keytool -printcert -jarfile "Noto-$version.apk" | grep -m1 SHA256 | sed 's/^/::notice::Assinatura /'
           gh release delete "v$version" -y --cleanup-tag || true
           gh release create "v$version" "Noto-$version.apk" "Noto-$version-celulares-antigos.apk" --target "$GITHUB_SHA" --title "Noto $version" --notes "Baixe Noto-$version.apk e abra no celular. Se não instalar, seu aparelho é mais antigo: use o arquivo celulares-antigos." --prerelease
+
+  emulador:
+    # Abre o APK num Android virtual para achar travamentos que só aparecem no aparelho.
+    needs: android
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-24.04
+    continue-on-error: true
+    permissions:
+      contents: write
+    steps:
+      - name: Baixar projeto
+        uses: actions/checkout@v5
+
+      - name: Baixar APK do build
+        uses: actions/download-artifact@v4
+        with:
+          name: Noto-APK
+          path: apk
+
+      - name: Liberar aceleração do emulador
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      - name: Rodar no Android virtual
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 34
+          arch: x86_64
+          target: google_apis
+          disable-animations: true
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -no-snapshot
+          script: bash tools/emulador.sh
+
+      - name: Publicar diagnóstico
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          ls -la diagnostico || exit 0
+          grep -E "E flutter|FATAL EXCEPTION|Unhandled Exception" diagnostico/logcat-noto.txt | head -8 | sed 's/^/::warning::/' || true
+          gh release delete diagnostico -y --cleanup-tag || true
+          gh release create diagnostico diagnostico/* --target "$GITHUB_SHA" --title "Diagnóstico (emulador)" --notes "Prints e log do teste no Android virtual." --prerelease
