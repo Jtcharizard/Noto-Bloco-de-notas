@@ -1994,14 +1994,14 @@ class _NoteCard extends StatelessWidget {
         ? Colors.white70
         : cs.onSurface.withValues(alpha: .58);
     // Sem título, a primeira linha vira o título; a prévia mostra o resto.
-    var previewLines = readablePreview(note.body)
+    var bodyLines = readablePreview(note.body)
         .split('\n')
         .where((line) => line.trim().isNotEmpty)
         .toList();
-    if (note.title.trim().isEmpty && previewLines.isNotEmpty) {
-      previewLines = previewLines.skip(1).toList();
+    if (note.title.trim().isEmpty && bodyLines.isNotEmpty) {
+      bodyLines = bodyLines.skip(1).toList();
     }
-    final preview = previewLines.join('  ');
+    final preview = bodyLines.join('  ');
     final pending = countPendingTasks(note.body);
     final done = countDoneTasks(note.body);
     final total = pending + done;
