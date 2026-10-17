@@ -72,6 +72,7 @@ jobs:
 
       - name: Gerar estrutura Android
         run: |
+          trap 'echo "::error::Falhou: $BASH_COMMAND"; grep -n "buildTypes\|signingConfig\|release {" android/app/build.gradle.kts | head -10 | sed "s/^/::error::/"' ERR
           flutter create --platforms=android .
           sed -i 's/android:label="bloco_personalizavel"/android:label="Noto"/' android/app/src/main/AndroidManifest.xml
           sed -i '/<application/i\    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />' android/app/src/main/AndroidManifest.xml
