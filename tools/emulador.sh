@@ -46,6 +46,16 @@ launch
 expect_text "Criar primeira nota" "segunda abertura deveria ir direto à tela inicial"
 shot 3-segunda-abertura
 
+# Os três widgets precisam estar registrados no Android.
+for widget in NotoWidgetProvider NotoQuickWidgetProvider NotoSummaryWidgetProvider; do
+  if adb shell dumpsys appwidget | grep -q "$widget"; then
+    echo "OK: widget $widget registrado"
+  else
+    echo "::error::Widget $widget não aparece no Android"
+    FAIL=1
+  fi
+done
+
 adb logcat -d > "$OUT/logcat-completo.txt"
 grep -E " $PKG|E flutter|AndroidRuntime|FATAL" "$OUT/logcat-completo.txt" > "$OUT/logcat-noto.txt" || true
 if grep -qE "E flutter.*Unhandled Exception|FATAL EXCEPTION" "$OUT/logcat-noto.txt"; then

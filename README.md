@@ -10,7 +10,7 @@
   [![Flutter](https://img.shields.io/badge/Flutter-3.x-02569B?logo=flutter&logoColor=white)](https://flutter.dev/)
   [![Dart](https://img.shields.io/badge/Dart-3.x-0175C2?logo=dart&logoColor=white)](https://dart.dev/)
   [![Android](https://img.shields.io/badge/Android-APK-3DDC84?logo=android&logoColor=white)](https://github.com/Jtcharizard/Noto-Bloco-de-notas/actions/workflows/gerar-apk.yml)
-  [![Versão](https://img.shields.io/badge/versão-2.6.0-8B5CF6)](https://github.com/Jtcharizard/Noto-Bloco-de-notas)
+  [![Versão](https://img.shields.io/badge/versão-2.7.0-8B5CF6)](https://github.com/Jtcharizard/Noto-Bloco-de-notas)
   [![Build APK](https://github.com/Jtcharizard/Noto-Bloco-de-notas/actions/workflows/gerar-apk.yml/badge.svg)](https://github.com/Jtcharizard/Noto-Bloco-de-notas/actions/workflows/gerar-apk.yml)
 </div>
 
@@ -42,6 +42,28 @@ O app funciona sem conta e sem internet. As notas e preferências ficam armazena
 - Compartilhamento e exportação em TXT
 - Apresentação inicial e tela Sobre
 - Salvamento local e funcionamento totalmente offline
+
+## Novidades da v2.7.0
+
+**Widget novo 2x2 "Resumo do dia":** tarefas a fazer, próximo lembrete e botões + Nota e + Lista. Os widgets ganharam as cores novas do Noto.
+
+**Tela inicial:** tocar no nome do topo volta ao começo; busca por voz; no modo lista, notas agrupadas por Hoje, Ontem, Últimos 7 dias…
+
+**Editor:** ordenar linhas de A a Z; limpar linhas vazias e espaços; MAIÚSCULAS, minúsculas e Iniciais no trecho selecionado.
+
+**Listas de tarefas:** página "Todas as tarefas" com tudo que falta, para marcar direto; adicionar várias tarefas de uma vez; ordenar tarefas de A a Z.
+
+**Lembretes e calendário:** adiar 10 min ou 1 hora pela notificação; prazo com lembrete um dia antes; calendário só com prazos e lembretes.
+
+**Organização e busca:** várias palavras em qualquer ordem; resultados com a palavra no título primeiro; segurar uma pasta fixa ela no começo.
+
+**Cofre:** olho para ver a senha digitada; "Trancar agora"; aviso quando alguém errou a senha.
+
+**Personalização:** escolher o que deslizar para cada lado faz; cards compactos; esconder os atalhos de pastas.
+
+**Dados:** data do último backup; exportar uma pasta inteira; limpar versões antigas e ver o espaço usado.
+
+**Android:** o widget de nota abre a própria nota; atalho "Ditar uma nota" no ícone; compartilhar várias notas selecionadas.
 
 ## Novidades da v2.6.0
 
