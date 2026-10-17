@@ -121,7 +121,7 @@ void main() {
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
-    final store = AppStore();
+    final store = AppStore()..loaded = true;
     final note = Note(
       id: 'edit',
       title: 'Teste',

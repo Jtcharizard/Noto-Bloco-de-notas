@@ -347,6 +347,8 @@ class AppStore extends ChangeNotifier {
   Future<void> _saveQueue = Future<void>.value();
 
   Future<void> save() {
+    // Nunca grava antes de ler: se a leitura falhou, gravar apagaria as notas.
+    if (!loaded) return Future<void>.value();
     final next = _saveQueue.then((_) => _saveNow());
     _saveQueue = next.catchError((Object _) {});
     return next;

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import 'noto_home.dart';
 import 'noto_store.dart';
@@ -18,12 +19,33 @@ class NotoApp extends StatefulWidget {
 class _NotoAppState extends State<NotoApp> with WidgetsBindingObserver {
   final store = AppStore();
   DateTime? _leftAt;
+  Object? _loadError;
+  bool _slow = false;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    store.load();
+    _load();
+  }
+
+  /// Lê as notas. Se der erro ou demorar demais, mostra uma tela clara
+  /// em vez de ficar carregando para sempre.
+  Future<void> _load() async {
+    setState(() {
+      _loadError = null;
+      _slow = false;
+    });
+    Future<void>.delayed(const Duration(seconds: 6), () {
+      if (mounted && !store.loaded && _loadError == null) {
+        setState(() => _slow = true);
+      }
+    });
+    try {
+      await store.load().timeout(const Duration(seconds: 25));
+    } catch (error) {
+      if (mounted) setState(() => _loadError = error);
+    }
   }
 
   @override
@@ -80,8 +102,23 @@ class _NotoAppState extends State<NotoApp> with WidgetsBindingObserver {
       theme: notoTheme(store, Brightness.light),
       darkTheme: notoTheme(store, Brightness.dark),
       themeMode: store.mode,
-      home: !store.loaded
-          ? const Scaffold(body: Center(child: CircularProgressIndicator()))
+      home: _loadError != null
+          ? _LoadProblem(error: _loadError!, onRetry: _load)
+          : !store.loaded
+          ? Scaffold(
+              body: Center(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const CircularProgressIndicator(),
+                    if (_slow) ...[
+                      const SizedBox(height: 18),
+                      const Text('Abrindo suas notas…'),
+                    ],
+                  ],
+                ),
+              ),
+            )
           : store.onboardingDone
           ? GlobalWallpaper(
               store: store,
@@ -95,4 +132,66 @@ class _NotoAppState extends State<NotoApp> with WidgetsBindingObserver {
             ),
     ),
   );
+}
+
+class _LoadProblem extends StatelessWidget {
+  const _LoadProblem({required this.error, required this.onRetry});
+  final Object error;
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final details = error.toString();
+    return Scaffold(
+      body: SafeArea(
+        child: Center(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(28),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.error_outline_rounded, size: 52, color: cs.error),
+                const SizedBox(height: 14),
+                Text(
+                  'Não consegui abrir as notas',
+                  textAlign: TextAlign.center,
+                  style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                const Text(
+                  'Suas notas continuam guardadas no celular; nada foi apagado. '
+                  'Tente de novo. Se continuar, copie os detalhes e envie para quem '
+                  'cuida do app.',
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 18),
+                FilledButton(onPressed: onRetry, child: const Text('Tentar de novo')),
+                TextButton(
+                  onPressed: () {
+                    Clipboard.setData(ClipboardData(text: details));
+                    ScaffoldMessenger.maybeOf(context)?.showSnackBar(
+                      const SnackBar(content: Text('Detalhes copiados')),
+                    );
+                  },
+                  child: const Text('Copiar detalhes'),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  details.length > 400 ? '${details.substring(0, 400)}…' : details,
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: cs.onSurface.withValues(alpha: .55),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 }

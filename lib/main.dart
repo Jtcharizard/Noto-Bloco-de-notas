@@ -24,27 +24,38 @@ tz.Location _localTimeZone() {
   return match ?? preferred;
 }
 
+/// Cada etapa da abertura tem limite de tempo: se uma falhar, o app abre mesmo assim.
+Future<void> _safely(Future<void> Function() step) async {
+  try {
+    await step().timeout(const Duration(seconds: 5));
+  } catch (_) {
+    /* Segue sem essa etapa (ex.: notificações indisponíveis). */
+  }
+}
+
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await initializeDateFormatting('pt_BR');
-  tzdata.initializeTimeZones();
-  tz.setLocalLocation(_localTimeZone());
-  await notifications.initialize(
-    const InitializationSettings(
-      android: AndroidInitializationSettings('@mipmap/ic_launcher'),
+  await _safely(() => initializeDateFormatting('pt_BR'));
+  await _safely(() async {
+    tzdata.initializeTimeZones();
+    tz.setLocalLocation(_localTimeZone());
+  });
+  await _safely(
+    () => notifications.initialize(
+      const InitializationSettings(
+        android: AndroidInitializationSettings('@mipmap/ic_launcher'),
+      ),
+      onDidReceiveNotificationResponse: (response) {
+        final id = response.payload;
+        if (id != null && id.isNotEmpty) noteOpenRequests.add(id);
+      },
     ),
-    onDidReceiveNotificationResponse: (response) {
-      final id = response.payload;
-      if (id != null && id.isNotEmpty) noteOpenRequests.add(id);
-    },
   );
-  try {
+  await _safely(() async {
     final launch = await notifications.getNotificationAppLaunchDetails();
     if (launch?.didNotificationLaunchApp ?? false) {
       pendingNoteOpen = launch!.notificationResponse?.payload;
     }
-  } catch (_) {
-    /* Sem detalhes de abertura: segue normal. */
-  }
+  });
   runApp(const NotoApp());
 }
