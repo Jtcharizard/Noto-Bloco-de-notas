@@ -114,6 +114,32 @@ class _HomeShellState extends State<HomeShell> {
     _loadCollections();
     _listenToQuickWidget();
     _listenToShares();
+    _noteRequests = noteOpenRequests.stream.listen(_openById);
+    final pending = pendingNoteOpen;
+    if (pending != null) {
+      pendingNoteOpen = null;
+      WidgetsBinding.instance.addPostFrameCallback((_) => _openById(pending));
+    }
+  }
+
+  StreamSubscription<String>? _noteRequests;
+  final _searchController = TextEditingController();
+
+  /// Abre a nota do lembrete tocado. Nota do cofre pede a senha antes.
+  Future<void> _openById(String id) async {
+    Note? note;
+    for (final item in widget.store.notes) {
+      if (item.id == id && item.deletedAt == null) {
+        note = item;
+        break;
+      }
+    }
+    if (note == null || !mounted) return;
+    if (note.locked) {
+      final ok = await unlockVault(context, widget.store);
+      if (!ok || !mounted) return;
+    }
+    await _openNote(note);
   }
 
   static const _shareChannel = MethodChannel('noto/share');
@@ -160,6 +186,8 @@ class _HomeShellState extends State<HomeShell> {
   @override
   void dispose() {
     _widgetClicks?.cancel();
+    _noteRequests?.cancel();
+    _searchController.dispose();
     _shareChannel.setMethodCallHandler(null);
     super.dispose();
   }
@@ -1005,7 +1033,11 @@ class _HomeShellState extends State<HomeShell> {
     context,
     MaterialPageRoute(
       builder: (_) =>
-          CalendarPage(store: widget.store, onOpen: (note) => _openNote(note)),
+          CalendarPage(
+            store: widget.store,
+            onOpen: (note) => _openNote(note),
+            onCreate: (note) => _openNote(note, isNew: true),
+          ),
     ),
   );
 
@@ -1168,7 +1200,10 @@ class _HomeShellState extends State<HomeShell> {
               tooltip: searching ? 'Fechar busca' : 'Buscar',
               onPressed: () => setState(() {
                 searching = !searching;
-                if (!searching) query = '';
+                if (!searching) {
+                  query = '';
+                  _searchController.clear();
+                }
               }),
               icon: Icon(
                 searching ? Icons.close_rounded : Icons.search_rounded,
@@ -1210,9 +1245,20 @@ class _HomeShellState extends State<HomeShell> {
                 Padding(
                   padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
                   child: TextField(
+                    controller: _searchController,
                     autofocus: true,
-                    decoration: const InputDecoration(
+                    decoration: InputDecoration(
                       hintText: 'Buscar no Noto',
+                      suffixIcon: query.isEmpty
+                          ? null
+                          : IconButton(
+                              tooltip: 'Limpar busca',
+                              icon: const Icon(Icons.close_rounded),
+                              onPressed: () {
+                                _searchController.clear();
+                                setState(() => query = '');
+                              },
+                            ),
                     ),
                     onChanged: (value) => setState(() => query = value),
                   ),
@@ -1220,7 +1266,19 @@ class _HomeShellState extends State<HomeShell> {
               if (widget.store.homeShowToday)
                 _TodayLine(snapshot: snapshot),
               if (_allFolders.length > 1) _folderChips(),
-              if (active.length >= 3 &&
+              if (widget.store.shouldNudgeBackup)
+                _TipCard(
+                  text:
+                      'Faz um tempo que você não faz backup. Guarde uma cópia '
+                      'das notas caso troque ou perca o celular.',
+                  actionLabel: 'Fazer',
+                  onAction: () => exportBackup(context, widget.store),
+                  onClose: () {
+                    widget.store.backupNudgeDismissedAt = DateTime.now();
+                    widget.store.save();
+                  },
+                )
+              else if (active.length >= 3 &&
                   !widget.store.seenTips.contains('home-gestures'))
                 _TipCard(
                   text:
@@ -1294,6 +1352,13 @@ class _HomeShellState extends State<HomeShell> {
                 child: notes.isEmpty
                     ? _EmptyNotes(
                         filtered: _hasFilters || query.trim().isNotEmpty,
+                        query: query.trim(),
+                        onCreate: _createNote,
+                        onClear: () {
+                          _searchController.clear();
+                          setState(() => query = '');
+                          _clearFilters();
+                        },
                       )
                     : widget.store.layoutMode == 1
                     ? ListView.separated(
@@ -1556,9 +1621,16 @@ class _TodayLine extends StatelessWidget {
 }
 
 class _TipCard extends StatelessWidget {
-  const _TipCard({required this.text, required this.onClose});
+  const _TipCard({
+    required this.text,
+    required this.onClose,
+    this.actionLabel,
+    this.onAction,
+  });
   final String text;
   final VoidCallback onClose;
+  final String? actionLabel;
+  final VoidCallback? onAction;
 
   @override
   Widget build(BuildContext context) {
@@ -1580,7 +1652,12 @@ class _TipCard extends StatelessWidget {
               style: TextStyle(color: cs.onPrimaryContainer, height: 1.35),
             ),
           ),
-          TextButton(onPressed: onClose, child: const Text('Entendi')),
+          if (actionLabel != null)
+            TextButton(onPressed: onAction, child: Text(actionLabel!)),
+          TextButton(
+            onPressed: onClose,
+            child: Text(actionLabel == null ? 'Entendi' : 'Agora não'),
+          ),
         ],
       ),
     );
@@ -1659,8 +1736,24 @@ class _NoteCard extends StatelessWidget {
     final metadataColor = hasWallpaper
         ? Colors.white70
         : cs.onSurface.withValues(alpha: .58);
-    final preview = readablePreview(note.body).replaceAll('\n', '  ');
+    // Sem título, a primeira linha vira o título; a prévia mostra o resto.
+    var previewLines = readablePreview(note.body)
+        .split('\n')
+        .where((line) => line.trim().isNotEmpty)
+        .toList();
+    if (note.title.trim().isEmpty && previewLines.isNotEmpty) {
+      previewLines = previewLines.skip(1).toList();
+    }
+    final preview = previewLines.join('  ');
     final pending = countPendingTasks(note.body);
+    final done = countDoneTasks(note.body);
+    final total = pending + done;
+    final accentText =
+        customTextColor ?? (hasWallpaper ? Colors.white : cs.primary);
+    final reminder = note.reminderAt;
+    final showReminder =
+        reminder != null &&
+        (note.reminderRepeat > 0 || reminder.isAfter(DateTime.now()));
     final cover = note.coverImage == null ? null : File(note.coverImage!);
     final hasCover = cover != null && cover.existsSync();
 
@@ -1724,9 +1817,7 @@ class _NoteCard extends StatelessWidget {
                             ],
                             Expanded(
                               child: Text(
-                                note.title.trim().isEmpty
-                                    ? 'Sem título'
-                                    : note.title,
+                                displayTitle(note),
                                 maxLines: 2,
                                 overflow: TextOverflow.ellipsis,
                                 style: TextStyle(
@@ -1775,18 +1866,59 @@ class _NoteCard extends StatelessWidget {
                           spacing: 5,
                           runSpacing: 2,
                           children: [
-                            if (pending > 0)
-                              Text(
-                                '$pending a fazer',
-                                style: TextStyle(
-                                  color:
-                                      customTextColor ??
-                                      (hasWallpaper
-                                          ? Colors.white
-                                          : cs.primary),
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.w800,
-                                ),
+                            if (total > 0)
+                              Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  SizedBox(
+                                    width: 34,
+                                    child: ClipRRect(
+                                      borderRadius: BorderRadius.circular(4),
+                                      child: LinearProgressIndicator(
+                                        value: done / total,
+                                        minHeight: 4,
+                                        color: accentText,
+                                        backgroundColor: accentText.withValues(
+                                          alpha: .22,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 5),
+                                  Text(
+                                    '$done/$total',
+                                    style: TextStyle(
+                                      color: accentText,
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w800,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            if (showReminder)
+                              Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(
+                                    note.reminderRepeat > 0
+                                        ? Icons.repeat_rounded
+                                        : Icons.notifications_none_rounded,
+                                    size: 12,
+                                    color: metadataColor,
+                                  ),
+                                  const SizedBox(width: 2),
+                                  Text(
+                                    note.reminderRepeat > 0
+                                        ? DateFormat('HH:mm').format(reminder!)
+                                        : DateFormat('dd/MM HH:mm')
+                                              .format(reminder!),
+                                    style: TextStyle(
+                                      color: metadataColor,
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
+                                ],
                               ),
                             if (note.priority > 0)
                               Text(
@@ -1838,19 +1970,52 @@ class _NoteCard extends StatelessWidget {
 }
 
 class _EmptyNotes extends StatelessWidget {
-  const _EmptyNotes({required this.filtered});
+  const _EmptyNotes({
+    required this.filtered,
+    required this.query,
+    required this.onCreate,
+    required this.onClear,
+  });
   final bool filtered;
+  final String query;
+  final VoidCallback onCreate;
+  final VoidCallback onClear;
 
   @override
   Widget build(BuildContext context) => Center(
     child: Padding(
       padding: const EdgeInsets.all(32),
-      child: Text(
-        filtered
-            ? 'Nenhuma nota encontrada.'
-            : 'Nenhuma nota ainda.\nToque no + para começar.',
-        textAlign: TextAlign.center,
-        style: Theme.of(context).textTheme.bodyMedium,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            filtered ? Icons.search_off_rounded : Icons.edit_note_rounded,
+            size: 48,
+            color: Theme.of(context).colorScheme.primary,
+          ),
+          const SizedBox(height: 12),
+          Text(
+            filtered
+                ? query.isEmpty
+                      ? 'Nenhuma nota com esses filtros.'
+                      : 'Nada encontrado para "$query".'
+                : 'Nenhuma nota ainda.',
+            textAlign: TextAlign.center,
+            style: Theme.of(context).textTheme.titleMedium,
+          ),
+          const SizedBox(height: 16),
+          if (filtered)
+            OutlinedButton(
+              onPressed: onClear,
+              child: const Text('Limpar busca e filtros'),
+            )
+          else
+            FilledButton.icon(
+              onPressed: onCreate,
+              icon: const Icon(Icons.add_rounded),
+              label: const Text('Criar primeira nota'),
+            ),
+        ],
       ),
     ),
   );

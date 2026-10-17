@@ -1,7 +1,7 @@
 name: bloco_personalizavel
 description: Bloco de notas offline com temas e fontes personalizaveis.
 publish_to: none
-version: 2.3.0+15
+version: 2.4.0+16
 
 environment:
   sdk: '>=3.4.0 <4.0.0'
@@ -27,6 +27,8 @@ dev_dependencies:
     sdk: flutter
   flutter_lints: ^4.0.0
   flutter_launcher_icons: ^0.14.4
+  path_provider_platform_interface: ^2.1.2
+  plugin_platform_interface: ^2.1.8
 
 # O pacote pdf ainda usa archive 3.x; versões novas do image exigem archive 4.
 dependency_overrides:

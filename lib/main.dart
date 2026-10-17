@@ -33,6 +33,18 @@ Future<void> main() async {
     const InitializationSettings(
       android: AndroidInitializationSettings('@mipmap/ic_launcher'),
     ),
+    onDidReceiveNotificationResponse: (response) {
+      final id = response.payload;
+      if (id != null && id.isNotEmpty) noteOpenRequests.add(id);
+    },
   );
+  try {
+    final launch = await notifications.getNotificationAppLaunchDetails();
+    if (launch?.didNotificationLaunchApp ?? false) {
+      pendingNoteOpen = launch!.notificationResponse?.payload;
+    }
+  } catch (_) {
+    /* Sem detalhes de abertura: segue normal. */
+  }
   runApp(const NotoApp());
 }

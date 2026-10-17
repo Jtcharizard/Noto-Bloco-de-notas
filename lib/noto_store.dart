@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
@@ -13,6 +14,12 @@ import 'noto_models.dart';
 import 'noto_rich_editor.dart';
 
 final notifications = FlutterLocalNotificationsPlugin();
+
+/// Pedidos para abrir uma nota (ex.: toque na notificação de um lembrete).
+final noteOpenRequests = StreamController<String>.broadcast();
+
+/// Nota pedida pela notificação que abriu o app do zero.
+String? pendingNoteOpen;
 
 class _SavedNoteContent {
   const _SavedNoteContent(this.title, this.body, this.editor);
@@ -93,6 +100,17 @@ class AppStore extends ChangeNotifier {
   bool get hasVault => vaultPinHash != null;
 
   final Set<String> seenTips = {};
+
+  DateTime? lastBackupAt;
+  DateTime? backupNudgeDismissedAt;
+
+  /// Lembrar de fazer backup: com várias notas e 30 dias sem backup.
+  bool get shouldNudgeBackup {
+    final now = DateTime.now();
+    bool old(DateTime? at) => at == null || now.difference(at).inDays >= 30;
+    final active = notes.where((n) => n.deletedAt == null).length;
+    return active >= 5 && old(lastBackupAt) && old(backupNudgeDismissedAt);
+  }
 
   /// Devolve true só na primeira vez que a dica é pedida.
   bool takeTip(String id) {
@@ -210,6 +228,10 @@ class AppStore extends ChangeNotifier {
         .toDouble();
     widgetNoteId = prefs.getString('widgetNoteId');
     onboardingDone = prefs.getBool('onboardingDone') ?? false;
+    lastBackupAt = DateTime.tryParse(prefs.getString('lastBackupAt') ?? '');
+    backupNudgeDismissedAt = DateTime.tryParse(
+      prefs.getString('backupNudgeDismissedAt') ?? '',
+    );
     vaultPinHash = prefs.getString('vaultPinHash');
     vaultSalt = prefs.getString('vaultSalt') ?? '';
     vaultQuestion = prefs.getString('vaultQuestion') ?? '';
@@ -358,6 +380,16 @@ class AppStore extends ChangeNotifier {
       }
     }
     await prefs.setString('vaultSalt', vaultSalt);
+    for (final entry in {
+      'lastBackupAt': lastBackupAt,
+      'backupNudgeDismissedAt': backupNudgeDismissedAt,
+    }.entries) {
+      if (entry.value == null) {
+        await prefs.remove(entry.key);
+      } else {
+        await prefs.setString(entry.key, entry.value!.toIso8601String());
+      }
+    }
     await prefs.setString('vaultQuestion', vaultQuestion);
     await prefs.setBool('homeShowToday', homeShowToday);
     await prefs.setBool('homeShowRecents', homeShowRecents);
@@ -496,7 +528,7 @@ class AppStore extends ChangeNotifier {
       'note_title',
       selected == null
           ? 'Noto'
-          : (selected.title.trim().isEmpty ? 'Sem título' : selected.title),
+          : (displayTitle(selected)),
     );
     await HomeWidget.saveWidgetData<String>(
       'note_body',
@@ -686,9 +718,8 @@ class AppStore extends ChangeNotifier {
     save();
   }
 
-  void duplicate(Note note) {
-    notes.add(
-      Note(
+  Note duplicate(Note note) {
+    final copy = Note(
         id: DateTime.now().microsecondsSinceEpoch.toString(),
         title: note.title.trim().isEmpty ? '' : '${note.title} (cópia)',
         body: note.body,
@@ -713,8 +744,9 @@ class AppStore extends ChangeNotifier {
         cardOpacity: note.cardOpacity,
         priority: note.priority,
         dueAt: note.dueAt,
-      ),
-    );
+      );
+    notes.add(copy);
     save();
+    return copy;
   }
 }

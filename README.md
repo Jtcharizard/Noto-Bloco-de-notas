@@ -10,7 +10,7 @@
   [![Flutter](https://img.shields.io/badge/Flutter-3.x-02569B?logo=flutter&logoColor=white)](https://flutter.dev/)
   [![Dart](https://img.shields.io/badge/Dart-3.x-0175C2?logo=dart&logoColor=white)](https://dart.dev/)
   [![Android](https://img.shields.io/badge/Android-APK-3DDC84?logo=android&logoColor=white)](https://github.com/Jtcharizard/Noto-Bloco-de-notas/actions/workflows/gerar-apk.yml)
-  [![Versão](https://img.shields.io/badge/versão-2.3.0-8B5CF6)](https://github.com/Jtcharizard/Noto-Bloco-de-notas)
+  [![Versão](https://img.shields.io/badge/versão-2.4.0-8B5CF6)](https://github.com/Jtcharizard/Noto-Bloco-de-notas)
   [![Build APK](https://github.com/Jtcharizard/Noto-Bloco-de-notas/actions/workflows/gerar-apk.yml/badge.svg)](https://github.com/Jtcharizard/Noto-Bloco-de-notas/actions/workflows/gerar-apk.yml)
 </div>
 
@@ -42,6 +42,20 @@ O app funciona sem conta e sem internet. As notas e preferências ficam armazena
 - Compartilhamento e exportação em TXT
 - Apresentação inicial e tela Sobre
 - Salvamento local e funcionamento totalmente offline
+
+## Novidades da v2.4.0
+
+- Notas sem título mostram a primeira linha como título
+- Tocar na notificação do lembrete abre a nota (do cofre, pede a senha)
+- Cards mostram o progresso da lista (2/5) e o próximo lembrete
+- Busca com botão de limpar e aviso quando nada é encontrado
+- Tela vazia com botão para criar a primeira nota
+- Aviso para fazer backup depois de 30 dias sem
+- Calendário cria nota com prazo no dia escolhido
+- Lixeira: confirmar antes de apagar de vez, restaurar tudo e dias até sumir
+- Apagar uma linha da lista tem "Desfazer"; vibração leve ao marcar tarefa
+- "Cópia criada" com atalho para abrir a cópia
+- Testes automáticos do salvamento em arquivo
 
 ## Novidades da v2.3.0
 

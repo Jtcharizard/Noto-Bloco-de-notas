@@ -7,6 +7,7 @@ import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 
 import 'noto_editor.dart';
+import 'noto_features.dart';
 import 'noto_models.dart';
 import 'noto_store.dart';
 
@@ -498,7 +499,7 @@ class VaultPage extends StatelessWidget {
                     child: ListTile(
                       leading: const Icon(Icons.lock_outline_rounded),
                       title: Text(
-                        note.title.trim().isEmpty ? 'Sem título' : note.title,
+                        displayTitle(note),
                       ),
                       subtitle: Text(
                         'Editada em ${DateFormat('dd/MM/yyyy').format(note.updatedAt)}',

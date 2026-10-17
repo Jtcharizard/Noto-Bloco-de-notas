@@ -11,6 +11,14 @@ void main() {
     expect(foldForSearch('Pão de Ló'), contains('pao de lo'));
   });
 
+  test('nota sem título usa a primeira linha', () {
+    Note n(String title, String body) =>
+        Note(id: 'x', title: title, body: body, updatedAt: DateTime(2026));
+    expect(displayTitle(n('Mercado', 'leite')), 'Mercado');
+    expect(displayTitle(n('', '\n- [ ] Comprar pão\nleite')), 'Comprar pão');
+    expect(displayTitle(n('', '')), 'Sem título');
+  });
+
   test('nota antiga ganha data de criação e campos novos', () {
     final note = Note.fromJson({
       'id': '1',

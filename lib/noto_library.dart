@@ -9,6 +9,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 
 import 'noto_editor.dart';
+import 'noto_features.dart';
 import 'noto_models.dart';
 import 'noto_store.dart';
 
@@ -284,7 +285,7 @@ class ArchivePage extends StatelessWidget {
                     child: ListTile(
                       leading: const Icon(Icons.archive_outlined),
                       title: Text(
-                        note.title.trim().isEmpty ? 'Sem título' : note.title,
+                        displayTitle(note),
                       ),
                       subtitle: Text(note.folder),
                       onTap: () => Navigator.push(
@@ -323,6 +324,13 @@ class ArchivePage extends StatelessWidget {
   );
 }
 
+String _trashSubtitle(DateTime deletedAt) {
+  final left = 30 - DateTime.now().difference(deletedAt).inDays;
+  final when = DateFormat('dd/MM').format(deletedAt);
+  if (left <= 1) return 'Apagada em $when · some amanhã';
+  return 'Apagada em $when · some em $left dias';
+}
+
 class TrashPage extends StatelessWidget {
   const TrashPage({super.key, required this.store});
   final AppStore store;
@@ -340,6 +348,21 @@ class TrashPage extends StatelessWidget {
             style: TextStyle(fontWeight: FontWeight.w900),
           ),
           actions: [
+            if (items.length > 1)
+              TextButton(
+                onPressed: () {
+                  for (final note in items) {
+                    note.deletedAt = null;
+                  }
+                  store.save();
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('${items.length} notas restauradas'),
+                    ),
+                  );
+                },
+                child: const Text('Restaurar tudo'),
+              ),
             if (items.isNotEmpty)
               TextButton(
                 onPressed: () async {
@@ -388,17 +411,38 @@ class TrashPage extends StatelessWidget {
                       title: Text(
                         note.locked
                             ? 'Nota do cofre'
-                            : note.title.trim().isEmpty
-                            ? 'Sem título'
-                            : note.title,
+                            : displayTitle(note),
                       ),
                       subtitle: Text(
-                        'Apagada em ${DateFormat('dd/MM • HH:mm').format(note.deletedAt!)}',
+                        _trashSubtitle(note.deletedAt!),
                       ),
                       trailing: PopupMenuButton<String>(
-                        onSelected: (value) {
+                        onSelected: (value) async {
                           if (value == 'restore') store.restore(note);
-                          if (value == 'delete') store.deleteForever(note);
+                          if (value == 'delete') {
+                            final ok = await showDialog<bool>(
+                              context: context,
+                              builder: (dialogContext) => AlertDialog(
+                                title: const Text('Apagar de vez?'),
+                                content: const Text(
+                                  'Essa nota some para sempre. Não dá para desfazer.',
+                                ),
+                                actions: [
+                                  TextButton(
+                                    onPressed: () =>
+                                        Navigator.pop(dialogContext, false),
+                                    child: const Text('Cancelar'),
+                                  ),
+                                  FilledButton(
+                                    onPressed: () =>
+                                        Navigator.pop(dialogContext, true),
+                                    child: const Text('Apagar'),
+                                  ),
+                                ],
+                              ),
+                            );
+                            if (ok == true) store.deleteForever(note);
+                          }
 
                         },
                         itemBuilder: (_) => const [
@@ -468,7 +512,14 @@ Future<void> exportBackup(BuildContext context, AppStore store) async {
     '${dir.path}/Noto-backup-${DateFormat('yyyy-MM-dd').format(DateTime.now())}.noto',
   );
   await file.writeAsString(jsonEncode(data));
-  await Share.shareXFiles([XFile(file.path)], text: 'Backup completo do Noto');
+  final result = await Share.shareXFiles(
+    [XFile(file.path)],
+    text: 'Backup completo do Noto',
+  );
+  if (result.status != ShareResultStatus.dismissed) {
+    store.lastBackupAt = DateTime.now();
+    await store.save();
+  }
 }
 
 Future<void> importBackup(BuildContext context, AppStore store) async {
@@ -600,7 +651,7 @@ Future<void> importBackup(BuildContext context, AppStore store) async {
 void showAboutNoto(BuildContext context) => showAboutDialog(
   context: context,
   applicationName: 'Noto',
-  applicationVersion: '2.3',
+  applicationVersion: '2.4',
   applicationIcon: ClipRRect(
     borderRadius: BorderRadius.circular(18),
     child: Image.asset('assets/noto_mark.png', width: 68, height: 68),

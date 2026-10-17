@@ -58,7 +58,7 @@ String _safeFileName(String input) {
 Future<void> exportNoteFile(Note note, {required bool markdown}) async {
   final dir = await getTemporaryDirectory();
   final ext = markdown ? 'md' : 'txt';
-  final title = note.title.trim().isEmpty ? 'Sem título' : note.title.trim();
+  final title = displayTitle(note);
   final path = '${dir.path}/${_safeFileName(title)}.$ext';
   final tables = ((note.editor['tables'] as List?) ?? []).map(
     (e) => NotoTable.fromJson(Map<String, dynamic>.from(e as Map)),
@@ -99,7 +99,7 @@ Future<void> exportNotePdf(Note note) async {
         ? null
         : pw.ThemeData.withFont(base: regular, bold: bold ?? regular),
   );
-  final title = note.title.trim().isEmpty ? 'Sem título' : note.title.trim();
+  final title = displayTitle(note);
   final task = RegExp(r'^\s*(?:[-*]\s*)?\[([ xX])\]\s?(.*)$');
   final content = <pw.Widget>[
     pw.Text(
@@ -274,10 +274,18 @@ Future<Note?> importTextNote({required int defaultFont}) async {
 }
 
 class CalendarPage extends StatefulWidget {
-  const CalendarPage({super.key, required this.store, required this.onOpen});
+  const CalendarPage({
+    super.key,
+    required this.store,
+    required this.onOpen,
+    this.onCreate,
+  });
 
   final AppStore store;
   final Future<void> Function(Note note) onOpen;
+
+  /// Cria uma nota nova (já com prazo no dia escolhido).
+  final Future<void> Function(Note note)? onCreate;
 
   @override
   State<CalendarPage> createState() => _CalendarPageState();
@@ -322,16 +330,43 @@ class _CalendarPageState extends State<CalendarPage> {
                           ?.copyWith(fontWeight: FontWeight.w800),
                     ),
                   ),
-                  Text(
-                    '${notes.length} ${notes.length == 1 ? 'nota' : 'notas'}',
-                  ),
+                  if (widget.onCreate != null)
+                    TextButton.icon(
+                      onPressed: () async {
+                        Navigator.pop(sheetContext);
+                        await widget.onCreate!(
+                          Note(
+                            id: DateTime.now().microsecondsSinceEpoch.toString(),
+                            title: '',
+                            body: '',
+                            updatedAt: DateTime.now(),
+                            dueAt: day,
+                            font: widget.store.font,
+                          ),
+                        );
+                        if (mounted) setState(() {});
+                      },
+                      icon: const Icon(Icons.add_rounded),
+                      label: const Text('Nova nota'),
+                    )
+                  else
+                    Text(
+                      '${notes.length} ${notes.length == 1 ? 'nota' : 'notas'}',
+                    ),
                 ],
               ),
             ),
             const Divider(height: 1),
             Expanded(
               child: notes.isEmpty
-                  ? const Center(child: Text('Nada neste dia.'))
+                  ? Center(
+                      child: Text(
+                        widget.onCreate == null
+                            ? 'Nada neste dia.'
+                            : 'Nada neste dia.\nToque em "Nova nota" para criar uma com prazo aqui.',
+                        textAlign: TextAlign.center,
+                      ),
+                    )
                   : ListView.builder(
                       itemCount: notes.length,
                       itemBuilder: (_, index) {
@@ -345,9 +380,7 @@ class _CalendarPageState extends State<CalendarPage> {
                             style: const TextStyle(fontSize: 22),
                           ),
                           title: Text(
-                            note.title.trim().isEmpty
-                                ? 'Sem título'
-                                : note.title,
+                            displayTitle(note),
                           ),
                           subtitle: Text(
                             reminderHere

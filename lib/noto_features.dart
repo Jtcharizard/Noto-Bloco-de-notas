@@ -96,6 +96,19 @@ bool reminderOccursOn(Note note, DateTime day) {
   };
 }
 
+/// Título para mostrar: o próprio título ou, se estiver vazio,
+/// a primeira linha do texto (como fazem outros apps de notas).
+String displayTitle(Note note) {
+  final title = note.title.trim();
+  if (title.isNotEmpty) return title;
+  for (final line in readablePreview(note.body).split('\n')) {
+    final clean = line.replaceFirst(RegExp(r'^[☐☑•]\s*'), '').trim();
+    if (clean.isEmpty) continue;
+    return clean.length <= 60 ? clean : '${clean.substring(0, 57)}…';
+  }
+  return 'Sem título';
+}
+
 TodaySnapshot buildTodaySnapshot(List<Note> allNotes, {DateTime? now}) {
   final today = now ?? DateTime.now();
   final notes = allNotes

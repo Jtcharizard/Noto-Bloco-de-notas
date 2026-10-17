@@ -1115,9 +1115,25 @@ class _EditorPageState extends State<EditorPage>
   Future<void> _duplicate() async {
     final persisted = await _saveDraft();
     if (!persisted || !mounted) return;
-    widget.store.duplicate(widget.note);
-    ScaffoldMessenger.of(context)
-        .showSnackBar(const SnackBar(content: Text('Cópia criada')));
+    final copy = widget.store.duplicate(widget.note);
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: const Text('Cópia criada'),
+        action: SnackBarAction(
+          label: 'Abrir',
+          onPressed: () {
+            if (!mounted) return;
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) =>
+                    EditorPage(store: widget.store, note: copy, isNew: false),
+              ),
+            );
+          },
+        ),
+      ),
+    );
   }
 
   Future<void> _showTaskDetails() async {
@@ -1739,9 +1755,7 @@ class _EditorPageState extends State<EditorPage>
                         contentPadding: EdgeInsets.zero,
                         leading: const Icon(Icons.call_received_rounded),
                         title: Text(
-                          source.title.trim().isEmpty
-                              ? 'Sem título'
-                              : source.title,
+                          displayTitle(source),
                         ),
                         subtitle: Text(source.folder),
                         onTap: () async {

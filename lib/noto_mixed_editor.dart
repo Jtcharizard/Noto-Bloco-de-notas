@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 /// Editor de linhas que mistura texto comum e tarefas com caixa de marcar.
 ///
@@ -134,6 +135,7 @@ class _MixedContentEditorState extends State<MixedContentEditor> {
   /// Tarefa marcada desce para o fim do seu grupo de tarefas;
   /// desmarcada volta para junto das que faltam fazer.
   void _toggle(_MixedLine line, bool checked) {
+    HapticFeedback.selectionClick();
     setState(() {
       line.checked = checked;
       var start = lines.indexOf(line);
@@ -154,11 +156,40 @@ class _MixedContentEditorState extends State<MixedContentEditor> {
     _sync();
   }
 
+  /// Apaga a linha e oferece "Desfazer" por alguns segundos.
   void _removeLine(_MixedLine line) {
     if (lines.length <= 1) return;
+    final index = lines.indexOf(line);
     setState(() => lines.remove(line));
     _sync();
-    WidgetsBinding.instance.addPostFrameCallback((_) => line.dispose());
+    var restored = false;
+    final messenger = ScaffoldMessenger.maybeOf(context);
+    if (messenger == null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => line.dispose());
+      return;
+    }
+    messenger.hideCurrentSnackBar();
+    messenger
+        .showSnackBar(
+          SnackBar(
+            content: Text(line.task ? 'Tarefa apagada' : 'Linha apagada'),
+            action: SnackBarAction(
+              label: 'Desfazer',
+              onPressed: () {
+                if (!mounted) return;
+                restored = true;
+                setState(
+                  () => lines.insert(index.clamp(0, lines.length).toInt(), line),
+                );
+                _sync();
+              },
+            ),
+          ),
+        )
+        .closed
+        .then((_) {
+          if (!restored) line.dispose();
+        });
   }
 
   List<_MixedLine> get _visible => widget.hideDone

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import 'noto_features.dart';
 import 'noto_models.dart';
 import 'noto_library.dart';
 import 'noto_store.dart';
@@ -158,7 +159,7 @@ class SettingsPage extends StatelessWidget {
   String _widgetNoteLabel() {
     for (final note in _activeNotes) {
       if (note.id == store.widgetNoteId) {
-        return note.title.trim().isEmpty ? 'Sem título' : note.title;
+        return displayTitle(note);
       }
     }
     return 'A mais recente';
@@ -189,7 +190,7 @@ class SettingsPage extends StatelessWidget {
                 value: note.id,
                 groupValue: store.widgetNoteId ?? '',
                 title: Text(
-                  note.title.trim().isEmpty ? 'Sem título' : note.title,
+                  displayTitle(note),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),
