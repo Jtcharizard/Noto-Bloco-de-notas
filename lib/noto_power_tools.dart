@@ -261,8 +261,9 @@ class _CalendarPageState extends State<CalendarPage> {
 
   List<Note> _notesFor(DateTime day) => widget.store.notes.where((note) {
     if (note.deletedAt != null || note.locked) return false;
-    return _sameDay(note.updatedAt, day) ||
-        _sameDay(note.createdAt, day) ||
+    final edited = !widget.store.calendarOnlyDated &&
+        (_sameDay(note.updatedAt, day) || _sameDay(note.createdAt, day));
+    return edited ||
         (note.dueAt != null && _sameDay(note.dueAt!, day)) ||
         reminderOccursOn(note, day);
   }).toList()..sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
@@ -383,6 +384,33 @@ class _CalendarPageState extends State<CalendarPage> {
       appBar: AppBar(
         title: const Text('Calendário'),
         actions: [
+          IconButton(
+            tooltip: widget.store.calendarOnlyDated
+                ? 'Mostrar também notas editadas'
+                : 'Mostrar só prazos e lembretes',
+            onPressed: () {
+              setState(
+                () => widget.store.calendarOnlyDated =
+                    !widget.store.calendarOnlyDated,
+              );
+              widget.store.save();
+              ScaffoldMessenger.of(context).hideCurrentSnackBar();
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text(
+                    widget.store.calendarOnlyDated
+                        ? 'Mostrando só prazos e lembretes'
+                        : 'Mostrando também as notas editadas em cada dia',
+                  ),
+                ),
+              );
+            },
+            icon: Icon(
+              widget.store.calendarOnlyDated
+                  ? Icons.filter_alt_rounded
+                  : Icons.filter_alt_off_outlined,
+            ),
+          ),
           IconButton(
             tooltip: 'Próximos lembretes',
             onPressed: () => Navigator.push(

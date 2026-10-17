@@ -31,11 +31,15 @@ class EditorPage extends StatefulWidget {
     required this.store,
     required this.note,
     required this.isNew,
+    this.startDictation = false,
   });
 
   final AppStore store;
   final Note note;
   final bool isNew;
+
+  /// Abre já ouvindo o ditado (atalho "Ditar nota").
+  final bool startDictation;
 
   @override
   State<EditorPage> createState() => _EditorPageState();
@@ -150,7 +154,10 @@ class _EditorPageState extends State<EditorPage>
     title.addListener(_editorChanged);
     body.addListener(_editorChanged);
     _loadEditorPreferences();
-    WidgetsBinding.instance.addPostFrameCallback((_) => _maybeShowTaskTip());
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _maybeShowTaskTip();
+      if (widget.startDictation) _dictate();
+    });
   }
 
   void _maybeShowTaskTip() {
@@ -580,6 +587,9 @@ class _EditorPageState extends State<EditorPage>
       case 'font':
         _pickInlineFont();
         break;
+      case 'case':
+        _changeCase();
+        break;
       case 'align':
         _pickAlignment();
         break;
@@ -687,6 +697,183 @@ class _EditorPageState extends State<EditorPage>
           onPressed: () => _historyEdit(false),
         ),
       ),
+    );
+  }
+
+  void _undoSnack(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        action: SnackBarAction(
+          label: 'Desfazer',
+          onPressed: () => _historyEdit(false),
+        ),
+      ),
+    );
+  }
+
+  /// Ordena de A a Z. Nas tarefas, ordena cada bloco de tarefas e mantém
+  /// as pendentes antes das feitas; no texto, ordena todas as linhas com texto.
+  void _sortLines({required bool tasksOnly}) {
+    final lines = body.text.split('\n');
+    int compare(String a, String b) =>
+        foldForSearch(a.trim()).compareTo(foldForSearch(b.trim()));
+    if (!tasksOnly) {
+      final filled = lines.where((l) => l.trim().isNotEmpty).toList()
+        ..sort(compare);
+      if (filled.length < 2) return;
+      body.text = filled.join('\n');
+    } else {
+      final task = RegExp(r'^\s*(?:[-*]\s*)?\[([ xX])\]\s?(.*)$');
+      final out = <String>[];
+      var block = <String>[];
+      void flush() {
+        String text(String l) => task.firstMatch(l)?.group(2) ?? l;
+        bool done(String l) => task.firstMatch(l)?.group(1) != ' ';
+        block.sort((a, b) {
+          if (done(a) != done(b)) return done(a) ? 1 : -1;
+          return compare(text(a), text(b));
+        });
+        out.addAll(block);
+        block = [];
+      }
+      for (final line in lines) {
+        if (task.hasMatch(line)) {
+          block.add(line);
+        } else {
+          flush();
+          out.add(line);
+        }
+      }
+      flush();
+      body.text = out.join('\n');
+    }
+    tableEpoch++;
+    _editorChanged();
+    _undoSnack('Linhas ordenadas de A a Z');
+  }
+
+  /// Junta linhas vazias repetidas e tira espaços sobrando no fim das linhas.
+  void _cleanText() {
+    final cleaned = body.text
+        .split('\n')
+        .map((line) => line.trimRight().replaceAll(RegExp(r'(?<=\S) {2,}'), ' '))
+        .join('\n')
+        .replaceAll(RegExp(r'\n{3,}'), '\n\n')
+        .trim();
+    if (cleaned == body.text) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('O texto já está limpo.')),
+      );
+      return;
+    }
+    body.text = cleaned;
+    _editorChanged();
+    _undoSnack('Texto limpo');
+  }
+
+  Future<void> _changeCase() async {
+    final selection = body.selection;
+    if (!selection.isValid || selection.isCollapsed) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Selecione o trecho primeiro.')),
+      );
+      return;
+    }
+    final mode = await showModalBottomSheet<int>(
+      context: context,
+      useSafeArea: true,
+      builder: (ctx) => SafeArea(
+        child: Wrap(
+          children: [
+            ListTile(
+              title: const Text('MAIÚSCULAS'),
+              onTap: () => Navigator.pop(ctx, 0),
+            ),
+            ListTile(
+              title: const Text('minúsculas'),
+              onTap: () => Navigator.pop(ctx, 1),
+            ),
+            ListTile(
+              title: const Text('Primeira Letra De Cada Palavra'),
+              onTap: () => Navigator.pop(ctx, 2),
+            ),
+            ListTile(
+              title: const Text('Primeira letra da frase'),
+              onTap: () => Navigator.pop(ctx, 3),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (mode == null || !mounted) return;
+    final text = selection.textInside(body.text);
+    String capital(String word) => word.isEmpty
+        ? word
+        : '${word[0].toUpperCase()}${word.substring(1).toLowerCase()}';
+    final changed = switch (mode) {
+      0 => text.toUpperCase(),
+      1 => text.toLowerCase(),
+      2 => text.split(' ').map(capital).join(' '),
+      _ => capital(text),
+    };
+    body.value = body.value.copyWith(
+      text: body.text.replaceRange(selection.start, selection.end, changed),
+      selection: TextSelection(
+        baseOffset: selection.start,
+        extentOffset: selection.start + changed.length,
+      ),
+    );
+    bodyFocus.requestFocus();
+  }
+
+  Future<void> _addManyTasks() async {
+    final controller = TextEditingController();
+    final text = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Adicionar várias tarefas'),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          minLines: 4,
+          maxLines: 10,
+          textCapitalization: TextCapitalization.sentences,
+          decoration: const InputDecoration(
+            hintText: 'Uma tarefa por linha\nLeite\nPão\nOvos',
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('Cancelar'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, controller.text),
+            child: const Text('Adicionar'),
+          ),
+        ],
+      ),
+    );
+    await Future<void>.delayed(const Duration(milliseconds: 250));
+    controller.dispose();
+    if (text == null || !mounted) return;
+    final items = text
+        .split('\n')
+        .map((line) => line.replaceFirst(RegExp(r'^\s*(?:[-*•]|\d+\s?[.)\-–])\s*'), '').trim())
+        .where((line) => line.isNotEmpty)
+        .map((line) => '- [ ] $line')
+        .toList();
+    if (items.isEmpty) return;
+    // Tira a tarefa vazia do fim, se houver, antes de adicionar.
+    final current = body.text.replaceFirst(RegExp(r'\n?- \[ \] ?$'), '');
+    body.text = [if (current.trim().isNotEmpty) current, ...items].join('\n');
+    tableEpoch++;
+    _editorChanged();
+    _undoSnack(
+      items.length == 1
+          ? '1 tarefa adicionada'
+          : '${items.length} tarefas adicionadas',
     );
   }
 
@@ -933,6 +1120,12 @@ class _EditorPageState extends State<EditorPage>
               title: const Text('Alinhamento'),
               onTap: () => Navigator.pop(ctx, 'align'),
             ),
+            ListTile(
+              leading: const Icon(Icons.text_fields_rounded),
+              title: const Text('Maiúsculas e minúsculas'),
+              subtitle: const Text('No trecho selecionado'),
+              onTap: () => Navigator.pop(ctx, 'case'),
+            ),
           ],
         ),
       ),
@@ -997,7 +1190,29 @@ class _EditorPageState extends State<EditorPage>
                 subtitle: const Text('Bom para mandar a lista de compras'),
                 onTap: () => Navigator.pop(ctx, 'copy-pending'),
               ),
-            ] else
+              ListTile(
+                leading: const Icon(Icons.playlist_add_rounded),
+                title: const Text('Adicionar várias tarefas'),
+                subtitle: const Text('Uma por linha, de uma vez só'),
+                onTap: () => Navigator.pop(ctx, 'add-many'),
+              ),
+              ListTile(
+                leading: const Icon(Icons.sort_by_alpha_rounded),
+                title: const Text('Ordenar tarefas de A a Z'),
+                onTap: () => Navigator.pop(ctx, 'sort-tasks'),
+              ),
+            ] else ...[
+              ListTile(
+                leading: const Icon(Icons.sort_by_alpha_rounded),
+                title: const Text('Ordenar linhas de A a Z'),
+                subtitle: const Text('Bom para listas de nomes ou itens'),
+                onTap: () => Navigator.pop(ctx, 'sort-lines'),
+              ),
+              ListTile(
+                leading: const Icon(Icons.cleaning_services_outlined),
+                title: const Text('Limpar linhas vazias e espaços'),
+                onTap: () => Navigator.pop(ctx, 'clean'),
+              ),
               ListTile(
                 leading: Icon(
                   readOnly ? Icons.edit_outlined : Icons.chrome_reader_mode_outlined,
@@ -1008,6 +1223,7 @@ class _EditorPageState extends State<EditorPage>
                     : const Text('Lê sem abrir o teclado por engano'),
                 onTap: () => Navigator.pop(ctx, 'read-mode'),
               ),
+            ],
             ListTile(
               leading: Icon(
                 widget.store.pinnedNotificationNoteId == widget.note.id
@@ -1042,6 +1258,18 @@ class _EditorPageState extends State<EditorPage>
     }
     if (value == 'uncheck-all' || value == 'remove-done') {
       _rewriteTasks(remove: value == 'remove-done');
+      return;
+    }
+    if (value == 'add-many') {
+      await _addManyTasks();
+      return;
+    }
+    if (value == 'sort-tasks' || value == 'sort-lines') {
+      _sortLines(tasksOnly: value == 'sort-tasks');
+      return;
+    }
+    if (value == 'clean') {
+      _cleanText();
       return;
     }
     if (value == 'check-all') {
@@ -1495,6 +1723,7 @@ class _EditorPageState extends State<EditorPage>
   Future<void> _showTaskDetails() async {
     var priority = widget.note.priority;
     var due = widget.note.dueAt;
+    var remindBefore = false;
     final apply = await showModalBottomSheet<bool>(
       context: context,
       useSafeArea: true,
@@ -1550,6 +1779,20 @@ class _EditorPageState extends State<EditorPage>
                   if (selected != null) setModalState(() => due = selected);
                 },
               ),
+              if (due != null &&
+                  due!
+                      .subtract(const Duration(days: 1))
+                      .add(const Duration(hours: 9))
+                      .isAfter(DateTime.now()))
+                SwitchListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: const Text('Lembrar um dia antes, às 9h'),
+                  subtitle: widget.note.reminderAt != null
+                      ? const Text('Troca o lembrete que a nota já tem')
+                      : null,
+                  value: remindBefore,
+                  onChanged: (value) => setModalState(() => remindBefore = value),
+                ),
               const SizedBox(height: 10),
               SizedBox(
                 width: double.infinity,
@@ -1569,6 +1812,28 @@ class _EditorPageState extends State<EditorPage>
         widget.note.dueAt = due;
       });
       await widget.store.save();
+      if (remindBefore && due != null) {
+        final at = DateUtils.dateOnly(due!)
+            .subtract(const Duration(days: 1))
+            .add(const Duration(hours: 9));
+        if (at.isAfter(DateTime.now())) {
+          _syncModel();
+          if (widget.isNew && !widget.store.notes.contains(widget.note)) {
+            widget.store.notes.add(widget.note);
+          }
+          await widget.store.scheduleReminder(widget.note, at, 0);
+          if (mounted) {
+            setState(() {});
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(
+                  'Lembrete marcado para ${DateFormat("dd/MM 'às' HH:mm").format(at)}',
+                ),
+              ),
+            );
+          }
+        }
+      }
     }
   }
 

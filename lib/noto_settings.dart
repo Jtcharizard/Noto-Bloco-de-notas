@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
@@ -207,6 +209,13 @@ class SettingsPage extends StatelessWidget {
     await store.save();
   }
 
+  static const _swipeOptions = [
+    (0, 'Arquivar'),
+    (1, 'Mandar para a lixeira'),
+    (2, 'Fixar no topo'),
+    (3, 'Favoritar'),
+    (4, 'Não fazer nada'),
+  ];
   static const _plusOptions = [
     (0, 'Perguntar o tipo de nota'),
     (1, 'Criar nota em branco direto'),
@@ -340,6 +349,44 @@ class SettingsPage extends StatelessWidget {
     await store.save();
   }
 
+  Future<void> _clearAllHistory(BuildContext context) async {
+    final count = store.histories.values.fold<int>(0, (n, list) => n + list.length);
+    if (count == 0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Não há versões antigas guardadas.')),
+      );
+      return;
+    }
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Limpar versões antigas?'),
+        content: Text(
+          'Apaga $count ${count == 1 ? 'versão guardada' : 'versões guardadas'} '
+          'do histórico. As notas continuam como estão agora.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Cancelar'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('Limpar'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    store.histories.clear();
+    await store.save();
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Histórico limpo.')),
+      );
+    }
+  }
+
   Future<void> _showStats(BuildContext context) async {
     final visible = store.notes.where((n) => !n.locked).toList();
     final active = visible.where((n) => n.deletedAt == null && !n.archived);
@@ -364,8 +411,25 @@ class SettingsPage extends StatelessWidget {
         : (folders.entries.toList()
                 ..sort((a, b) => b.value.compareTo(a.value)))
               .first;
+    final dataSize = utf8
+        .encode(jsonEncode(store.notes.map((n) => n.toJson()).toList()))
+        .length;
+    final historySize = utf8
+        .encode(
+          jsonEncode(
+            store.histories.map(
+              (k, v) => MapEntry(k, v.map((e) => e.toJson()).toList()),
+            ),
+          ),
+        )
+        .length;
+    String size(int bytes) => bytes < 1024 * 1024
+        ? '${(bytes / 1024).toStringAsFixed(0)} KB'
+        : '${(bytes / 1048576).toStringAsFixed(1)} MB';
     final rows = <(String, String)>[
       ('Notas', '${active.length}'),
+      ('Espaço das notas', size(dataSize)),
+      ('Espaço do histórico', size(historySize)),
       ('Arquivadas', '${archived.length}'),
       ('Palavras escritas', '$words'),
       ('Tarefas feitas', '$done de ${done + pending}'),
@@ -634,6 +698,60 @@ class SettingsPage extends StatelessWidget {
                 ),
                 SwitchListTile(
                   contentPadding: EdgeInsets.zero,
+                  title: const Text('Atalhos de pastas e filtros'),
+                  subtitle: const Text('Todas, Favoritas, Atrasadas e suas pastas'),
+                  value: store.showFolderChips,
+                  onChanged: (value) {
+                    store.showFolderChips = value;
+                    store.save();
+                  },
+                ),
+                SwitchListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: const Text('Cards compactos'),
+                  subtitle: const Text('Mais notas na tela de uma vez'),
+                  value: store.compactCards,
+                  onChanged: (value) {
+                    store.compactCards = value;
+                    store.save();
+                  },
+                ),
+                NotoTile(
+                  icon: Icons.swipe_right_alt_rounded,
+                  title: 'Deslizar o card para a direita',
+                  subtitle: _label(_swipeOptions, store.swipeRight),
+                  onTap: () async {
+                    final value = await _choose(
+                      context,
+                      'Deslizar para a direita',
+                      _swipeOptions,
+                      store.swipeRight,
+                    );
+                    if (value != null) {
+                      store.swipeRight = value;
+                      await store.save();
+                    }
+                  },
+                ),
+                NotoTile(
+                  icon: Icons.swipe_left_alt_rounded,
+                  title: 'Deslizar o card para a esquerda',
+                  subtitle: _label(_swipeOptions, store.swipeLeft),
+                  onTap: () async {
+                    final value = await _choose(
+                      context,
+                      'Deslizar para a esquerda',
+                      _swipeOptions,
+                      store.swipeLeft,
+                    );
+                    if (value != null) {
+                      store.swipeLeft = value;
+                      await store.save();
+                    }
+                  },
+                ),
+                SwitchListTile(
+                  contentPadding: EdgeInsets.zero,
                   title: const Text('Barra de atalhos no topo'),
                   subtitle: const Text('Arquivadas, Lixeira, Pastas e Tags'),
                   value: store.showShortcutsBar,
@@ -681,6 +799,9 @@ class SettingsPage extends StatelessWidget {
                 NotoTile(
                   icon: Icons.upload_file_outlined,
                   title: 'Fazer backup',
+                  subtitle: store.lastBackupAt == null
+                      ? 'Você ainda não fez nenhum backup'
+                      : 'Último: ${DateFormat('dd/MM/yyyy').format(store.lastBackupAt!)}',
                   onTap: () => exportBackup(context, store),
                 ),
                 NotoTile(
@@ -699,6 +820,12 @@ class SettingsPage extends StatelessWidget {
                   title: 'Exportar todas as notas',
                   subtitle: 'Um arquivo de texto fácil de ler em qualquer lugar',
                   onTap: () => exportAllNotes(store),
+                ),
+                NotoTile(
+                  icon: Icons.history_toggle_off_rounded,
+                  title: 'Limpar versões antigas',
+                  subtitle: 'Apaga o histórico de todas as notas (as notas ficam)',
+                  onTap: () => _clearAllHistory(context),
                 ),
                 NotoTile(
                   icon: Icons.insights_outlined,

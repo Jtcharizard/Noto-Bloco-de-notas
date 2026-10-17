@@ -770,16 +770,20 @@ void showAboutNoto(BuildContext context) => showAboutDialog(
 );
 
 /// Exporta todas as notas (fora do cofre e da lixeira) num único arquivo Markdown.
-Future<void> exportAllNotes(AppStore store) async {
+Future<void> exportAllNotes(AppStore store, {String? folder}) async {
+  bool inFolder(Note note) =>
+      folder == null ||
+      note.folder == folder ||
+      note.folder.startsWith('$folder/');
   final notes = store.notes
-      .where((n) => n.deletedAt == null && !n.locked)
+      .where((n) => n.deletedAt == null && !n.locked && inFolder(n))
       .toList()
     ..sort((a, b) {
       final folder = a.folder.toLowerCase().compareTo(b.folder.toLowerCase());
       return folder != 0 ? folder : b.updatedAt.compareTo(a.updatedAt);
     });
   final buffer = StringBuffer()
-    ..writeln('# Minhas notas do Noto')
+    ..writeln(folder == null ? '# Minhas notas do Noto' : '# Pasta $folder')
     ..writeln()
     ..writeln(
       'Exportado em ${DateFormat("dd/MM/yyyy 'às' HH:mm").format(DateTime.now())} · ${notes.length} notas',
@@ -824,8 +828,11 @@ Future<void> exportAllNotes(AppStore store) async {
     }
   }
   final dir = await getTemporaryDirectory();
+  final name = folder == null
+      ? 'todas-as-notas'
+      : 'pasta-${folder.replaceAll(RegExp(r'[\\/:*?"<>|\s]+'), '-')}';
   final file = File(
-    '${dir.path}/Noto-todas-as-notas-${DateFormat('yyyy-MM-dd').format(DateTime.now())}.md',
+    '${dir.path}/Noto-$name-${DateFormat('yyyy-MM-dd').format(DateTime.now())}.md',
   );
   await file.writeAsString(buffer.toString());
   await Share.shareXFiles([XFile(file.path)], text: 'Minhas notas do Noto');

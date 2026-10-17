@@ -45,16 +45,20 @@ Future<void> main() async {
       const InitializationSettings(
         android: AndroidInitializationSettings('@mipmap/ic_launcher'),
       ),
-      onDidReceiveNotificationResponse: (response) {
-        final id = response.payload;
-        if (id != null && id.isNotEmpty) noteOpenRequests.add(id);
-      },
+      onDidReceiveNotificationResponse: handleNotificationResponse,
     ),
   );
   await _safely(() async {
     final launch = await notifications.getNotificationAppLaunchDetails();
     if (launch?.didNotificationLaunchApp ?? false) {
-      pendingNoteOpen = launch!.notificationResponse?.payload;
+      final response = launch!.notificationResponse;
+      final id = response?.payload;
+      final action = response?.actionId;
+      if (id != null && (action == 'adiar10' || action == 'adiar60')) {
+        pendingSnooze = (id, action == 'adiar10' ? 10 : 60);
+      } else {
+        pendingNoteOpen = id;
+      }
     }
   });
   runApp(const NotoApp());

@@ -22,6 +22,34 @@ final noteOpenRequests = StreamController<String>.broadcast();
 /// Nota pedida pela notificação que abriu o app do zero.
 String? pendingNoteOpen;
 
+/// Pedidos de "Adiar" vindos da notificação: (id da nota, minutos).
+final snoozeRequests = StreamController<(String, int)>.broadcast();
+
+/// Adiar pedido pela notificação que abriu o app do zero.
+(String, int)? pendingSnooze;
+
+/// Ações que aparecem na notificação de lembrete.
+const reminderActions = <AndroidNotificationAction>[
+  AndroidNotificationAction('adiar10', 'Adiar 10 min', showsUserInterface: true),
+  AndroidNotificationAction('adiar60', 'Adiar 1 hora', showsUserInterface: true),
+];
+
+/// Lê a resposta de uma notificação: abrir a nota ou adiar o lembrete.
+void handleNotificationResponse(NotificationResponse response) {
+  final id = response.payload;
+  if (id == null || id.isEmpty) return;
+  final minutes = switch (response.actionId) {
+    'adiar10' => 10,
+    'adiar60' => 60,
+    _ => 0,
+  };
+  if (minutes > 0) {
+    snoozeRequests.add((id, minutes));
+  } else {
+    noteOpenRequests.add(id);
+  }
+}
+
 class _SavedNoteContent {
   const _SavedNoteContent(this.title, this.body, this.editor);
   final String title;
@@ -105,6 +133,26 @@ class AppStore extends ChangeNotifier {
   /// O que o botão + faz: 0 = perguntar, 1 = nota em branco, 2 = lista de tarefas.
   int plusAction = 0;
 
+  /// O que deslizar o card faz: 0 arquivar, 1 lixeira, 2 fixar, 3 favoritar, 4 nada.
+  int swipeRight = 0;
+  int swipeLeft = 1;
+
+  /// Cards mais baixos, para caber mais notas na tela.
+  bool compactCards = false;
+
+  /// Mostra os atalhos de pastas e filtros rápidos na tela inicial.
+  bool showFolderChips = true;
+
+  /// Pastas fixadas no começo dos atalhos.
+  final List<String> pinnedFolders = [];
+
+  /// Calendário mostra só prazos e lembretes (sem "editada neste dia").
+  bool calendarOnlyDated = false;
+
+  /// Senhas erradas desde a última vez que o cofre foi aberto.
+  int vaultWrongSinceOpen = 0;
+  DateTime? vaultLastWrongAt;
+
   /// Cor das notas novas (índice em NotoAppearance.noteColors; 0 = sem cor).
   int newNoteColor = 0;
 
@@ -160,6 +208,9 @@ class AppStore extends ChangeNotifier {
       vaultBlockedUntil = null;
       return;
     }
+    vaultWrongSinceOpen++;
+    vaultLastWrongAt = DateTime.now();
+    save();
     vaultFailedAttempts++;
     if (vaultFailedAttempts >= 5) {
       vaultFailedAttempts = 0;
@@ -348,6 +399,16 @@ class AppStore extends ChangeNotifier {
         .toDouble();
     homeTitle = prefs.getString('homeTitle') ?? '';
     plusAction = (prefs.getInt('plusAction') ?? 0).clamp(0, 2).toInt();
+    swipeRight = (prefs.getInt('swipeRight') ?? 0).clamp(0, 4).toInt();
+    swipeLeft = (prefs.getInt('swipeLeft') ?? 1).clamp(0, 4).toInt();
+    compactCards = prefs.getBool('compactCards') ?? false;
+    showFolderChips = prefs.getBool('showFolderChips') ?? true;
+    pinnedFolders
+      ..clear()
+      ..addAll(prefs.getStringList('pinnedFolders') ?? const []);
+    calendarOnlyDated = prefs.getBool('calendarOnlyDated') ?? false;
+    vaultWrongSinceOpen = prefs.getInt('vaultWrongSinceOpen') ?? 0;
+    vaultLastWrongAt = DateTime.tryParse(prefs.getString('vaultLastWrongAt') ?? '');
     newNoteColor = (prefs.getInt('newNoteColor') ?? 0)
         .clamp(0, NotoAppearance.noteColors.length - 1)
         .toInt();
@@ -521,6 +582,18 @@ class AppStore extends ChangeNotifier {
     await prefs.setDouble('editorLineHeight', editorLineHeight);
     await prefs.setString('homeTitle', homeTitle);
     await prefs.setInt('plusAction', plusAction);
+    await prefs.setInt('swipeRight', swipeRight);
+    await prefs.setInt('swipeLeft', swipeLeft);
+    await prefs.setBool('compactCards', compactCards);
+    await prefs.setBool('showFolderChips', showFolderChips);
+    await prefs.setStringList('pinnedFolders', pinnedFolders);
+    await prefs.setBool('calendarOnlyDated', calendarOnlyDated);
+    await prefs.setInt('vaultWrongSinceOpen', vaultWrongSinceOpen);
+    if (vaultLastWrongAt == null) {
+      await prefs.remove('vaultLastWrongAt');
+    } else {
+      await prefs.setString('vaultLastWrongAt', vaultLastWrongAt!.toIso8601String());
+    }
     await prefs.setInt('newNoteColor', newNoteColor);
     await prefs.setBool('showShortcutsBar', showShortcutsBar);
     await prefs.setStringList('recentSearches', recentSearches);
@@ -680,9 +753,45 @@ class AppStore extends ChangeNotifier {
           ? 'Toque para criar sua primeira nota'
           : readablePreview(selected.body),
     );
+    await HomeWidget.saveWidgetData<String>('note_id', selected?.id ?? '');
     await HomeWidget.updateWidget(
       name: 'NotoWidgetProvider',
       androidName: 'NotoWidgetProvider',
+    );
+
+    // Widget 2x2 de resumo: tarefas que faltam e o próximo lembrete.
+    final today = buildTodaySnapshot(active);
+    (Note, DateTime)? next;
+    for (final note in active) {
+      final at = nextReminder(note);
+      if (at == null || !at.isAfter(DateTime.now())) continue;
+      if (next == null || at.isBefore(next.$2)) next = (note, at);
+    }
+    String nextText = 'Nenhum lembrete marcado';
+    if (next != null) {
+      final at = next.$2;
+      final now = DateTime.now();
+      final sameDay =
+          at.year == now.year && at.month == now.month && at.day == now.day;
+      final hour =
+          '${at.hour.toString().padLeft(2, '0')}:${at.minute.toString().padLeft(2, '0')}';
+      final when = sameDay
+          ? 'Hoje $hour'
+          : '${at.day.toString().padLeft(2, '0')}/${at.month.toString().padLeft(2, '0')} $hour';
+      nextText = '$when · ${displayTitle(next.$1)}';
+    }
+    await HomeWidget.saveWidgetData<String>(
+      'summary_count',
+      '${today.pendingTasks}',
+    );
+    await HomeWidget.saveWidgetData<String>(
+      'summary_label',
+      today.pendingTasks == 1 ? 'tarefa a fazer' : 'tarefas a fazer',
+    );
+    await HomeWidget.saveWidgetData<String>('summary_next', nextText);
+    await HomeWidget.updateWidget(
+      name: 'NotoSummaryWidgetProvider',
+      androidName: 'NotoSummaryWidgetProvider',
     );
   }
 
@@ -739,6 +848,7 @@ class AppStore extends ChangeNotifier {
         channelDescription: 'Lembretes marcados nas notas',
         importance: Importance.high,
         priority: Priority.high,
+        actions: reminderActions,
       ),
     );
     final title = note.locked
@@ -872,6 +982,44 @@ class AppStore extends ChangeNotifier {
         payload: note.id,
       );
     } catch (_) {}
+  }
+
+  static int _snoozeId(Note note) => (note.id.hashCode & 0x0fffffff) | 0x10000000;
+
+  /// Adia o lembrete: toca de novo daqui a [minutes] minutos (uma vez só).
+  Future<DateTime?> snoozeReminder(String noteId, int minutes) async {
+    Note? note;
+    for (final item in notes) {
+      if (item.id == noteId && item.deletedAt == null) note = item;
+    }
+    if (note == null) return null;
+    final at = DateTime.now().add(Duration(minutes: minutes));
+    final preview = readablePreview(note.body);
+    try {
+      await notifications.zonedSchedule(
+        _snoozeId(note),
+        note.locked ? 'Lembrete do Noto' : displayTitle(note),
+        note.locked || preview.isEmpty
+            ? 'Você pediu para lembrar desta nota.'
+            : preview.split('\n').first,
+        tz.TZDateTime.from(at, tz.local),
+        const NotificationDetails(
+          android: AndroidNotificationDetails(
+            'noto_reminders',
+            'Lembretes do Noto',
+            channelDescription: 'Lembretes marcados nas notas',
+            importance: Importance.high,
+            priority: Priority.high,
+            actions: reminderActions,
+          ),
+        ),
+        androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
+        payload: note.id,
+      );
+    } catch (_) {
+      return null;
+    }
+    return at;
   }
 
   void delete(Note note) {

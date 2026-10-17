@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:home_widget/home_widget.dart';
 import 'package:quick_actions/quick_actions.dart';
+import 'package:share_plus/share_plus.dart';
 import 'package:intl/intl.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -17,6 +18,8 @@ import 'noto_library.dart';
 import 'noto_settings.dart';
 import 'noto_store.dart';
 import 'noto_theme.dart';
+import 'noto_dictation.dart';
+import 'noto_tasks.dart';
 import 'noto_vault.dart';
 
 enum _NoteScope { all, favorites, pinned }
@@ -121,6 +124,14 @@ class _HomeShellState extends State<HomeShell> {
     if (chosen.isEmpty) return;
     if (action == 'merge') {
       await _mergeNotes(chosen);
+      return;
+    }
+    if (action == 'share') {
+      final text = chosen
+          .map((n) => '${displayTitle(n)}\n${readablePreview(n.body)}')
+          .join('\n\n———\n\n');
+      await Share.share(text);
+      if (mounted) setState(selectedIds.clear);
       return;
     }
     final allFavorite = chosen.every((n) => n.favorite);
@@ -242,6 +253,12 @@ class _HomeShellState extends State<HomeShell> {
     _listenToShares();
     _setupShortcuts();
     _noteRequests = noteOpenRequests.stream.listen(_openById);
+    _snoozes = snoozeRequests.stream.listen(_snooze);
+    final snooze = pendingSnooze;
+    if (snooze != null) {
+      pendingSnooze = null;
+      WidgetsBinding.instance.addPostFrameCallback((_) => _snooze(snooze));
+    }
     final pending = pendingNoteOpen;
     if (pending != null) {
       pendingNoteOpen = null;
@@ -250,6 +267,46 @@ class _HomeShellState extends State<HomeShell> {
   }
 
   StreamSubscription<String>? _noteRequests;
+  StreamSubscription<(String, int)>? _snoozes;
+  final _scroll = ScrollController();
+
+  /// "Adiar" na notificação: marca de novo e avisa.
+  Future<void> _snooze((String, int) request) async {
+    final at = await widget.store.snoozeReminder(request.$1, request.$2);
+    if (!mounted || at == null) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Lembrete adiado para ${DateFormat('HH:mm').format(at)}'),
+      ),
+    );
+  }
+
+  void _scrollToTop() {
+    if (!_scroll.hasClients) return;
+    _scroll.animateTo(
+      0,
+      duration: const Duration(milliseconds: 300),
+      curve: Curves.easeOut,
+    );
+  }
+
+  Note _blankNote({bool checklist = false}) => Note(
+    id: DateTime.now().microsecondsSinceEpoch.toString(),
+    title: '',
+    body: checklist ? '- [ ] ' : '',
+    updatedAt: DateTime.now(),
+    checklist: checklist,
+    folder: folder ?? 'Geral',
+    font: widget.store.font,
+    color: widget.store.newNoteColor,
+  );
+
+  void _openTasks() => Navigator.push(
+    context,
+    MaterialPageRoute(
+      builder: (_) => AllTasksPage(store: widget.store, onOpen: _openNote),
+    ),
+  );
 
   /// Atalhos ao segurar o ícone do Noto: Nova nota, Nova lista e Buscar.
   void _setupShortcuts() {
@@ -267,24 +324,28 @@ class _HomeShellState extends State<HomeShell> {
           if (recent.isNotEmpty) _openNote(recent.first);
           return;
         }
-        final checklist = type == 'nova-lista';
-        _openNote(
-          Note(
-            id: DateTime.now().microsecondsSinceEpoch.toString(),
-            title: '',
-            body: checklist ? '- [ ] ' : '',
-            updatedAt: DateTime.now(),
-            checklist: checklist,
-            font: widget.store.font,
-          ),
-          isNew: true,
-        );
+        if (type == 'ditar') {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => EditorPage(
+                store: widget.store,
+                note: _blankNote(),
+                isNew: true,
+                startDictation: true,
+              ),
+            ),
+          );
+          return;
+        }
+        _openNote(_blankNote(checklist: type == 'nova-lista'), isNew: true);
       });
       actions.setShortcutItems(const [
         ShortcutItem(type: 'nova-nota', localizedTitle: 'Nova nota'),
         ShortcutItem(type: 'nova-lista', localizedTitle: 'Nova lista de tarefas'),
         ShortcutItem(type: 'buscar', localizedTitle: 'Buscar'),
         ShortcutItem(type: 'ultima', localizedTitle: 'Última nota editada'),
+        ShortcutItem(type: 'ditar', localizedTitle: 'Ditar uma nota'),
       ]);
     } catch (_) {
       /* Sem atalhos nesta plataforma. */
@@ -354,6 +415,8 @@ class _HomeShellState extends State<HomeShell> {
   void dispose() {
     _widgetClicks?.cancel();
     _noteRequests?.cancel();
+    _snoozes?.cancel();
+    _scroll.dispose();
     _searchController.dispose();
     _shareChannel.setMethodCallHandler(null);
     super.dispose();
@@ -369,17 +432,20 @@ class _HomeShellState extends State<HomeShell> {
     }
   }
 
+  /// Toques nos widgets: nova nota, nova lista, abrir uma nota ou as tarefas.
   void _handleWidgetUri(Uri? uri) {
-    if (uri == null || uri.host != 'nova-nota' || !mounted) return;
-    final note = Note(
-      id: DateTime.now().microsecondsSinceEpoch.toString(),
-      title: '',
-      body: '',
-      updatedAt: DateTime.now(),
-      folder: 'Geral',
-      font: widget.store.font,
-    );
-    _openNote(note, isNew: true);
+    if (uri == null || !mounted) return;
+    switch (uri.host) {
+      case 'nova-nota':
+        _openNote(_blankNote(), isNew: true);
+      case 'nova-lista':
+        _openNote(_blankNote(checklist: true), isNew: true);
+      case 'abrir':
+        final id = uri.queryParameters['id'];
+        if (id != null) _openById(id);
+      case 'tarefas':
+        _openTasks();
+    }
   }
 
   Future<void> _loadCollections() async {
@@ -454,14 +520,28 @@ class _HomeShellState extends State<HomeShell> {
         final wanted = normalized.substring(1);
         return note.tags.any((item) => foldForSearch(item).startsWith(wanted));
       }
-      return foldForSearch(note.title).contains(normalized) ||
-          foldForSearch(note.body).contains(normalized) ||
-          foldForSearch(note.folder).contains(normalized) ||
-          note.tags.any((item) => foldForSearch(item).contains(normalized)) ||
-          _attachmentText(note).contains(normalized);
+      // Várias palavras: todas precisam aparecer, em qualquer ordem.
+      final haystack = [
+        foldForSearch(note.title),
+        foldForSearch(note.body),
+        foldForSearch(note.folder),
+        ...note.tags.map(foldForSearch),
+        _attachmentText(note),
+      ].join(' ');
+      return normalized
+          .split(RegExp(r'\s+'))
+          .where((word) => word.isNotEmpty)
+          .every(haystack.contains);
     }).toList();
 
+    // Com busca, notas que têm a palavra no título aparecem primeiro.
+    final firstWord = normalized.split(RegExp(r'\s+')).first;
+    bool inTitle(Note note) =>
+        firstWord.isNotEmpty && foldForSearch(note.title).contains(firstWord);
     list.sort((a, b) {
+      if (normalized.isNotEmpty && inTitle(a) != inTitle(b)) {
+        return inTitle(a) ? -1 : 1;
+      }
       if (a.pinned != b.pinned) return a.pinned ? -1 : 1;
       if (sortOrder == 1) return a.updatedAt.compareTo(b.updatedAt);
       if (sortOrder == 2)
@@ -963,12 +1043,17 @@ class _HomeShellState extends State<HomeShell> {
                           tooltip: 'Opções',
                           onSelected: (value) =>
                               Navigator.pop(sheetContext, '$value:$item'),
-                          itemBuilder: (_) => const [
-                            PopupMenuItem(
+                          itemBuilder: (_) => [
+                            const PopupMenuItem(
                               value: 'rename',
                               child: Text('Renomear'),
                             ),
-                            PopupMenuItem(
+                            if (folders)
+                              const PopupMenuItem(
+                                value: 'export',
+                                child: Text('Exportar a pasta'),
+                              ),
+                            const PopupMenuItem(
                               value: 'delete',
                               child: Text('Apagar'),
                             ),
@@ -996,6 +1081,8 @@ class _HomeShellState extends State<HomeShell> {
       });
     } else if (kind == 'rename') {
       await (folders ? _renameFolder(item) : _renameTag(item));
+    } else if (kind == 'export') {
+      await exportAllNotes(widget.store, folder: item);
     } else if (kind == 'delete') {
       await (folders ? _deleteFolder(item) : _deleteTag(item));
     }
@@ -1282,31 +1369,72 @@ class _HomeShellState extends State<HomeShell> {
     );
   }
 
+  /// Ação de deslizar: 0 arquivar, 1 lixeira, 2 fixar, 3 favoritar, 4 nada.
+  (IconData, String, Color) _swipeLook(int action) {
+    final cs = Theme.of(context).colorScheme;
+    return switch (action) {
+      1 => (Icons.delete_outline_rounded, 'Lixeira', cs.error),
+      2 => (Icons.push_pin_outlined, 'Fixar', cs.primary),
+      3 => (Icons.star_outline_rounded, 'Favoritar', cs.primary),
+      _ => (Icons.archive_outlined, 'Arquivar', cs.primary),
+    };
+  }
+
+  /// Fixar e favoritar não tiram o card da tela: só alternam e voltam.
+  /// Arquivar e lixeira deixam o card sair e agem em onDismissed.
+  Future<bool> _runSwipe(Note note, int action) async {
+    switch (action) {
+      case 0:
+      case 1:
+        return true;
+      case 2:
+        widget.store.togglePin(note);
+        HapticFeedback.selectionClick();
+        return false;
+      case 3:
+        note.favorite = !note.favorite;
+        widget.store.save();
+        HapticFeedback.selectionClick();
+        return false;
+    }
+    return false;
+  }
+
   Widget _noteTile(Note note) {
+    final right = widget.store.swipeRight;
+    final left = widget.store.swipeLeft;
+    final rightLook = _swipeLook(right);
+    final leftLook = _swipeLook(left);
+    final direction = selectedIds.isNotEmpty || (right == 4 && left == 4)
+        ? DismissDirection.none
+        : right == 4
+        ? DismissDirection.endToStart
+        : left == 4
+        ? DismissDirection.startToEnd
+        : DismissDirection.horizontal;
     return Dismissible(
       key: ValueKey('note-${note.id}'),
-      direction: selectedIds.isEmpty
-          ? DismissDirection.horizontal
-          : DismissDirection.none,
+      direction: direction,
       background: _SwipeBackground(
         alignment: Alignment.centerLeft,
-        icon: Icons.archive_outlined,
-        label: 'Arquivar',
-        color: Theme.of(context).colorScheme.primary,
+        icon: rightLook.$1,
+        label: rightLook.$2,
+        color: rightLook.$3,
       ),
       secondaryBackground: _SwipeBackground(
         alignment: Alignment.centerRight,
-        icon: Icons.delete_outline_rounded,
-        label: 'Lixeira',
-        color: Theme.of(context).colorScheme.error,
+        icon: leftLook.$1,
+        label: leftLook.$2,
+        color: leftLook.$3,
       ),
-      onDismissed: (direction) {
-        if (direction ==
-            DismissDirection.startToEnd) {
-          _swipeArchive(note);
-        } else {
-          _swipeDelete(note);
-        }
+      confirmDismiss: (dir) => _runSwipe(
+        note,
+        dir == DismissDirection.startToEnd ? right : left,
+      ),
+      onDismissed: (dir) {
+        final action = dir == DismissDirection.startToEnd ? right : left;
+        if (action == 0) _swipeArchive(note);
+        if (action == 1) _swipeDelete(note);
       },
       child: _NoteCard(
         note: note,
@@ -1326,6 +1454,61 @@ class _HomeShellState extends State<HomeShell> {
         showTags: widget.store.cardShowTags,
         highlight: foldForSearch(query.trim()),
       ),
+    );
+  }
+
+  /// Modo lista: notas agrupadas por quando foram editadas.
+  Widget _groupedList(List<Note> notes) {
+    final grouping = sortOrder == 0 && query.trim().isEmpty;
+    final today = DateUtils.dateOnly(DateTime.now());
+    String group(Note note) {
+      if (note.pinned) return 'Fixadas';
+      final day = DateUtils.dateOnly(note.updatedAt);
+      if (day == today) return 'Hoje';
+      if (day == today.subtract(const Duration(days: 1))) return 'Ontem';
+      if (today.difference(day).inDays < 7) return 'Nos últimos 7 dias';
+      if (today.difference(day).inDays < 31) return 'Neste mês';
+      return 'Mais antigas';
+    }
+
+    final rows = <Object>[];
+    String? last;
+    for (final note in notes) {
+      if (grouping) {
+        final name = group(note);
+        if (name != last) rows.add(name);
+        last = name;
+      }
+      rows.add(note);
+    }
+    final height = widget.store.compactCards ? 136.0 : 184.0;
+    return ListView.builder(
+      controller: _scroll,
+      padding: const EdgeInsets.fromLTRB(20, 0, 20, 110),
+      itemCount: rows.length,
+      itemBuilder: (context, index) {
+        final row = rows[index];
+        if (row is String) {
+          return Padding(
+            padding: EdgeInsets.fromLTRB(4, index == 0 ? 2 : 14, 0, 8),
+            child: Text(
+              row.toUpperCase(),
+              style: TextStyle(
+                fontSize: 11.5,
+                fontWeight: FontWeight.w800,
+                letterSpacing: 1,
+                color: Theme.of(
+                  context,
+                ).colorScheme.onSurface.withValues(alpha: .6),
+              ),
+            ),
+          );
+        }
+        return Padding(
+          padding: const EdgeInsets.only(bottom: 10),
+          child: SizedBox(height: height, child: _noteTile(row as Note)),
+        );
+      },
     );
   }
 
@@ -1406,14 +1589,37 @@ class _HomeShellState extends State<HomeShell> {
           if (_active.any(_isOverdue))
             _quickChip('Atrasadas', overdueOnly, () => overdueOnly = !overdueOnly),
           if (folders.length > 1)
-          for (final item in folders)
+          for (final item in [
+            ...folders.where(widget.store.pinnedFolders.contains),
+            ...folders.where((f) => !widget.store.pinnedFolders.contains(f)),
+          ])
             Padding(
               padding: const EdgeInsets.only(right: 8),
-              child: ChoiceChip(
-                label: Text('$item  ${_active.where((n) => _inFolder(n.folder, item)).length}'),
-                selected: folder == item,
-                onSelected: (_) => setState(
-                  () => folder = folder == item ? null : item,
+              // Segurar a pasta fixa ela no começo dos atalhos.
+              child: GestureDetector(
+                onLongPress: () {
+                  HapticFeedback.selectionClick();
+                  final pinned = widget.store.pinnedFolders;
+                  final was = pinned.remove(item);
+                  if (!was) pinned.insert(0, item);
+                  widget.store.save();
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(
+                        was ? 'Pasta $item solta' : 'Pasta $item fixada no começo',
+                      ),
+                    ),
+                  );
+                },
+                child: ChoiceChip(
+                  avatar: widget.store.pinnedFolders.contains(item)
+                      ? const Icon(Icons.push_pin, size: 14)
+                      : null,
+                  label: Text('$item  ${_active.where((n) => _inFolder(n.folder, item)).length}'),
+                  selected: folder == item,
+                  onSelected: (_) => setState(
+                    () => folder = folder == item ? null : item,
+                  ),
                 ),
               ),
             ),
@@ -1476,11 +1682,15 @@ class _HomeShellState extends State<HomeShell> {
               ),
               const SizedBox(width: 8),
               Flexible(
-                child: Text(
-                  widget.store.homeTitle.trim().isEmpty
-                      ? 'Noto'
-                      : widget.store.homeTitle.trim(),
-                  overflow: TextOverflow.ellipsis,
+                // Tocar no nome volta ao começo da lista.
+                child: GestureDetector(
+                  onTap: _scrollToTop,
+                  child: Text(
+                    widget.store.homeTitle.trim().isEmpty
+                        ? 'Noto'
+                        : widget.store.homeTitle.trim(),
+                    overflow: TextOverflow.ellipsis,
+                  ),
                 ),
               ),
             ],
@@ -1545,9 +1755,18 @@ class _HomeShellState extends State<HomeShell> {
                     controller: _searchController,
                     autofocus: true,
                     decoration: InputDecoration(
-                      hintText: 'Buscar no Noto',
+                      hintText: 'Buscar no Noto (dica: #tag)',
                       suffixIcon: query.isEmpty
-                          ? null
+                          ? IconButton(
+                              tooltip: 'Buscar falando',
+                              icon: const Icon(Icons.mic_none_rounded),
+                              onPressed: () async {
+                                final spoken = await showDictation(context);
+                                if (spoken == null || !mounted) return;
+                                _searchController.text = spoken;
+                                setState(() => query = spoken);
+                              },
+                            )
                           : IconButton(
                               tooltip: 'Limpar busca',
                               icon: const Icon(Icons.close_rounded),
@@ -1566,8 +1785,9 @@ class _HomeShellState extends State<HomeShell> {
                   widget.store.recentSearches.isNotEmpty)
                 _recentSearches(),
               if (widget.store.homeShowToday)
-                _TodayLine(snapshot: snapshot),
-              if (_allFolders.length > 1 || _hasQuickFilters(active))
+                _TodayLine(snapshot: snapshot, onTasks: _openTasks),
+              if (widget.store.showFolderChips &&
+                  (_allFolders.length > 1 || _hasQuickFilters(active)))
                 _folderChips(),
               if (widget.store.shouldNudgeBackup)
                 _TipCard(
@@ -1665,28 +1885,22 @@ class _HomeShellState extends State<HomeShell> {
                         },
                       )
                     : widget.store.layoutMode == 1
-                    ? ListView.separated(
-                        padding: const EdgeInsets.fromLTRB(20, 0, 20, 110),
-                        itemCount: notes.length,
-                        separatorBuilder: (_, __) => const SizedBox(height: 10),
-                        itemBuilder: (_, index) => SizedBox(
-                          height: 184,
-                          child: _noteTile(notes[index]),
-                        ),
-                      )
+                    ? _groupedList(notes)
                     : LayoutBuilder(
                         builder: (context, constraints) {
                           final columns =
                               widget.store.gridColumns +
                               (constraints.maxWidth >= 760 ? 1 : 0);
                           return GridView.builder(
+                            controller: _scroll,
                             padding: const EdgeInsets.fromLTRB(20, 0, 20, 110),
                             gridDelegate:
                                 SliverGridDelegateWithFixedCrossAxisCount(
                                   crossAxisCount: columns,
                                   crossAxisSpacing: 12,
                                   mainAxisSpacing: 12,
-                                  mainAxisExtent: 224,
+                                  mainAxisExtent:
+                                      widget.store.compactCards ? 168 : 224,
                                 ),
                             itemCount: notes.length,
                             itemBuilder: (_, index) => _noteTile(notes[index]),
@@ -1736,6 +1950,10 @@ class _HomeShellState extends State<HomeShell> {
                         PopupMenuItem(
                           value: 'pin',
                           child: Text('Fixar / desafixar no topo'),
+                        ),
+                        PopupMenuItem(
+                          value: 'share',
+                          child: Text('Compartilhar'),
                         ),
                         PopupMenuItem(
                           value: 'merge',
@@ -1886,9 +2104,10 @@ class _TopAction extends StatelessWidget {
 }
 
 class _TodayLine extends StatelessWidget {
-  const _TodayLine({required this.snapshot});
+  const _TodayLine({required this.snapshot, required this.onTasks});
 
   final TodaySnapshot snapshot;
+  final VoidCallback onTasks;
 
   @override
   Widget build(BuildContext context) {
@@ -1925,7 +2144,12 @@ class _TodayLine extends StatelessWidget {
         padding: const EdgeInsets.fromLTRB(20, 6, 20, 0),
         children: [
           for (final item in items)
-            Container(
+            GestureDetector(
+              // Tocar nas tarefas abre a lista com todas elas.
+              onTap: item.$1 == Icons.check_box_outline_blank_rounded
+                  ? onTasks
+                  : null,
+              child: Container(
               margin: const EdgeInsets.only(right: 8),
               padding: const EdgeInsets.symmetric(horizontal: 11),
               decoration: BoxDecoration(
@@ -1945,8 +2169,17 @@ class _TodayLine extends StatelessWidget {
                       color: cs.onSurface.withValues(alpha: .82),
                     ),
                   ),
+                  if (item.$1 == Icons.check_box_outline_blank_rounded) ...[
+                    const SizedBox(width: 2),
+                    Icon(
+                      Icons.chevron_right_rounded,
+                      size: 16,
+                      color: cs.onSurface.withValues(alpha: .5),
+                    ),
+                  ],
                 ],
               ),
+            ),
             ),
         ],
       ),

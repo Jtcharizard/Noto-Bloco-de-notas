@@ -45,8 +45,39 @@ Future<void> openVault(BuildContext context, AppStore store) async {
     await showVaultGuide(context);
     if (!context.mounted) return;
   } else {
+    // Erros de antes desta abertura (os seus erros agora não contam).
+    final wrong = store.vaultWrongSinceOpen;
+    final at = store.vaultLastWrongAt;
     final ok = await unlockVault(context, store);
     if (!ok || !context.mounted) return;
+    store.vaultWrongSinceOpen = 0;
+    store.vaultLastWrongAt = null;
+    await store.save();
+    if (wrong > 0 && context.mounted) {
+      await showDialog<void>(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          icon: const Icon(Icons.warning_amber_rounded),
+          title: Text(
+            wrong == 1
+                ? 'Erraram a senha 1 vez'
+                : 'Erraram a senha $wrong vezes',
+          ),
+          content: Text(
+            'Desde a última vez que o cofre foi aberto'
+            '${at == null ? '' : ', a última em ${DateFormat("dd/MM 'às' HH:mm").format(at)}'}. '
+            'Se não foi você, troque a senha no menu ⋮ do cofre.',
+          ),
+          actions: [
+            FilledButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: const Text('Ok'),
+            ),
+          ],
+        ),
+      );
+    }
+    if (!context.mounted) return;
   }
   await Navigator.push(
     context,
@@ -204,6 +235,7 @@ class _PinDialog extends StatefulWidget {
 
 class _PinDialogState extends State<_PinDialog> {
   final controller = TextEditingController();
+  bool visible = false;
 
   @override
   void dispose() {
@@ -228,11 +260,22 @@ class _PinDialogState extends State<_PinDialog> {
         TextField(
           controller: controller,
           autofocus: true,
-          obscureText: true,
+          obscureText: !visible,
           keyboardType: TextInputType.number,
           maxLength: 6,
           inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-          decoration: const InputDecoration(labelText: 'Senha'),
+          decoration: InputDecoration(
+            labelText: 'Senha',
+            suffixIcon: IconButton(
+              tooltip: visible ? 'Esconder senha' : 'Mostrar senha',
+              icon: Icon(
+                visible
+                    ? Icons.visibility_off_outlined
+                    : Icons.visibility_outlined,
+              ),
+              onPressed: () => setState(() => visible = !visible),
+            ),
+          ),
           onSubmitted: (_) => _submit(),
         ),
         if (widget.allowForgot)
@@ -785,11 +828,25 @@ class _VaultPageState extends State<VaultPage> {
               PopupMenuButton<String>(
                 tooltip: 'Opções do cofre',
                 onSelected: (value) {
+                  if (value == 'lock') {
+                    Navigator.popUntil(context, (route) => route.isFirst);
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Cofre trancado')),
+                    );
+                    return;
+                  }
                   if (value == 'guide') showVaultGuide(context);
-                  if (value == 'lock') _pickLockTime();
+                  if (value == 'lock-time') _pickLockTime();
                   if (value == 'pin') changeVaultPin(context, store);
                 },
                 itemBuilder: (_) => const [
+                  PopupMenuItem(
+                    value: 'lock',
+                    child: ListTile(
+                      leading: Icon(Icons.lock_rounded),
+                      title: Text('Trancar agora'),
+                    ),
+                  ),
                   PopupMenuItem(
                     value: 'guide',
                     child: ListTile(
@@ -798,7 +855,7 @@ class _VaultPageState extends State<VaultPage> {
                     ),
                   ),
                   PopupMenuItem(
-                    value: 'lock',
+                    value: 'lock-time',
                     child: ListTile(
                       leading: Icon(Icons.timer_outlined),
                       title: Text('Quando pedir a senha'),
