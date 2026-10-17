@@ -1082,7 +1082,7 @@ class _HomeShellState extends State<HomeShell> {
     } else if (kind == 'rename') {
       await (folders ? _renameFolder(item) : _renameTag(item));
     } else if (kind == 'export') {
-      await exportAllNotes(widget.store, folder: item);
+      await exportAllNotes(widget.store, onlyFolder: item);
     } else if (kind == 'delete') {
       await (folders ? _deleteFolder(item) : _deleteTag(item));
     }
