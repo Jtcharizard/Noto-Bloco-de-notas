@@ -22,6 +22,7 @@ import 'noto_models.dart';
 import 'noto_power_tools.dart';
 import 'noto_store.dart';
 import 'noto_theme.dart';
+import 'noto_dictation.dart';
 import 'noto_vault.dart';
 
 class EditorPage extends StatefulWidget {
@@ -62,6 +63,8 @@ class _EditorPageState extends State<EditorPage>
   final List<String> redoStack = [];
   TextAlign alignment = TextAlign.left;
   bool hideDone = false;
+  bool _countsAsVault = false;
+  bool readOnly = false;
   Timer? autosaveTimer;
   SharedPreferences? editorPrefs;
   String saveLabel = 'Salvo';
@@ -74,6 +77,10 @@ class _EditorPageState extends State<EditorPage>
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    if (widget.note.locked) {
+      widget.store.vaultScreensOpen++;
+      _countsAsVault = true;
+    }
     final metadata = widget.note.editor;
     hideDone = metadata['hideDone'] == true;
     codeBlocks.addAll(
@@ -552,6 +559,12 @@ class _EditorPageState extends State<EditorPage>
       case 'table':
         _insertTable();
         break;
+      case 'datetime':
+        _insertText(DateFormat("dd/MM/yyyy 'às' HH:mm").format(DateTime.now()));
+        break;
+      case 'dictate':
+        _dictate();
+        break;
       case 'color':
         _pickTextColor(false);
         break;
@@ -607,6 +620,76 @@ class _EditorPageState extends State<EditorPage>
     _editorChanged();
   }
 
+  /// Coloca texto no cursor (texto comum) ou numa linha nova (lista de tarefas).
+  void _insertText(String text) {
+    if (text.isEmpty) return;
+    if (widget.note.checklist) {
+      body.text = body.text.trim().isEmpty ? text : '${body.text}\n$text';
+      tableEpoch++;
+      _editorChanged();
+      return;
+    }
+    final selection = body.selection;
+    final at = selection.isValid ? selection.start : body.text.length;
+    final end = selection.isValid ? selection.end : body.text.length;
+    final before = body.text.substring(0, at);
+    final spacer = before.isEmpty || before.endsWith(' ') || before.endsWith('\n')
+        ? ''
+        : ' ';
+    final insert = '$spacer$text';
+    body.value = TextEditingValue(
+      text: body.text.replaceRange(at, end, insert),
+      selection: TextSelection.collapsed(offset: at + insert.length),
+    );
+    bodyFocus.requestFocus();
+  }
+
+  Future<void> _dictate() async {
+    final text = await showDictation(context);
+    if (text == null || !mounted) return;
+    _insertText(text);
+  }
+
+  /// Desmarca todas as tarefas ou apaga as concluídas.
+  void _rewriteTasks({required bool remove}) {
+    final task = RegExp(r'^(\s*(?:[-*]\s*)?)\[([xX])\](.*)$');
+    final lines = <String>[];
+    var changed = 0;
+    for (final line in body.text.split('\n')) {
+      final match = task.firstMatch(line);
+      if (match == null) {
+        lines.add(line);
+        continue;
+      }
+      changed++;
+      if (!remove) lines.add('${match.group(1)}[ ]${match.group(3)}');
+    }
+    if (changed == 0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Nenhuma tarefa concluída.')),
+      );
+      return;
+    }
+    body.text = lines.isEmpty ? '- [ ] ' : lines.join('\n');
+    tableEpoch++;
+    _editorChanged();
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          remove
+              ? (changed == 1 ? '1 tarefa apagada' : '$changed tarefas apagadas')
+              : (changed == 1
+                    ? '1 tarefa desmarcada'
+                    : '$changed tarefas desmarcadas'),
+        ),
+        action: SnackBarAction(
+          label: 'Desfazer',
+          onPressed: () => _historyEdit(false),
+        ),
+      ),
+    );
+  }
+
   void _setHideDone(bool value) {
     setState(() => hideDone = value);
     dirty = true;
@@ -642,8 +725,10 @@ class _EditorPageState extends State<EditorPage>
     final value = await showModalBottomSheet<String>(
       context: context,
       useSafeArea: true,
+      isScrollControlled: true,
       builder: (ctx) => SafeArea(
-        child: Wrap(
+        child: SingleChildScrollView(
+          child: Wrap(
           children: [
             const ListTile(title: Text('Inserir')),
             if (widget.note.checklist)
@@ -675,7 +760,18 @@ class _EditorPageState extends State<EditorPage>
               title: const Text('Separador'),
               onTap: () => Navigator.pop(ctx, 'divider'),
             ),
+            ListTile(
+              leading: const Icon(Icons.today_outlined),
+              title: const Text('Data e hora de agora'),
+              onTap: () => Navigator.pop(ctx, 'datetime'),
+            ),
+            ListTile(
+              leading: const Icon(Icons.mic_none_rounded),
+              title: const Text('Ditar por voz'),
+              onTap: () => Navigator.pop(ctx, 'dictate'),
+            ),
           ],
+          ),
         ),
       ),
     );
@@ -736,8 +832,10 @@ class _EditorPageState extends State<EditorPage>
     final value = await showModalBottomSheet<String>(
       context: context,
       useSafeArea: true,
+      isScrollControlled: true,
       builder: (ctx) => SafeArea(
-        child: Wrap(
+        child: SingleChildScrollView(
+          child: Wrap(
           children: [
             const ListTile(title: Text('Ferramentas')),
             ListTile(
@@ -764,17 +862,88 @@ class _EditorPageState extends State<EditorPage>
                 ),
                 onTap: () => Navigator.pop(ctx, 'hide-done'),
               ),
+            if (widget.note.checklist) ...[
+              ListTile(
+                leading: const Icon(Icons.restart_alt_rounded),
+                title: const Text('Desmarcar todas as tarefas'),
+                subtitle: const Text('Bom para listas que se repetem'),
+                onTap: () => Navigator.pop(ctx, 'uncheck-all'),
+              ),
+              ListTile(
+                leading: const Icon(Icons.playlist_remove_rounded),
+                title: const Text('Apagar tarefas concluídas'),
+                onTap: () => Navigator.pop(ctx, 'remove-done'),
+              ),
+            ] else
+              ListTile(
+                leading: Icon(
+                  readOnly ? Icons.edit_outlined : Icons.chrome_reader_mode_outlined,
+                ),
+                title: Text(readOnly ? 'Voltar a editar' : 'Modo leitura'),
+                subtitle: readOnly
+                    ? null
+                    : const Text('Lê sem abrir o teclado por engano'),
+                onTap: () => Navigator.pop(ctx, 'read-mode'),
+              ),
+            ListTile(
+              leading: Icon(
+                widget.store.pinnedNotificationNoteId == widget.note.id
+                    ? Icons.notifications_off_outlined
+                    : Icons.push_pin_outlined,
+              ),
+              title: Text(
+                widget.store.pinnedNotificationNoteId == widget.note.id
+                    ? 'Tirar da barra de notificações'
+                    : 'Fixar na barra de notificações',
+              ),
+              onTap: () => Navigator.pop(ctx, 'pin-notification'),
+            ),
             ListTile(
               leading: const Icon(Icons.visibility_outlined),
               title: const Text('Ver como vai ficar'),
               onTap: () => Navigator.pop(ctx, 'preview'),
             ),
           ],
+          ),
         ),
       ),
     );
     if (value == 'hide-done') {
       _setHideDone(!hideDone);
+      return;
+    }
+    if (value == 'uncheck-all' || value == 'remove-done') {
+      _rewriteTasks(remove: value == 'remove-done');
+      return;
+    }
+    if (value == 'read-mode') {
+      setState(() => readOnly = !readOnly);
+      if (readOnly) FocusManager.instance.primaryFocus?.unfocus();
+      return;
+    }
+    if (value == 'pin-notification') {
+      _syncModel();
+      if (widget.isNew && !widget.store.notes.contains(widget.note)) {
+        if (!hasContent) return;
+        widget.store.notes.add(widget.note);
+      }
+      final pinned = widget.store.pinnedNotificationNoteId == widget.note.id;
+      if (pinned) {
+        await widget.store.hidePinnedNotification();
+      } else {
+        await widget.store.showPinnedNotification(widget.note);
+      }
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              pinned
+                  ? 'Nota tirada da barra de notificações'
+                  : 'Nota fixada na barra de notificações',
+            ),
+          ),
+        );
+      }
       return;
     }
     if (value == 'preview' && mounted) {
@@ -795,7 +964,16 @@ class _EditorPageState extends State<EditorPage>
     return Material(
       color: cs.surfaceContainerHighest,
       borderRadius: BorderRadius.circular(14),
-      child: Row(
+      // Botões compactos para caber tudo até em celulares estreitos.
+      child: IconButtonTheme(
+        data: IconButtonThemeData(
+          style: IconButton.styleFrom(
+            visualDensity: VisualDensity.compact,
+            minimumSize: const Size(38, 42),
+            padding: const EdgeInsets.symmetric(horizontal: 6),
+          ),
+        ),
+        child: Row(
         children: [
           IconButton(
             tooltip: 'Desfazer',
@@ -821,6 +999,11 @@ class _EditorPageState extends State<EditorPage>
           ],
           const Spacer(),
           IconButton(
+            tooltip: 'Ditar por voz',
+            onPressed: readOnly ? null : _dictate,
+            icon: const Icon(Icons.mic_none_rounded),
+          ),
+          IconButton(
             tooltip: 'Inserir',
             onPressed: _showInsertMenu,
             icon: const Icon(Icons.add_circle_outline_rounded),
@@ -837,6 +1020,7 @@ class _EditorPageState extends State<EditorPage>
             icon: const Icon(Icons.more_horiz_rounded),
           ),
         ],
+      ),
       ),
     );
   }
@@ -907,6 +1091,24 @@ class _EditorPageState extends State<EditorPage>
     await Share.share(content);
   }
 
+  /// Atalhos comuns para marcar lembrete rápido.
+  List<(String, DateTime)> _quickReminderTimes() {
+    final now = DateTime.now();
+    final today = DateUtils.dateOnly(now);
+    final tomorrow = today.add(const Duration(days: 1));
+    final inHour = now.add(const Duration(hours: 1));
+    var monday = today.add(const Duration(days: 1));
+    while (monday.weekday != DateTime.monday) {
+      monday = monday.add(const Duration(days: 1));
+    }
+    return [
+      ('Em 1 hora', DateTime(inHour.year, inHour.month, inHour.day, inHour.hour, inHour.minute)),
+      if (now.hour < 19) ('Hoje às 20h', today.add(const Duration(hours: 20))),
+      ('Amanhã às 9h', tomorrow.add(const Duration(hours: 9))),
+      ('Segunda às 9h', monday.add(const Duration(hours: 9))),
+    ];
+  }
+
   Future<void> chooseReminder() async {
     final now = DateTime.now();
     final today = DateUtils.dateOnly(now);
@@ -936,6 +1138,20 @@ class _EditorPageState extends State<EditorPage>
                     ?.copyWith(fontWeight: FontWeight.w900),
               ),
               const SizedBox(height: 8),
+              Wrap(
+                spacing: 8,
+                runSpacing: 6,
+                children: [
+                  for (final quick in _quickReminderTimes())
+                    ActionChip(
+                      label: Text(quick.$1),
+                      onPressed: () => setModalState(() {
+                        date = DateUtils.dateOnly(quick.$2);
+                        time = TimeOfDay.fromDateTime(quick.$2);
+                      }),
+                    ),
+                ],
+              ),
               ListTile(
                 contentPadding: EdgeInsets.zero,
                 leading: const Icon(Icons.event_outlined),
@@ -1922,6 +2138,7 @@ class _EditorPageState extends State<EditorPage>
 
   @override
   void dispose() {
+    if (_countsAsVault) widget.store.vaultScreensOpen--;
     WidgetsBinding.instance.removeObserver(this);
     autosaveTimer?.cancel();
     title.removeListener(_editorChanged);
@@ -2139,6 +2356,9 @@ class _EditorPageState extends State<EditorPage>
                         Expanded(
                           child: TextField(
                             controller: title,
+                            readOnly: readOnly,
+                            textInputAction: TextInputAction.next,
+                            onSubmitted: (_) => bodyFocus.requestFocus(),
                             textCapitalization: TextCapitalization.sentences,
                             decoration: InputDecoration(
                               hintText: 'Título',
@@ -2258,6 +2478,10 @@ class _EditorPageState extends State<EditorPage>
                                 TextField(
                                   controller: body,
                                   focusNode: bodyFocus,
+                                  readOnly: readOnly,
+                                  inputFormatters: [
+                                    ListContinuationFormatter(),
+                                  ],
                                   minLines: 6,
                                   maxLines: null,
                                   textAlign: alignment,
@@ -2278,7 +2502,7 @@ class _EditorPageState extends State<EditorPage>
                                   style: TextStyle(
                                     fontFamily: bodyFamily,
                                     fontSize: widget.store.fontSize,
-                                    height: 1.6,
+                                    height: widget.store.editorLineHeight,
                                     color: fg,
                                   ),
                                 ),

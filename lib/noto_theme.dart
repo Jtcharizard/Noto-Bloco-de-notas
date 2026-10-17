@@ -27,10 +27,15 @@ ThemeData notoTheme(AppStore store, Brightness brightness) {
       : selectedAccent;
   Color tint(Color base, double amount) =>
       Color.alphaBlend(selectedAccent.withValues(alpha: amount), base);
-  final surface = dark
+  final black = dark && store.pureBlack;
+  final surface = black
+      ? Colors.black
+      : dark
       ? tint(const Color(0xFF121216), .05)
       : tint(NotoPalette.paper, .035);
-  final raised = dark
+  final raised = black
+      ? tint(const Color(0xFF0E0E10), .06)
+      : dark
       ? tint(const Color(0xFF1D1D23), .08)
       : NotoPalette.paperSoft;
   final text = dark ? const Color(0xFFF4F4F7) : NotoPalette.ink;

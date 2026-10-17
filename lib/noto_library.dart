@@ -11,6 +11,7 @@ import 'package:share_plus/share_plus.dart';
 import 'noto_editor.dart';
 import 'noto_features.dart';
 import 'noto_models.dart';
+import 'noto_rich_editor.dart';
 import 'noto_store.dart';
 
 class FontPickerSheet extends StatefulWidget {
@@ -651,7 +652,7 @@ Future<void> importBackup(BuildContext context, AppStore store) async {
 void showAboutNoto(BuildContext context) => showAboutDialog(
   context: context,
   applicationName: 'Noto',
-  applicationVersion: '2.4',
+  applicationVersion: '2.5',
   applicationIcon: ClipRRect(
     borderRadius: BorderRadius.circular(18),
     child: Image.asset('assets/noto_mark.png', width: 68, height: 68),
@@ -660,3 +661,65 @@ void showAboutNoto(BuildContext context) => showAboutDialog(
     Text('Um bloco de notas simples, offline e do seu jeito.'),
   ],
 );
+
+/// Exporta todas as notas (fora do cofre e da lixeira) num único arquivo Markdown.
+Future<void> exportAllNotes(AppStore store) async {
+  final notes = store.notes
+      .where((n) => n.deletedAt == null && !n.locked)
+      .toList()
+    ..sort((a, b) {
+      final folder = a.folder.toLowerCase().compareTo(b.folder.toLowerCase());
+      return folder != 0 ? folder : b.updatedAt.compareTo(a.updatedAt);
+    });
+  final buffer = StringBuffer()
+    ..writeln('# Minhas notas do Noto')
+    ..writeln()
+    ..writeln(
+      'Exportado em ${DateFormat("dd/MM/yyyy 'às' HH:mm").format(DateTime.now())} · ${notes.length} notas',
+    );
+  String? folder;
+  for (final note in notes) {
+    if (note.folder != folder) {
+      folder = note.folder;
+      buffer
+        ..writeln()
+        ..writeln('---')
+        ..writeln()
+        ..writeln('# 📁 $folder');
+    }
+    buffer
+      ..writeln()
+      ..writeln('## ${displayTitle(note)}')
+      ..writeln();
+    final meta = [
+      if (note.archived) 'arquivada',
+      if (note.tags.isNotEmpty) note.tags.map((t) => '#$t').join(' '),
+      'editada em ${DateFormat('dd/MM/yyyy').format(note.updatedAt)}',
+    ];
+    buffer
+      ..writeln('_${meta.join(' · ')}_')
+      ..writeln();
+    if (note.body.trim().isNotEmpty) buffer.writeln(note.body.trim());
+    for (final table in (note.editor['tables'] as List?) ?? const []) {
+      buffer
+        ..writeln()
+        ..writeln(
+          NotoTable.fromJson(Map<String, dynamic>.from(table as Map)).markdown,
+        );
+    }
+    for (final code in (note.editor['code'] as List?) ?? const []) {
+      final data = Map<String, dynamic>.from(code as Map);
+      buffer
+        ..writeln()
+        ..writeln('```${data['language'] ?? ''}')
+        ..writeln(data['text'] ?? '')
+        ..writeln('```');
+    }
+  }
+  final dir = await getTemporaryDirectory();
+  final file = File(
+    '${dir.path}/Noto-todas-as-notas-${DateFormat('yyyy-MM-dd').format(DateTime.now())}.md',
+  );
+  await file.writeAsString(buffer.toString());
+  await Share.shareXFiles([XFile(file.path)], text: 'Minhas notas do Noto');
+}

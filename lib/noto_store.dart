@@ -89,6 +89,35 @@ class AppStore extends ChangeNotifier {
   bool onboardingDone = false;
   bool loaded = false;
   bool homeShowToday = true;
+
+  // Personalização
+  bool pureBlack = false;
+  int cardRadius = 16;
+  int gridColumns = 2;
+  int previewLines = 4;
+  bool cardShowFolder = true;
+  bool cardShowDate = true;
+  bool cardShowTags = true;
+  double editorLineHeight = 1.6;
+  String homeTitle = '';
+
+  /// Nota fixada na barra de notificações (null = nenhuma).
+  String? pinnedNotificationNoteId;
+
+  /// Quantas telas do cofre estão abertas agora (para bloquear ao sair do app).
+  int vaultScreensOpen = 0;
+  bool vaultLockRequested = false;
+
+  void requestVaultLock() {
+    if (vaultScreensOpen <= 0 || !hasVault) return;
+    vaultLockRequested = true;
+    notifyListeners();
+  }
+
+  void releaseVaultLock() {
+    vaultLockRequested = false;
+    notifyListeners();
+  }
   bool homeShowRecents = true;
   bool _skipRevisionCapture = false;
 
@@ -240,6 +269,18 @@ class AppStore extends ChangeNotifier {
       ..clear()
       ..addAll(prefs.getStringList('notoSeenTips') ?? const []);
     homeShowToday = prefs.getBool('homeShowToday') ?? true;
+    pureBlack = prefs.getBool('pureBlack') ?? false;
+    cardRadius = (prefs.getInt('cardRadius') ?? 16).clamp(0, 28).toInt();
+    gridColumns = (prefs.getInt('gridColumns') ?? 2).clamp(2, 3).toInt();
+    previewLines = (prefs.getInt('previewLines') ?? 4).clamp(0, 8).toInt();
+    cardShowFolder = prefs.getBool('cardShowFolder') ?? true;
+    cardShowDate = prefs.getBool('cardShowDate') ?? true;
+    cardShowTags = prefs.getBool('cardShowTags') ?? true;
+    editorLineHeight = (prefs.getDouble('editorLineHeight') ?? 1.6)
+        .clamp(1.2, 2.2)
+        .toDouble();
+    homeTitle = prefs.getString('homeTitle') ?? '';
+    pinnedNotificationNoteId = prefs.getString('pinnedNotificationNoteId');
     await prefs.remove('homeShowPulse');
     await prefs.remove('editor.focus');
 
@@ -392,9 +433,27 @@ class AppStore extends ChangeNotifier {
     }
     await prefs.setString('vaultQuestion', vaultQuestion);
     await prefs.setBool('homeShowToday', homeShowToday);
+    await prefs.setBool('pureBlack', pureBlack);
+    await prefs.setInt('cardRadius', cardRadius);
+    await prefs.setInt('gridColumns', gridColumns);
+    await prefs.setInt('previewLines', previewLines);
+    await prefs.setBool('cardShowFolder', cardShowFolder);
+    await prefs.setBool('cardShowDate', cardShowDate);
+    await prefs.setBool('cardShowTags', cardShowTags);
+    await prefs.setDouble('editorLineHeight', editorLineHeight);
+    await prefs.setString('homeTitle', homeTitle);
+    if (pinnedNotificationNoteId == null) {
+      await prefs.remove('pinnedNotificationNoteId');
+    } else {
+      await prefs.setString(
+        'pinnedNotificationNoteId',
+        pinnedNotificationNoteId!,
+      );
+    }
     await prefs.setBool('homeShowRecents', homeShowRecents);
 
     await _syncWidget();
+    await _refreshPinnedNotification();
     notifyListeners();
   }
 
@@ -670,6 +729,63 @@ class AppStore extends ChangeNotifier {
     note.reminderAt = null;
     note.reminderRepeat = 0;
     _cancelScheduled(note);
+  }
+
+  static const _pinnedNotificationId = 777001;
+
+  /// Mostra (ou atualiza) a nota fixada na barra de notificações.
+  Future<void> showPinnedNotification(Note note) async {
+    pinnedNotificationNoteId = note.id;
+    await _prepareNotifications();
+    await save(); // save() publica a notificação com o texto atual.
+  }
+
+  Future<void> hidePinnedNotification() async {
+    pinnedNotificationNoteId = null;
+    try {
+      await notifications.cancel(_pinnedNotificationId);
+    } catch (_) {}
+    await save();
+  }
+
+  /// Mantém a notificação fixada em dia com o texto da nota.
+  Future<void> _refreshPinnedNotification() async {
+    final id = pinnedNotificationNoteId;
+    if (id == null) return;
+    Note? note;
+    for (final item in notes) {
+      if (item.id == id && item.deletedAt == null) note = item;
+    }
+    if (note == null) {
+      pinnedNotificationNoteId = null;
+      try {
+        await notifications.cancel(_pinnedNotificationId);
+      } catch (_) {}
+      return;
+    }
+    final text = note.locked ? 'Nota do cofre' : readablePreview(note.body);
+    try {
+      await notifications.show(
+        _pinnedNotificationId,
+        note.locked ? 'Noto' : displayTitle(note),
+        text.isEmpty ? 'Toque para abrir' : text,
+        NotificationDetails(
+          android: AndroidNotificationDetails(
+            'noto_pinned',
+            'Nota fixada',
+            channelDescription: 'Nota que fica na barra de notificações',
+            importance: Importance.low,
+            priority: Priority.low,
+            ongoing: true,
+            autoCancel: false,
+            onlyAlertOnce: true,
+            showWhen: false,
+            styleInformation: BigTextStyleInformation(text),
+          ),
+        ),
+        payload: note.id,
+      );
+    } catch (_) {}
   }
 
   void delete(Note note) {

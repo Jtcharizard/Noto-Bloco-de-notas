@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 
 import 'noto_features.dart';
 import 'noto_models.dart';
@@ -206,6 +207,154 @@ class SettingsPage extends StatelessWidget {
     await store.save();
   }
 
+  static const _radiusOptions = [
+    (4, 'Retos'),
+    (10, 'Suaves'),
+    (16, 'Arredondados (padrão)'),
+    (26, 'Bem redondos'),
+  ];
+  static const _previewOptions = [
+    (0, 'Sem prévia, só o título'),
+    (2, '2 linhas'),
+    (4, '4 linhas (padrão)'),
+    (6, '6 linhas'),
+  ];
+  static const _spacingOptions = [
+    (13, 'Compacto'),
+    (16, 'Normal (padrão)'),
+    (20, 'Largo'),
+  ];
+
+  String _label(List<(int, String)> options, int value) {
+    for (final option in options) {
+      if (option.$1 == value) return option.$2;
+    }
+    return options.first.$2;
+  }
+
+  Future<int?> _choose(
+    BuildContext context,
+    String title,
+    List<(int, String)> options,
+    int current,
+  ) => showModalBottomSheet<int>(
+    context: context,
+    useSafeArea: true,
+    builder: (sheetContext) => SafeArea(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _SheetHeader(title),
+          for (final option in options)
+            RadioListTile<int>(
+              value: option.$1,
+              groupValue: current,
+              title: Text(option.$2),
+              onChanged: (value) => Navigator.pop(sheetContext, value),
+            ),
+          const SizedBox(height: 12),
+        ],
+      ),
+    ),
+  );
+
+  Future<void> _editHomeTitle(BuildContext context) async {
+    final controller = TextEditingController(text: store.homeTitle);
+    final value = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Nome no topo'),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          maxLength: 24,
+          textCapitalization: TextCapitalization.sentences,
+          decoration: const InputDecoration(
+            hintText: 'Ex.: Notas da Ju',
+            helperText: 'Deixe vazio para mostrar "Noto"',
+          ),
+          onSubmitted: (text) => Navigator.pop(dialogContext, text),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('Cancelar'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, controller.text),
+            child: const Text('Salvar'),
+          ),
+        ],
+      ),
+    );
+    controller.dispose();
+    if (value == null) return;
+    store.homeTitle = value.trim();
+    await store.save();
+  }
+
+  Future<void> _showStats(BuildContext context) async {
+    final visible = store.notes.where((n) => !n.locked).toList();
+    final active = visible.where((n) => n.deletedAt == null && !n.archived);
+    final archived = visible.where((n) => n.deletedAt == null && n.archived);
+    var words = 0;
+    var pending = 0;
+    var done = 0;
+    final folders = <String, int>{};
+    DateTime? oldest;
+    for (final note in active) {
+      final text = readablePreview(note.body).trim();
+      if (text.isNotEmpty) words += text.split(RegExp(r'\s+')).length;
+      pending += countPendingTasks(note.body);
+      done += countDoneTasks(note.body);
+      folders[note.folder] = (folders[note.folder] ?? 0) + 1;
+      if (oldest == null || note.createdAt.isBefore(oldest)) {
+        oldest = note.createdAt;
+      }
+    }
+    final topFolder = folders.entries.isEmpty
+        ? null
+        : (folders.entries.toList()
+                ..sort((a, b) => b.value.compareTo(a.value)))
+              .first;
+    final rows = <(String, String)>[
+      ('Notas', '${active.length}'),
+      ('Arquivadas', '${archived.length}'),
+      ('Palavras escritas', '$words'),
+      ('Tarefas feitas', '$done de ${done + pending}'),
+      if (topFolder != null)
+        ('Pasta mais usada', '${topFolder.key} (${topFolder.value})'),
+      if (oldest != null)
+        ('Primeira nota', DateFormat('dd/MM/yyyy').format(oldest)),
+    ];
+    await showModalBottomSheet<void>(
+      context: context,
+      useSafeArea: true,
+      builder: (_) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.only(bottom: 20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const _SheetHeader('Estatísticas'),
+              for (final row in rows)
+                ListTile(
+                  title: Text(row.$1),
+                  trailing: Text(
+                    row.$2,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w800,
+                      fontSize: 16,
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) => AnimatedBuilder(
         animation: store,
@@ -291,6 +440,140 @@ class SettingsPage extends StatelessWidget {
                   },
                 ),
                 const SizedBox(height: 28),
+                const SectionTitle('Personalização'),
+                SwitchListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: const Text('Preto puro no tema escuro'),
+                  subtitle: const Text('Fundo totalmente preto, bom para telas OLED'),
+                  value: store.pureBlack,
+                  onChanged: (value) {
+                    store.pureBlack = value;
+                    store.save();
+                  },
+                ),
+                NotoTile(
+                  icon: Icons.badge_outlined,
+                  title: 'Nome no topo da tela inicial',
+                  subtitle: store.homeTitle.trim().isEmpty
+                      ? 'Noto'
+                      : store.homeTitle.trim(),
+                  onTap: () => _editHomeTitle(context),
+                ),
+                NotoTile(
+                  icon: Icons.rounded_corner_rounded,
+                  title: 'Cantos dos cards',
+                  subtitle: _label(_radiusOptions, store.cardRadius),
+                  onTap: () async {
+                    final value = await _choose(
+                      context,
+                      'Cantos dos cards',
+                      _radiusOptions,
+                      store.cardRadius,
+                    );
+                    if (value != null) {
+                      store.cardRadius = value;
+                      await store.save();
+                    }
+                  },
+                ),
+                if (store.layoutMode != 1)
+                  NotoTile(
+                    icon: Icons.view_column_outlined,
+                    title: 'Colunas na grade',
+                    subtitle: '${store.gridColumns} colunas',
+                    onTap: () async {
+                      final value = await _choose(
+                        context,
+                        'Colunas na grade',
+                        const [(2, '2 colunas'), (3, '3 colunas')],
+                        store.gridColumns,
+                      );
+                      if (value != null) {
+                        store.gridColumns = value;
+                        await store.save();
+                      }
+                    },
+                  ),
+                NotoTile(
+                  icon: Icons.short_text_rounded,
+                  title: 'Prévia do texto nos cards',
+                  subtitle: _label(_previewOptions, store.previewLines),
+                  onTap: () async {
+                    final value = await _choose(
+                      context,
+                      'Prévia do texto nos cards',
+                      _previewOptions,
+                      store.previewLines,
+                    );
+                    if (value != null) {
+                      store.previewLines = value;
+                      await store.save();
+                    }
+                  },
+                ),
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 10),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Mostrar nos cards',
+                        style: TextStyle(fontWeight: FontWeight.w700),
+                      ),
+                      const SizedBox(height: 8),
+                      Wrap(
+                        spacing: 8,
+                        children: [
+                          FilterChip(
+                            label: const Text('Pasta'),
+                            selected: store.cardShowFolder,
+                            onSelected: (value) {
+                              store.cardShowFolder = value;
+                              store.save();
+                            },
+                          ),
+                          FilterChip(
+                            label: const Text('Tags'),
+                            selected: store.cardShowTags,
+                            onSelected: (value) {
+                              store.cardShowTags = value;
+                              store.save();
+                            },
+                          ),
+                          FilterChip(
+                            label: const Text('Data'),
+                            selected: store.cardShowDate,
+                            onSelected: (value) {
+                              store.cardShowDate = value;
+                              store.save();
+                            },
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+                NotoTile(
+                  icon: Icons.format_line_spacing_rounded,
+                  title: 'Espaço entre as linhas do texto',
+                  subtitle: _label(
+                    _spacingOptions,
+                    (store.editorLineHeight * 10).round(),
+                  ),
+                  onTap: () async {
+                    final value = await _choose(
+                      context,
+                      'Espaço entre as linhas',
+                      _spacingOptions,
+                      (store.editorLineHeight * 10).round(),
+                    );
+                    if (value != null) {
+                      store.editorLineHeight = value / 10;
+                      await store.save();
+                    }
+                  },
+                ),
+                const SizedBox(height: 28),
                 const SectionTitle('Tela inicial'),
                 SwitchListTile(
                   contentPadding: EdgeInsets.zero,
@@ -321,6 +604,17 @@ class SettingsPage extends StatelessWidget {
                   icon: Icons.settings_backup_restore_rounded,
                   title: 'Restaurar backup',
                   onTap: () => importBackup(context, store),
+                ),
+                NotoTile(
+                  icon: Icons.ios_share_rounded,
+                  title: 'Exportar todas as notas',
+                  subtitle: 'Um arquivo de texto fácil de ler em qualquer lugar',
+                  onTap: () => exportAllNotes(store),
+                ),
+                NotoTile(
+                  icon: Icons.insights_outlined,
+                  title: 'Estatísticas',
+                  onTap: () => _showStats(context),
                 ),
                 NotoTile(
                   icon: Icons.school_outlined,

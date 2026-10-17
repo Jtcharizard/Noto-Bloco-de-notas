@@ -1,6 +1,8 @@
 import 'noto_rich_editor.dart';
 
 import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
+import 'package:markdown/markdown.dart' as md;
+import 'package:url_launcher/url_launcher.dart';
 
 import 'dart:convert';
 import 'dart:io';
@@ -566,6 +568,15 @@ class MarkdownPreviewPage extends StatelessWidget {
       ),
       selectable: true,
       softLineBreak: true,
+      extensionSet: md.ExtensionSet.gitHubFlavored,
+      // Links (inclusive endereços soltos no texto) abrem no navegador.
+      onTapLink: (text, href, title) {
+        final raw = (href ?? text).trim();
+        final uri = Uri.tryParse(raw);
+        if (uri == null || raw.isEmpty) return;
+        final target = uri.hasScheme ? uri : Uri.parse('https://$raw');
+        launchUrl(target, mode: LaunchMode.externalApplication);
+      },
       padding: const EdgeInsets.fromLTRB(22, 16, 22, 40),
       // Notes stay offline: never fetch remote images embedded in Markdown.
       imageBuilder: (uri, title, alt) => Text(alt ?? 'Imagem'),

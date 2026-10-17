@@ -5,6 +5,7 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:home_widget/home_widget.dart';
+import 'package:quick_actions/quick_actions.dart';
 import 'package:intl/intl.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -33,45 +34,135 @@ class _HomeShellState extends State<HomeShell> {
   int sortOrder = 0;
   final Set<String> selectedIds = {};
   void _select(Note note) => setState(() {
+    HapticFeedback.selectionClick();
     if (!selectedIds.add(note.id)) selectedIds.remove(note.id);
   });
+  Future<String?> _askText(String title, String label, String action) async {
+    var value = '';
+    return showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(title),
+        content: TextField(
+          autofocus: true,
+          decoration: InputDecoration(labelText: label),
+          onChanged: (v) => value = v.trim(),
+          onSubmitted: (v) {
+            if (v.trim().isNotEmpty) Navigator.pop(ctx, v.trim());
+          },
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancelar'),
+          ),
+          FilledButton(
+            onPressed: () {
+              if (value.isNotEmpty) Navigator.pop(ctx, value);
+            },
+            child: Text(action),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Junta as notas escolhidas numa nova; as originais vão para a lixeira.
+  Future<void> _mergeNotes(List<Note> chosen) async {
+    if (chosen.length < 2) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Escolha pelo menos 2 notas para juntar.')),
+      );
+      return;
+    }
+    final ok = await _confirm(
+      'Juntar ${chosen.length} notas?',
+      'Vira uma nota nova com tudo junto. As originais vão para a lixeira, '
+          'e dá para recuperar de lá.',
+      'Juntar',
+    );
+    if (!ok || !mounted) return;
+    final ordered = List.of(chosen)
+      ..sort((a, b) => a.createdAt.compareTo(b.createdAt));
+    final parts = <String>[];
+    final tables = <dynamic>[];
+    final code = <dynamic>[];
+    final tags = <String>{};
+    for (final note in ordered) {
+      parts.add('## ${displayTitle(note)}\n${note.body.trim()}');
+      tables.addAll((note.editor['tables'] as List?) ?? const []);
+      code.addAll((note.editor['code'] as List?) ?? const []);
+      tags.addAll(note.tags);
+    }
+    final merged = Note(
+      id: DateTime.now().microsecondsSinceEpoch.toString(),
+      title: 'Notas juntas',
+      body: parts.join('\n\n'),
+      updatedAt: DateTime.now(),
+      folder: ordered.first.folder,
+      tags: tags.toList(),
+      checklist: ordered.any((n) => n.checklist),
+      font: widget.store.font,
+      editor: {'tables': tables, 'code': code},
+    );
+    widget.store.notes.add(merged);
+    for (final note in chosen) {
+      widget.store.cancelReminder(note);
+      note.deletedAt = DateTime.now();
+    }
+    await widget.store.save();
+    if (!mounted) return;
+    setState(selectedIds.clear);
+    await _openNote(merged);
+  }
+
   Future<void> _bulk(String action) async {
     final chosen = _active.where((n) => selectedIds.contains(n.id)).toList();
-    final allFavorite = chosen.isNotEmpty && chosen.every((n) => n.favorite);
+    if (chosen.isEmpty) return;
+    if (action == 'merge') {
+      await _mergeNotes(chosen);
+      return;
+    }
+    final allFavorite = chosen.every((n) => n.favorite);
+    final allPinned = chosen.every((n) => n.pinned);
     String? destination;
+    String? newTag;
     if (action == 'move') {
-      var value = '';
-      destination = await showDialog<String>(
-        context: context,
-        builder: (ctx) => AlertDialog(
-          title: const Text('Mover para a pasta'),
-          content: TextField(
-            autofocus: true,
-            decoration: const InputDecoration(labelText: 'Pasta'),
-            onChanged: (v) => value = v.trim(),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(ctx),
-              child: const Text('Cancelar'),
-            ),
-            FilledButton(
-              onPressed: () {
-                if (value.isNotEmpty) Navigator.pop(ctx, value);
-              },
-              child: const Text('Mover'),
-            ),
-          ],
-        ),
-      );
+      destination = await _askText('Mover para a pasta', 'Pasta', 'Mover');
       if (destination == null || !mounted) return;
+      destination = _cleanFolder(destination);
+      if (destination.isEmpty) return;
       savedFolders.add(destination);
       await _saveCollections();
     }
+    if (action == 'tag') {
+      newTag = await _askText('Adicionar tag', 'Tag', 'Adicionar');
+      if (newTag == null || !mounted) return;
+      newTag = newTag.replaceAll('#', '').trim();
+      if (newTag.isEmpty) return;
+      savedTags.add(newTag);
+      await _saveCollections();
+    }
+    if (action == 'vault') {
+      final ready = await ensureVault(context, widget.store);
+      if (!ready || !mounted) return;
+    }
+
+    // Guarda como estava, para o "Desfazer".
+    final before = [
+      for (final note in chosen)
+        (note, note.archived, note.deletedAt, note.reminderAt, note.reminderRepeat),
+    ];
     for (final note in chosen) {
       if (action == 'move') note.folder = destination!;
       if (action == 'favorite') note.favorite = !allFavorite;
+      if (action == 'pin') note.pinned = !allPinned;
       if (action == 'archive') note.archived = true;
+      if (action == 'vault') note.locked = true;
+      if (action == 'tag' &&
+          !note.tags.any((t) => t.toLowerCase() == newTag!.toLowerCase())) {
+        note.tags = [...note.tags, newTag!];
+      }
       if (action == 'trash') {
         widget.store.cancelReminder(note);
         note.deletedAt = DateTime.now();
@@ -79,17 +170,51 @@ class _HomeShellState extends State<HomeShell> {
       note.updatedAt = DateTime.now();
     }
     await widget.store.save();
-    if (mounted) {
-      setState(selectedIds.clear);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            chosen.length == 1 ? '1 nota atualizada' : '${chosen.length} notas atualizadas',
-          ),
-        ),
-      );
+    if (action == 'vault') {
+      for (final note in chosen) {
+        await widget.store.refreshReminder(note);
+      }
     }
+    if (!mounted) return;
+    setState(selectedIds.clear);
+    final count = chosen.length;
+    final message = switch (action) {
+      'archive' => count == 1 ? '1 nota arquivada' : '$count notas arquivadas',
+      'trash' => count == 1
+          ? '1 nota na lixeira'
+          : '$count notas na lixeira',
+      'vault' => count == 1
+          ? '1 nota guardada no cofre'
+          : '$count notas guardadas no cofre',
+      _ => count == 1 ? '1 nota atualizada' : '$count notas atualizadas',
+    };
+    final undoable = action == 'archive' || action == 'trash';
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        action: undoable
+            ? SnackBarAction(
+                label: 'Desfazer',
+                onPressed: () async {
+                  for (final item in before) {
+                    item.$1
+                      ..archived = item.$2
+                      ..deletedAt = item.$3
+                      ..reminderAt = item.$4
+                      ..reminderRepeat = item.$5;
+                  }
+                  await widget.store.save();
+                  for (final item in before) {
+                    if (item.$4 != null) await widget.store.refreshReminder(item.$1);
+                  }
+                  if (mounted) setState(() {});
+                },
+              )
+            : null,
+      ),
+    );
   }
+
 
   bool searching = false;
   String query = '';
@@ -99,6 +224,7 @@ class _HomeShellState extends State<HomeShell> {
   bool reminderOnly = false;
   bool checklistOnly = false;
   bool dueOnly = false;
+  bool overdueOnly = false;
   int priorityFilter = 0;
   DateTime? updatedFrom;
   DateTime? updatedTo;
@@ -114,6 +240,7 @@ class _HomeShellState extends State<HomeShell> {
     _loadCollections();
     _listenToQuickWidget();
     _listenToShares();
+    _setupShortcuts();
     _noteRequests = noteOpenRequests.stream.listen(_openById);
     final pending = pendingNoteOpen;
     if (pending != null) {
@@ -123,6 +250,39 @@ class _HomeShellState extends State<HomeShell> {
   }
 
   StreamSubscription<String>? _noteRequests;
+
+  /// Atalhos ao segurar o ícone do Noto: Nova nota, Nova lista e Buscar.
+  void _setupShortcuts() {
+    try {
+      const actions = QuickActions();
+      actions.initialize((type) {
+        if (!mounted) return;
+        if (type == 'buscar') {
+          setState(() => searching = true);
+          return;
+        }
+        final checklist = type == 'nova-lista';
+        _openNote(
+          Note(
+            id: DateTime.now().microsecondsSinceEpoch.toString(),
+            title: '',
+            body: checklist ? '- [ ] ' : '',
+            updatedAt: DateTime.now(),
+            checklist: checklist,
+            font: widget.store.font,
+          ),
+          isNew: true,
+        );
+      });
+      actions.setShortcutItems(const [
+        ShortcutItem(type: 'nova-nota', localizedTitle: 'Nova nota'),
+        ShortcutItem(type: 'nova-lista', localizedTitle: 'Nova lista de tarefas'),
+        ShortcutItem(type: 'buscar', localizedTitle: 'Buscar'),
+      ]);
+    } catch (_) {
+      /* Sem atalhos nesta plataforma. */
+    }
+  }
   final _searchController = TextEditingController();
 
   /// Abre a nota do lembrete tocado. Nota do cofre pede a senha antes.
@@ -237,6 +397,12 @@ class _HomeShellState extends State<HomeShell> {
     await prefs.setStringList('notoSavedTags', tags);
   }
 
+  bool _isOverdue(Note note) {
+    final due = note.dueAt;
+    if (due == null) return false;
+    return DateUtils.dateOnly(due).isBefore(DateUtils.dateOnly(DateTime.now()));
+  }
+
   List<Note> get _active => widget.store.notes
       .where((note) => note.deletedAt == null && !note.archived && !note.locked)
       .toList();
@@ -254,6 +420,7 @@ class _HomeShellState extends State<HomeShell> {
       if (reminderOnly && note.reminderAt == null) return false;
       if (checklistOnly && !note.checklist) return false;
       if (dueOnly && note.dueAt == null) return false;
+      if (overdueOnly && !_isOverdue(note)) return false;
       if (priorityFilter > 0 && note.priority != priorityFilter) return false;
       if (updatedFrom != null) {
         final start = DateTime(
@@ -290,6 +457,13 @@ class _HomeShellState extends State<HomeShell> {
       if (sortOrder == 3)
         return b.title.toLowerCase().compareTo(a.title.toLowerCase());
       if (sortOrder == 4) return b.createdAt.compareTo(a.createdAt);
+      if (sortOrder == 6) {
+        final ad = a.dueAt, bd = b.dueAt;
+        if (ad == null && bd == null) return b.updatedAt.compareTo(a.updatedAt);
+        if (ad == null) return 1;
+        if (bd == null) return -1;
+        return ad.compareTo(bd);
+      }
       if (sortOrder == 5) return a.createdAt.compareTo(b.createdAt);
       return b.updatedAt.compareTo(a.updatedAt);
     });
@@ -303,6 +477,7 @@ class _HomeShellState extends State<HomeShell> {
       reminderOnly ||
       checklistOnly ||
       dueOnly ||
+      overdueOnly ||
       priorityFilter > 0 ||
       updatedFrom != null ||
       updatedTo != null;
@@ -314,6 +489,7 @@ class _HomeShellState extends State<HomeShell> {
     reminderOnly = false;
     checklistOnly = false;
     dueOnly = false;
+    overdueOnly = false;
     priorityFilter = 0;
     updatedFrom = null;
     updatedTo = null;
@@ -812,6 +988,7 @@ class _HomeShellState extends State<HomeShell> {
     var draftReminder = reminderOnly;
     var draftChecklist = checklistOnly;
     var draftDue = dueOnly;
+    var draftOverdue = overdueOnly;
     var draftPriority = priorityFilter;
     var draftFrom = updatedFrom;
     var draftTo = updatedTo;
@@ -850,6 +1027,7 @@ class _HomeShellState extends State<HomeShell> {
                       draftReminder = false;
                       draftChecklist = false;
                       draftDue = false;
+                      draftOverdue = false;
                       draftPriority = 0;
                       draftFrom = null;
                       draftTo = null;
@@ -963,6 +1141,13 @@ class _HomeShellState extends State<HomeShell> {
                 value: draftDue,
                 onChanged: (value) => setModalState(() => draftDue = value),
               ),
+              SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                title: const Text('Só atrasadas'),
+                subtitle: const Text('Prazo já passou'),
+                value: draftOverdue,
+                onChanged: (value) => setModalState(() => draftOverdue = value),
+              ),
               ListTile(
                 contentPadding: EdgeInsets.zero,
                 leading: const Icon(Icons.date_range_outlined),
@@ -1007,6 +1192,7 @@ class _HomeShellState extends State<HomeShell> {
         reminderOnly = draftReminder;
         checklistOnly = draftChecklist;
         dueOnly = draftDue;
+        overdueOnly = draftOverdue;
         priorityFilter = draftPriority;
         updatedFrom = draftFrom;
         updatedTo = draftTo;
@@ -1113,6 +1299,12 @@ class _HomeShellState extends State<HomeShell> {
         },
         onLongPress: () => _select(note),
         selected: selectedIds.contains(note.id),
+        radius: widget.store.cardRadius.toDouble(),
+        previewLines: widget.store.previewLines,
+        showFolder: widget.store.cardShowFolder,
+        showDate: widget.store.cardShowDate,
+        showTags: widget.store.cardShowTags,
+        highlight: foldForSearch(query.trim()),
       ),
     );
   }
@@ -1137,7 +1329,7 @@ class _HomeShellState extends State<HomeShell> {
             Padding(
               padding: const EdgeInsets.only(right: 8),
               child: ChoiceChip(
-                label: Text(item),
+                label: Text('$item  ${_active.where((n) => _inFolder(n.folder, item)).length}'),
                 selected: folder == item,
                 onSelected: (_) => setState(
                   () => folder = folder == item ? null : item,
@@ -1187,7 +1379,14 @@ class _HomeShellState extends State<HomeShell> {
                 child: const NotoMark(size: 34),
               ),
               const SizedBox(width: 8),
-              const Text('Noto'),
+              Flexible(
+                child: Text(
+                  widget.store.homeTitle.trim().isEmpty
+                      ? 'Noto'
+                      : widget.store.homeTitle.trim(),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
             ],
           ),
           actions: [
@@ -1316,6 +1515,7 @@ class _HomeShellState extends State<HomeShell> {
                         PopupMenuItem(value: 1, child: Text('Editadas há mais tempo')),
                         PopupMenuItem(value: 4, child: Text('Criadas por último')),
                         PopupMenuItem(value: 5, child: Text('Criadas há mais tempo')),
+                        PopupMenuItem(value: 6, child: Text('Prazo mais próximo')),
                         PopupMenuItem(value: 2, child: Text('Título A–Z')),
                         PopupMenuItem(value: 3, child: Text('Título Z–A')),
                       ],
@@ -1372,7 +1572,9 @@ class _HomeShellState extends State<HomeShell> {
                       )
                     : LayoutBuilder(
                         builder: (context, constraints) {
-                          final columns = constraints.maxWidth >= 760 ? 3 : 2;
+                          final columns =
+                              widget.store.gridColumns +
+                              (constraints.maxWidth >= 760 ? 1 : 0);
                           return GridView.builder(
                             padding: const EdgeInsets.fromLTRB(20, 0, 20, 110),
                             gridDelegate:
@@ -1420,8 +1622,24 @@ class _HomeShellState extends State<HomeShell> {
                           child: Text('Mover para pasta'),
                         ),
                         PopupMenuItem(
+                          value: 'tag',
+                          child: Text('Adicionar tag'),
+                        ),
+                        PopupMenuItem(
                           value: 'favorite',
                           child: Text('Favoritar / desfavoritar'),
+                        ),
+                        PopupMenuItem(
+                          value: 'pin',
+                          child: Text('Fixar / desafixar no topo'),
+                        ),
+                        PopupMenuItem(
+                          value: 'merge',
+                          child: Text('Juntar numa nota só'),
+                        ),
+                        PopupMenuItem(
+                          value: 'vault',
+                          child: Text('Mover para o cofre'),
                         ),
                         PopupMenuItem(
                           value: 'archive',
@@ -1708,9 +1926,48 @@ class _NoteCard extends StatelessWidget {
     required this.onTap,
     this.onLongPress,
     this.selected = false,
+    this.radius = 16,
+    this.previewLines = 4,
+    this.showFolder = true,
+    this.showDate = true,
+    this.showTags = true,
+    this.highlight = '',
   });
   final VoidCallback? onLongPress;
   final bool selected;
+  final double radius;
+  final int previewLines;
+  final bool showFolder;
+  final bool showDate;
+  final bool showTags;
+
+  /// Termo da busca: o card mostra o trecho onde ele aparece.
+  final String highlight;
+
+  /// Trecho do texto em volta do termo buscado, com o termo em destaque.
+  TextSpan? _snippet(String text, TextStyle base, Color strong) {
+    if (highlight.isEmpty) return null;
+    final folded = foldForSearch(text);
+    final at = folded.indexOf(highlight);
+    if (at < 0 || folded.length != text.length) return null;
+    final start = (at - 30).clamp(0, text.length).toInt();
+    final end = (at + highlight.length + 80).clamp(0, text.length).toInt();
+    return TextSpan(
+      style: base,
+      children: [
+        TextSpan(text: '${start > 0 ? '…' : ''}${text.substring(start, at)}'),
+        TextSpan(
+          text: text.substring(at, at + highlight.length),
+          style: TextStyle(
+            fontWeight: FontWeight.w900,
+            color: strong,
+            backgroundColor: strong.withValues(alpha: .16),
+          ),
+        ),
+        TextSpan(text: text.substring(at + highlight.length, end)),
+      ],
+    );
+  }
 
   final Note note;
   final VoidCallback onTap;
@@ -1754,17 +2011,32 @@ class _NoteCard extends StatelessWidget {
     final showReminder =
         reminder != null &&
         (note.reminderRepeat > 0 || reminder.isAfter(DateTime.now()));
+    final overdue =
+        note.dueAt != null &&
+        DateUtils.dateOnly(
+          note.dueAt!,
+        ).isBefore(DateUtils.dateOnly(DateTime.now()));
+    final snippet = _snippet(
+      readablePreview(note.body).replaceAll('\n', '  '),
+      TextStyle(
+        color: contentSecondary,
+        fontFamily: bodyFont,
+        fontSize: 13,
+        height: 1.35,
+      ),
+      accentText,
+    );
     final cover = note.coverImage == null ? null : File(note.coverImage!);
     final hasCover = cover != null && cover.existsSync();
 
     return Material(
         color: Colors.transparent,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(radius),
         clipBehavior: Clip.antiAlias,
         child: Ink(
           decoration: BoxDecoration(
             color: background,
-            borderRadius: BorderRadius.circular(16),
+            borderRadius: BorderRadius.circular(radius),
             border: Border.all(
               color: hasWallpaper
                   ? Colors.white.withValues(alpha: .14)
@@ -1847,11 +2119,20 @@ class _NoteCard extends StatelessWidget {
                             ],
                           ],
                         ),
-                        if (preview.isNotEmpty) ...[
+                        if (snippet != null) ...[
+                          const SizedBox(height: 7),
+                          Text.rich(
+                            snippet,
+                            maxLines: 4,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ] else if (preview.isNotEmpty && previewLines > 0) ...[
                           const SizedBox(height: 7),
                           Text(
                             preview,
-                            maxLines: hasCover ? 2 : 4,
+                            maxLines: hasCover
+                                ? (previewLines < 2 ? previewLines : 2)
+                                : previewLines,
                             overflow: TextOverflow.ellipsis,
                             style: TextStyle(
                               color: contentSecondary,
@@ -1933,9 +2214,11 @@ class _NoteCard extends StatelessWidget {
                               ),
                             if (note.dueAt != null)
                               Text(
-                                'até ${DateFormat('dd/MM').format(note.dueAt!)}',
+                                overdue
+                                    ? 'venceu ${DateFormat('dd/MM').format(note.dueAt!)}'
+                                    : 'até ${DateFormat('dd/MM').format(note.dueAt!)}',
                                 style: TextStyle(
-                                  color: metadataColor,
+                                  color: overdue ? cs.error : metadataColor,
                                   fontSize: 11,
                                   fontWeight: FontWeight.w700,
                                 ),
@@ -1945,9 +2228,11 @@ class _NoteCard extends StatelessWidget {
                         const SizedBox(height: 4),
                         Text(
                           [
-                            note.folder,
-                            if (note.tags.isNotEmpty) '#${note.tags.first}',
-                            DateFormat('dd/MM').format(note.updatedAt),
+                            if (showFolder) note.folder,
+                            if (showTags && note.tags.isNotEmpty)
+                              note.tags.take(2).map((t) => '#$t').join(' '),
+                            if (showDate)
+                              DateFormat('dd/MM').format(note.updatedAt),
                           ].join('  ·  '),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,

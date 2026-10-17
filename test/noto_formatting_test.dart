@@ -84,4 +84,37 @@ void main() {
       expect(tester.takeException(), isNull);
     },
   );
+
+  group('listas continuam com Enter', () {
+    TextEditingValue press(String before) {
+      final old = TextEditingValue(
+        text: before,
+        selection: TextSelection.collapsed(offset: before.length),
+      );
+      final typed = TextEditingValue(
+        text: '$before\n',
+        selection: TextSelection.collapsed(offset: before.length + 1),
+      );
+      return continueList(old, typed);
+    }
+
+    test('marcador simples', () {
+      expect(press('- leite').text, '- leite\n- ');
+    });
+    test('numeração', () {
+      expect(press('1. um').text, '1. um\n2. ');
+      expect(press('9) nove').text, '9) nove\n10) ');
+    });
+    test('tarefa vira nova tarefa desmarcada', () {
+      expect(press('- [x] feito').text, '- [x] feito\n- [ ] ');
+    });
+    test('lista vazia encerra a lista', () {
+      final result = press('- leite\n- ');
+      expect(result.text, '- leite\n');
+      expect(result.selection.baseOffset, result.text.length);
+    });
+    test('texto comum não muda', () {
+      expect(press('olá').text, 'olá\n');
+    });
+  });
 }

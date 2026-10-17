@@ -444,6 +444,127 @@ class _VaultSetupSheetState extends State<_VaultSetupSheet> {
   );
 }
 
+/// Confere a senha do cofre (usado pela tela de bloqueio).
+bool checkVaultPin(AppStore store, String pin) => _checkPin(store, pin);
+
+/// Conta a tela como "cofre aberto" enquanto ela existir.
+class VaultSessionGuard extends StatefulWidget {
+  const VaultSessionGuard({super.key, required this.store, required this.child});
+  final AppStore store;
+  final Widget child;
+
+  @override
+  State<VaultSessionGuard> createState() => _VaultSessionGuardState();
+}
+
+class _VaultSessionGuardState extends State<VaultSessionGuard> {
+  @override
+  void initState() {
+    super.initState();
+    widget.store.vaultScreensOpen++;
+  }
+
+  @override
+  void dispose() {
+    widget.store.vaultScreensOpen--;
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => widget.child;
+}
+
+/// Tela que cobre o app quando você volta com o cofre aberto.
+class VaultLockScreen extends StatefulWidget {
+  const VaultLockScreen({
+    super.key,
+    required this.store,
+    required this.onLeave,
+  });
+  final AppStore store;
+  final VoidCallback onLeave;
+
+  @override
+  State<VaultLockScreen> createState() => _VaultLockScreenState();
+}
+
+class _VaultLockScreenState extends State<VaultLockScreen> {
+  final controller = TextEditingController();
+  String? error;
+
+  @override
+  void dispose() {
+    controller.dispose();
+    super.dispose();
+  }
+
+  void _try() {
+    if (checkVaultPin(widget.store, controller.text.trim())) {
+      widget.store.releaseVaultLock();
+    } else {
+      setState(() => error = 'Senha errada.');
+      controller.clear();
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    return Material(
+      color: cs.surface,
+      child: SafeArea(
+        child: Center(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(32),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.lock_rounded, size: 52, color: cs.primary),
+                const SizedBox(height: 16),
+                Text(
+                  'Cofre bloqueado',
+                  style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                const Text(
+                  'Você saiu do app com o cofre aberto. Digite a senha para continuar.',
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 18),
+                SizedBox(
+                  width: 220,
+                  child: TextField(
+                    controller: controller,
+                    autofocus: true,
+                    obscureText: true,
+                    keyboardType: TextInputType.number,
+                    maxLength: 6,
+                    textAlign: TextAlign.center,
+                    inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                    decoration: InputDecoration(
+                      labelText: 'Senha',
+                      errorText: error,
+                    ),
+                    onSubmitted: (_) => _try(),
+                  ),
+                ),
+                const SizedBox(height: 10),
+                FilledButton(onPressed: _try, child: const Text('Abrir')),
+                TextButton(
+                  onPressed: widget.onLeave,
+                  child: const Text('Sair do cofre'),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class VaultPage extends StatelessWidget {
   const VaultPage({super.key, required this.store});
   final AppStore store;
@@ -459,7 +580,9 @@ class VaultPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) => AnimatedBuilder(
     animation: store,
-    builder: (_, __) {
+    builder: (_, __) => VaultSessionGuard(
+      store: store,
+      child: Builder(builder: (context) {
       final items = store.notes
           .where((n) => n.locked && n.deletedAt == null)
           .toList()
@@ -547,6 +670,7 @@ class VaultPage extends StatelessWidget {
           child: const Icon(Icons.add_rounded),
         ),
       );
-    },
+      }),
+    ),
   );
 }
