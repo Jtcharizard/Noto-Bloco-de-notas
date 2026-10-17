@@ -7,14 +7,10 @@ import 'noto_models.dart';
 import 'noto_store.dart';
 
 class NotoPalette {
-  static const ink = Color(0xFF211536);
-  static const inkSoft = Color(0xFF35244D);
-  static const cocoa = Color(0xFF402566);
-  static const paper = Color(0xFFF7F3FF);
-  static const paperSoft = Color(0xFFFEFCFF);
-  static const paperDeep = Color(0xFFE3D6FF);
-  static const ember = Color(0xFF7C3AED);
-  static const emberSoft = Color(0xFFB89AFF);
+  // Neutros sem cor própria: o tom do app vem da cor de destaque escolhida.
+  static const ink = Color(0xFF1A1A1F);
+  static const paper = Color(0xFFF8F8FA);
+  static const paperSoft = Color(0xFFFFFFFF);
 }
 
 ThemeData notoTheme(AppStore store, Brightness brightness) {
@@ -22,14 +18,26 @@ ThemeData notoTheme(AppStore store, Brightness brightness) {
       .accents[NotoAppearance.safeAccentIndex(store.accent)]
       .color;
   final dark = brightness == Brightness.dark;
+  // No claro, cores muito luminosas (amarelo, lima, ciano) escurecem um pouco
+  // para o texto colorido continuar legível; no escuro, clareiam levemente.
   final accent = dark
-      ? Color.lerp(selectedAccent, Colors.white, .25)!
+      ? Color.lerp(selectedAccent, Colors.white, .18)!
+      : selectedAccent.computeLuminance() > .3
+      ? Color.lerp(selectedAccent, Colors.black, .28)!
       : selectedAccent;
-  final surface = dark ? const Color(0xFF171023) : NotoPalette.paper;
-  final raised = dark ? const Color(0xFF261B38) : NotoPalette.paperSoft;
-  final text = dark ? const Color(0xFFF7F0FF) : NotoPalette.ink;
-  final muted = dark ? const Color(0xFFC0AFD5) : const Color(0xFF685979);
-  final line = dark ? const Color(0xFF4B3862) : const Color(0xFFD9C8F0);
+  Color tint(Color base, double amount) =>
+      Color.alphaBlend(selectedAccent.withValues(alpha: amount), base);
+  final surface = dark
+      ? tint(const Color(0xFF121216), .05)
+      : tint(NotoPalette.paper, .035);
+  final raised = dark
+      ? tint(const Color(0xFF1D1D23), .08)
+      : NotoPalette.paperSoft;
+  final text = dark ? const Color(0xFFF4F4F7) : NotoPalette.ink;
+  final muted = dark ? const Color(0xFFB4B4BE) : const Color(0xFF5E5E68);
+  final line = dark
+      ? tint(const Color(0xFF34343C), .12)
+      : tint(const Color(0xFFDCDCE2), .10);
 
   final generated = ColorScheme.fromSeed(
     seedColor: selectedAccent,

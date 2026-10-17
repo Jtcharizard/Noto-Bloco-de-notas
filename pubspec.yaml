@@ -1,7 +1,7 @@
 name: bloco_personalizavel
 description: Bloco de notas offline com temas e fontes personalizaveis.
 publish_to: none
-version: 2.2.0+14
+version: 2.3.0+15
 
 environment:
   sdk: '>=3.4.0 <4.0.0'

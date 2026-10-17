@@ -10,7 +10,7 @@
   [![Flutter](https://img.shields.io/badge/Flutter-3.x-02569B?logo=flutter&logoColor=white)](https://flutter.dev/)
   [![Dart](https://img.shields.io/badge/Dart-3.x-0175C2?logo=dart&logoColor=white)](https://dart.dev/)
   [![Android](https://img.shields.io/badge/Android-APK-3DDC84?logo=android&logoColor=white)](https://github.com/Jtcharizard/Noto-Bloco-de-notas/actions/workflows/gerar-apk.yml)
-  [![Versão](https://img.shields.io/badge/versão-2.2.0-8B5CF6)](https://github.com/Jtcharizard/Noto-Bloco-de-notas)
+  [![Versão](https://img.shields.io/badge/versão-2.3.0-8B5CF6)](https://github.com/Jtcharizard/Noto-Bloco-de-notas)
   [![Build APK](https://github.com/Jtcharizard/Noto-Bloco-de-notas/actions/workflows/gerar-apk.yml/badge.svg)](https://github.com/Jtcharizard/Noto-Bloco-de-notas/actions/workflows/gerar-apk.yml)
 </div>
 
@@ -42,6 +42,11 @@ O app funciona sem conta e sem internet. As notas e preferências ficam armazena
 - Compartilhamento e exportação em TXT
 - Apresentação inicial e tela Sobre
 - Salvamento local e funcionamento totalmente offline
+
+## Novidades da v2.3.0
+
+- 18 cores de destaque vivas, e o app inteiro passa a seguir a cor escolhida (antes o fundo continuava roxo)
+- "Nota do widget" só aparece quando há notas para escolher
 
 ## Novidades da v2.2.0
 

@@ -85,9 +85,11 @@ class SettingsPage extends StatelessWidget {
                           ),
                         ),
                         child: active
-                            ? const Icon(
+                            ? Icon(
                                 Icons.check_rounded,
-                                color: Colors.white,
+                                color: accent.color.computeLuminance() > .4
+                                    ? Colors.black
+                                    : Colors.white,
                                 size: 19,
                               )
                             : null,
@@ -299,7 +301,9 @@ class SettingsPage extends StatelessWidget {
                     store.save();
                   },
                 ),
-                NotoTile(
+                // Só faz sentido escolher quando há notas para escolher.
+                if (_activeNotes.isNotEmpty)
+                  NotoTile(
                   icon: Icons.widgets_outlined,
                   title: 'Nota do widget',
                   subtitle: _widgetNoteLabel(),
