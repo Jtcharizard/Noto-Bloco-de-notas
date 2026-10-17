@@ -1909,9 +1909,9 @@ class _NoteCard extends StatelessWidget {
                                   const SizedBox(width: 2),
                                   Text(
                                     note.reminderRepeat > 0
-                                        ? DateFormat('HH:mm').format(reminder!)
+                                        ? DateFormat('HH:mm').format(reminder)
                                         : DateFormat('dd/MM HH:mm')
-                                              .format(reminder!),
+                                              .format(reminder),
                                     style: TextStyle(
                                       color: metadataColor,
                                       fontSize: 11,
