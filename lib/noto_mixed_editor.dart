@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import 'noto_formatting.dart';
+
 /// Editor de linhas que mistura texto comum e tarefas com caixa de marcar.
 ///
 /// O conteúdo continua salvo como texto simples no [controller]
@@ -122,6 +124,24 @@ class _MixedContentEditorState extends State<MixedContentEditor> {
       _sync();
       _focusLater(line);
       return;
+    }
+    // Texto com lista ("1-", "-", "a)"): Enter continua a numeração.
+    if (!line.task && parts.length == 2 && parts.last.isEmpty) {
+      final prefix = nextListPrefix(parts.first);
+      if (prefix != null && prefix.isEmpty) {
+        line.controller.text = '';
+        _sync();
+        _focusLater(line);
+        return;
+      }
+      if (prefix != null) {
+        line.controller.text = parts.first;
+        final next = _MixedLine(prefix);
+        setState(() => lines.insert(index + 1, next));
+        _sync();
+        _focusLater(next);
+        return;
+      }
     }
     line.controller.text = parts.first;
     final added = [

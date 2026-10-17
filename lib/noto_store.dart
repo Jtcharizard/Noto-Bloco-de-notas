@@ -118,7 +118,6 @@ class AppStore extends ChangeNotifier {
     vaultLockRequested = false;
     notifyListeners();
   }
-  bool homeShowRecents = true;
   bool _skipRevisionCapture = false;
 
   // Cofre: só o resumo da senha fica salvo, nunca a senha em si.
@@ -293,7 +292,7 @@ class AppStore extends ChangeNotifier {
         note.reminderAt = null;
       }
     }
-    homeShowRecents = prefs.getBool('homeShowRecents') ?? true;
+    await prefs.remove('homeShowRecents');
 
     // A journal written before the first debounced save can recover a new note.
     for (final key in prefs.getKeys().where(
@@ -452,7 +451,6 @@ class AppStore extends ChangeNotifier {
         pinnedNotificationNoteId!,
       );
     }
-    await prefs.setBool('homeShowRecents', homeShowRecents);
 
     await _syncWidget();
     await _refreshPinnedNotification();

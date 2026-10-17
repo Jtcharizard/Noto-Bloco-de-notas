@@ -1,4 +1,23 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
+
+/// Guarda se um arquivo de imagem existe, para não consultar o armazenamento
+/// a cada redesenho da tela (deixava a rolagem pesada com muitas notas).
+class FileCache {
+  static final Map<String, bool> _exists = {};
+
+  static bool exists(String? path) {
+    if (path == null || path.isEmpty) return false;
+    return _exists.putIfAbsent(path, () => File(path).existsSync());
+  }
+
+  static void forget(String? path) {
+    if (path != null) _exists.remove(path);
+  }
+
+  static void clear() => _exists.clear();
+}
 
 class Note {
   Note({

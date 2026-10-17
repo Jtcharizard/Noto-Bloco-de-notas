@@ -171,7 +171,7 @@ ThemeData notoTheme(AppStore store, Brightness brightness) {
 
 ImageProvider? noteWallpaper(Note note) {
   final custom = note.customWallpaper;
-  if (custom != null && File(custom).existsSync()) {
+  if (custom != null && FileCache.exists(custom)) {
     return FileImage(File(custom));
   }
   if (note.wallpaper > 0 &&
@@ -191,7 +191,7 @@ class GlobalWallpaper extends StatelessWidget {
   Widget build(BuildContext context) {
     final custom = store.customWallpaper;
     final file = custom == null ? null : File(custom);
-    final hasCustom = file != null && file.existsSync();
+    final hasCustom = file != null && FileCache.exists(custom);
     final hasBuiltIn =
         store.wallpaper > 0 &&
         store.wallpaper < NotoAppearance.wallpaperPaths.length;

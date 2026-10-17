@@ -498,7 +498,7 @@ class _HomeShellState extends State<HomeShell> {
   bool get _hasWallpaper {
     final custom = widget.store.customWallpaper;
     return widget.store.wallpaper > 0 ||
-        (custom != null && File(custom).existsSync());
+        FileCache.exists(custom);
   }
 
   List<String> get _allFolders {
@@ -2027,7 +2027,7 @@ class _NoteCard extends StatelessWidget {
       accentText,
     );
     final cover = note.coverImage == null ? null : File(note.coverImage!);
-    final hasCover = cover != null && cover.existsSync();
+    final hasCover = cover != null && FileCache.exists(note.coverImage);
 
     return Material(
         color: Colors.transparent,

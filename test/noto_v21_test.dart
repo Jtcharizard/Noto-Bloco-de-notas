@@ -93,6 +93,24 @@ void main() {
     controller.dispose();
   });
 
+  testWidgets('lista numerada com hífen continua na nota com tarefas', (
+    tester,
+  ) async {
+    final controller = TextEditingController(text: '1- leite\n- [ ] pão');
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: MixedContentEditor(controller: controller, onChanged: () {}),
+        ),
+      ),
+    );
+    await tester.enterText(find.byType(TextField).first, '1- leite\n');
+    await tester.pump();
+    expect(controller.text, '1- leite\n2- \n- [ ] pão');
+    await tester.pumpWidget(const SizedBox());
+    controller.dispose();
+  });
+
   testWidgets('esconde tarefas concluídas', (tester) async {
     final controller = TextEditingController(text: '- [ ] Falta\n- [x] Feita');
     await tester.pumpWidget(

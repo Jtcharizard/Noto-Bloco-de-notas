@@ -628,6 +628,7 @@ Future<void> importBackup(BuildContext context, AppStore store) async {
       await file.writeAsBytes(base64Decode(images['global']));
       store.customWallpaper = file.path;
     }
+    FileCache.clear();
     await store.save();
     // Os lembretes do backup precisam ser marcados de novo neste aparelho.
     for (final note in store.notes.where((n) => n.reminderAt != null)) {

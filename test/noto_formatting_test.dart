@@ -113,8 +113,27 @@ void main() {
       expect(result.text, '- leite\n');
       expect(result.selection.baseOffset, result.text.length);
     });
+    test('números com hífen, como 1- 2- 3-', () {
+      expect(press('1- um').text, '1- um\n2- ');
+      expect(press('2 - dois').text, '2 - dois\n3 - ');
+      expect(press('a) item').text, 'a) item\nb) ');
+      expect(press('1- um\n2- ').text, '1- um\n');
+    });
+    test('hífen solto no meio do texto não vira lista', () {
+      expect(press('preço-alvo').text, 'preço-alvo\n');
+    });
     test('texto comum não muda', () {
       expect(press('olá').text, 'olá\n');
     });
   });
+}
+
+String markdownTable(int rows, int columns) {
+  assert(rows >= 1 && rows <= 20 && columns >= 1 && columns <= 6);
+  String line(List<String> cells) => '| ${cells.join(' | ')} |';
+  return [
+    line(List.generate(columns, (i) => 'Coluna ${i + 1}')),
+    line(List.filled(columns, '---')),
+    ...List.generate(rows, (_) => line(List.filled(columns, '   '))),
+  ].join('\n');
 }

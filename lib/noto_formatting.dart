@@ -50,22 +50,37 @@ TextEditingValue formatSelection(
   );
 }
 
-String markdownTable(int rows, int columns) {
-  assert(rows >= 1 && rows <= 20 && columns >= 1 && columns <= 6);
-  String line(List<String> cells) => '| ${cells.join(' | ')} |';
-  return [
-    line(List.generate(columns, (i) => 'Coluna ${i + 1}')),
-    line(List.filled(columns, '---')),
-    ...List.generate(rows, (_) => line(List.filled(columns, '   '))),
-  ].join('\n');
-}
 
+/// Marcadores de lista reconhecidos: "- [ ]", "-", "*", "•", "1.", "1)", "1-",
+/// "1 -", "1–" e letras "a)" / "a.". Precisa de espaço depois do marcador.
 final RegExp _listLine = RegExp(
-  r'^(\s*)(- \[[ xX]\]|[-*•]|\d+[.)])\s(.*)$',
+  r'^(\s*)(- \[[ xX]\]|[-*•]|\d+\s?[.)\-–]|[a-zA-Z][.)])\s(.*)$',
 );
 
-/// Continua listas ao apertar Enter: "- ", "• ", "1." e "- [ ]".
-/// Enter numa linha de lista vazia encerra a lista.
+/// Prefixo da próxima linha de uma lista.
+/// Devolve null se [line] não é item de lista, e '' se é um item vazio
+/// (Enter num item vazio encerra a lista).
+String? nextListPrefix(String line) {
+  final match = _listLine.firstMatch(line);
+  if (match == null) return null;
+  final indent = match.group(1)!;
+  final marker = match.group(2)!;
+  if (match.group(3)!.trim().isEmpty) return '';
+  String next;
+  final number = RegExp(r'^(\d+)(.*)$').firstMatch(marker);
+  if (marker.startsWith('- [')) {
+    next = '- [ ]';
+  } else if (number != null) {
+    next = '${int.parse(number.group(1)!) + 1}${number.group(2)}';
+  } else if (RegExp(r'^[a-yA-Y][.)]$').hasMatch(marker)) {
+    next = '${String.fromCharCode(marker.codeUnitAt(0) + 1)}${marker[1]}';
+  } else {
+    next = marker;
+  }
+  return '$indent$next ';
+}
+
+/// Continua listas ao apertar Enter. Enter num item vazio encerra a lista.
 TextEditingValue continueList(TextEditingValue oldValue, TextEditingValue newValue) {
   final selection = newValue.selection;
   if (!selection.isValid || !selection.isCollapsed) return newValue;
@@ -78,33 +93,18 @@ TextEditingValue continueList(TextEditingValue oldValue, TextEditingValue newVal
   final lineStart = cursor - 1 == 0
       ? 0
       : newValue.text.lastIndexOf('\n', cursor - 2) + 1;
-  final previous = newValue.text.substring(lineStart, cursor - 1);
-  final match = _listLine.firstMatch(previous);
-  if (match == null) return newValue;
-  final indent = match.group(1)!;
-  final marker = match.group(2)!;
-  final content = match.group(3)!.trim();
-  if (content.isEmpty) {
-    // Lista vazia + Enter: tira o marcador e não cria outra linha.
-    final text = newValue.text.replaceRange(lineStart, cursor, '');
+  final prefix = nextListPrefix(newValue.text.substring(lineStart, cursor - 1));
+  if (prefix == null) return newValue;
+  if (prefix.isEmpty) {
+    // Item vazio + Enter: tira o marcador e não cria outra linha.
     return TextEditingValue(
-      text: text,
+      text: newValue.text.replaceRange(lineStart, cursor, ''),
       selection: TextSelection.collapsed(offset: lineStart),
     );
   }
-  String next;
-  final number = int.tryParse(marker.substring(0, marker.length - 1));
-  if (marker.startsWith('- [')) {
-    next = '- [ ]';
-  } else if (number != null) {
-    next = '${number + 1}${marker[marker.length - 1]}';
-  } else {
-    next = marker;
-  }
-  final insert = '$indent$next ';
   return TextEditingValue(
-    text: newValue.text.replaceRange(cursor, cursor, insert),
-    selection: TextSelection.collapsed(offset: cursor + insert.length),
+    text: newValue.text.replaceRange(cursor, cursor, prefix),
+    selection: TextSelection.collapsed(offset: cursor + prefix.length),
   );
 }
 
