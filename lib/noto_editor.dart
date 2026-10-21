@@ -1189,7 +1189,7 @@ class _EditorPageState extends State<EditorPage>
             _MenuAction('font', Icons.font_download_outlined, 'Fonte'),
             _MenuAction('color', Icons.format_color_text_rounded, 'Cor do texto'),
             _MenuAction('highlight', Icons.highlight_rounded, 'Marca-texto'),
-            _MenuAction('align', Icons.format_align_left_rounded, 'Alinhamento'),
+            _MenuAction('align', Icons.format_align_left_rounded, 'Alinhar'),
           ],
         ),
       ],
