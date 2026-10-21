@@ -85,20 +85,26 @@ if tap_text "Criar primeira nota"; then
   sleep 1
   shot 5-criar
   tap_text "Em branco" || true
-  sleep 1.5
-  adb shell input text "Mercado"
-  adb shell input keyevent 66
+  sleep 2
+  # A nota nova já abre com o teclado no texto.
   adb shell input text "Arroz%sR\$%s25,90"
   adb shell input keyevent 66
   adb shell input text "Carne%sR\$%s48"
   sleep 2
-  shot 6-editor
+  shot 6-editor-com-teclado
   tap_text "Mais opções" && { shot 7-menu-da-nota; adb shell input keyevent 4; sleep 1; }
-  adb shell input keyevent 4; sleep 1
+  shot 7b-editor
   tap_text "Aparência e formato" && { shot 8-aparencia; adb shell input keyevent 4; sleep 1; }
-  tap_text "Lembrete" && { adb shell input text "amanha%sas%s9"; sleep 1; shot 9-lembrete; adb shell input keyevent 4; sleep 1; adb shell input keyevent 4; sleep 1; }
-  adb shell input keyevent 4; sleep 1
-  adb shell input keyevent 4; sleep 2
+  if tap_text "Lembrete"; then
+    tap_text "Escreva" && adb shell input text "amanha%sas%s9"
+    sleep 1
+    shot 9-lembrete
+    adb shell input keyevent 4; sleep 1
+    adb shell input keyevent 4; sleep 1
+  fi
+  shot 9b-antes-de-voltar
+  tap_text "Voltar" || true
+  sleep 2
   shot 10-tela-com-nota
 fi
 if tap_text "Menu"; then tap_text "Ajustes" && shot 11-ajustes; adb shell input keyevent 4; sleep 1; fi

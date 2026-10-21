@@ -102,8 +102,8 @@ class _TutorialPageState extends State<TutorialPage>
   final controller = PageController();
   late final AnimationController floating = AnimationController(
     vsync: this,
-    duration: const Duration(milliseconds: 2600),
-  )..repeat(reverse: true);
+    duration: const Duration(milliseconds: 1400),
+  )..forward();
   int page = 0;
 
   @override
@@ -142,11 +142,14 @@ class _TutorialPageState extends State<TutorialPage>
             ? controller.page ?? page.toDouble()
             : page.toDouble();
         final delta = (index - current).clamp(-1.0, 1.0);
-        final wave = Curves.easeInOut.transform(floating.value);
+        // Um pulinho suave quando a tela aparece (sem animação sem fim,
+        // que gastaria bateria).
+        final v = floating.value;
+        final hop = math.sin(math.pi * v) * (1 - v * .4);
         return Transform.translate(
-          offset: Offset(delta * size * .35, -8 + 16 * wave),
+          offset: Offset(delta * size * .35, -18 * hop),
           child: Transform.rotate(
-            angle: delta * .25 + (wave - .5) * .06,
+            angle: delta * .25 + math.sin(2 * math.pi * v) * .05 * (1 - v),
             child: Opacity(
               opacity: (1 - delta.abs()).clamp(0.0, 1.0),
               child: child,
@@ -221,7 +224,10 @@ class _TutorialPageState extends State<TutorialPage>
                       return PageView.builder(
                         controller: controller,
                         itemCount: _steps.length,
-                        onPageChanged: (value) => setState(() => page = value),
+                        onPageChanged: (value) {
+                          setState(() => page = value);
+                          floating.forward(from: 0);
+                        },
                         itemBuilder: (_, index) {
                           final step = _steps[index];
                           return SingleChildScrollView(

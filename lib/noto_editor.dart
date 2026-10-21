@@ -158,7 +158,12 @@ class _EditorPageState extends State<EditorPage>
     _loadEditorPreferences();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _maybeShowTaskTip();
-      if (widget.startDictation) _dictate();
+      if (widget.startDictation) {
+        _dictate();
+      } else if (widget.isNew && !widget.note.checklist && body.text.isEmpty) {
+        // Nota nova em branco: já abre pronta para escrever.
+        bodyFocus.requestFocus();
+      }
     });
   }
 
@@ -1111,7 +1116,6 @@ class _EditorPageState extends State<EditorPage>
               _MenuAction('divider', Icons.horizontal_rule_rounded, 'Separador'),
             ],
             const _MenuAction('datetime', Icons.today_outlined, 'Data e hora'),
-            const _MenuAction('dictate', Icons.mic_none_rounded, 'Ditar por voz'),
             if (widget.note.checklist)
               const _MenuAction('add-many', Icons.playlist_add_rounded, 'Várias tarefas'),
           ],
@@ -1679,13 +1683,15 @@ class _EditorPageState extends State<EditorPage>
     final cs = Theme.of(context).colorScheme;
     final checklist = widget.note.checklist;
     final keyboard = MediaQuery.viewInsetsOf(context).bottom > 0;
-    Widget button(String tip, IconData icon, VoidCallback? onTap) => IconButton(
-      tooltip: tip,
-      onPressed: onTap,
-      icon: Icon(icon),
+    Widget button(String tip, IconData icon, VoidCallback? onTap) => Expanded(
+      child: IconButton(
+        tooltip: tip,
+        onPressed: onTap,
+        icon: Icon(icon, size: 22),
+      ),
     );
     return Padding(
-      padding: const EdgeInsets.fromLTRB(8, 4, 8, 6),
+      padding: const EdgeInsets.fromLTRB(6, 4, 6, 6),
       child: Material(
         color: cs.surfaceContainerHigh,
         borderRadius: BorderRadius.circular(18),
@@ -1695,18 +1701,14 @@ class _EditorPageState extends State<EditorPage>
           data: IconButtonThemeData(
             style: IconButton.styleFrom(
               visualDensity: VisualDensity.compact,
-              minimumSize: const Size(40, 44),
-              padding: const EdgeInsets.symmetric(horizontal: 6),
+              minimumSize: const Size(32, 44),
+              padding: EdgeInsets.zero,
             ),
           ),
-          child: Row(
-            children: [
-              Expanded(
-                child: SingleChildScrollView(
-                  scrollDirection: Axis.horizontal,
-                  padding: const EdgeInsets.symmetric(horizontal: 4),
-                  child: Row(
-                    children: [
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 2),
+            child: Row(
+              children: [
                       button(
                         'Desfazer',
                         Icons.undo_rounded,
@@ -1749,17 +1751,14 @@ class _EditorPageState extends State<EditorPage>
                         Icons.text_format_rounded,
                         _showTextLook,
                       ),
-                    ],
-                  ),
-                ),
-              ),
               if (keyboard)
                 button(
                   'Fechar teclado',
                   Icons.keyboard_hide_outlined,
                   () => FocusManager.instance.primaryFocus?.unfocus(),
                 ),
-            ],
+              ],
+            ),
           ),
         ),
       ),
