@@ -466,390 +466,580 @@ class SettingsPage extends StatelessWidget {
     );
   }
 
-  @override
-  Widget build(BuildContext context) => AnimatedBuilder(
-        animation: store,
-        builder: (_, __) {
-          final hasWallpaper = store.customWallpaper != null || store.wallpaper > 0;
+  List<Widget> _appearanceItems(BuildContext context) {
+    final hasWallpaper = store.customWallpaper != null || store.wallpaper > 0;
+    return [
+      const SectionTitle('Tema e cores'),
+      NotoTile(
+        icon: Icons.brightness_6_outlined,
+        title: 'Tema',
+        subtitle: switch (store.mode) {
+          ThemeMode.system => 'Sistema',
+          ThemeMode.light => 'Claro',
+          ThemeMode.dark => 'Escuro',
+        },
+        onTap: () => _pickTheme(context),
+      ),
+      NotoTile(
+        icon: Icons.circle,
+        iconColor: NotoAppearance.accents[store.accent].color,
+        title: 'Cor de destaque',
+        subtitle: NotoAppearance.accents[store.accent].name,
+        onTap: () => _pickAccent(context),
+      ),
+      SwitchListTile(
+        contentPadding: EdgeInsets.zero,
+        title: const Text('Preto puro no tema escuro'),
+        subtitle: const Text('Fundo totalmente preto, bom para telas OLED'),
+        value: store.pureBlack,
+        onChanged: (value) {
+          store.pureBlack = value;
+          store.save();
+        },
+      ),
+      const SizedBox(height: 24),
+      const SectionTitle('Texto'),
+      NotoTile(
+        icon: Icons.text_fields_rounded,
+        title: 'Fonte',
+        subtitle: NotoAppearance.fonts[store.font].name,
+        onTap: () async {
+          final selected = await showModalBottomSheet<int>(
+            context: context,
+            isScrollControlled: true,
+            useSafeArea: true,
+            builder: (_) => FontPickerSheet(selected: store.font),
+          );
+          if (selected != null) {
+            store.font = selected;
+            await store.save();
+          }
+        },
+      ),
+      NotoTile(
+        icon: Icons.format_size_rounded,
+        title: 'Tamanho do texto',
+        subtitle: '${store.fontSize.round()}',
+        onTap: () => _pickTextSize(context),
+      ),
+      NotoTile(
+        icon: Icons.format_line_spacing_rounded,
+        title: 'Espaço entre as linhas do texto',
+        subtitle: _label(
+          _spacingOptions,
+          (store.editorLineHeight * 10).round(),
+        ),
+        onTap: () async {
+          final value = await _choose(
+            context,
+            'Espaço entre as linhas',
+            _spacingOptions,
+            (store.editorLineHeight * 10).round(),
+          );
+          if (value != null) {
+            store.editorLineHeight = value / 10;
+            await store.save();
+          }
+        },
+      ),
+      const SizedBox(height: 24),
+      const SectionTitle('Fundo'),
+      NotoTile(
+        icon: Icons.wallpaper_outlined,
+        title: 'Fundo do aplicativo',
+        subtitle: hasWallpaper ? 'Personalizado' : 'Padrão',
+        onTap: () => showModalBottomSheet<void>(
+          context: context,
+          isScrollControlled: true,
+          useSafeArea: true,
+          builder: (_) => WallpaperSheet(store: store),
+        ),
+      ),
+      if (hasWallpaper) _WallpaperTuning(store: store),
+    ];
+  }
 
-          return Scaffold(
-            appBar: AppBar(
-              title: const Text('Ajustes'),
-              actions: [
-                IconButton(
-                  tooltip: 'Sobre',
-                  icon: const Icon(Icons.info_outline_rounded),
-                  onPressed: () => showAboutNoto(context),
+  List<Widget> _homeItems(BuildContext context) {
+    return [
+      const SectionTitle('Tela inicial'),
+      NotoTile(
+        icon: Icons.badge_outlined,
+        title: 'Nome no topo da tela inicial',
+        subtitle: store.homeTitle.trim().isEmpty
+            ? 'Noto'
+            : store.homeTitle.trim(),
+        onTap: () => _editHomeTitle(context),
+      ),
+      SwitchListTile(
+        contentPadding: EdgeInsets.zero,
+        title: const Text('Resumo de hoje'),
+        subtitle: const Text('Tarefas, lembretes e notas editadas hoje'),
+        value: store.homeShowToday,
+        onChanged: (value) {
+          store.homeShowToday = value;
+          store.save();
+        },
+      ),
+      SwitchListTile(
+        contentPadding: EdgeInsets.zero,
+        title: const Text('Atalhos de pastas e filtros'),
+        subtitle: const Text('Todas, Favoritas, Atrasadas e suas pastas'),
+        value: store.showFolderChips,
+        onChanged: (value) {
+          store.showFolderChips = value;
+          store.save();
+        },
+      ),
+      SwitchListTile(
+        contentPadding: EdgeInsets.zero,
+        title: const Text('Barra de atalhos no topo'),
+        subtitle: const Text('Arquivadas, Lixeira, Pastas e Tags'),
+        value: store.showShortcutsBar,
+        onChanged: (value) {
+          store.showShortcutsBar = value;
+          store.save();
+        },
+      ),
+      const SizedBox(height: 24),
+      const SectionTitle('Cards das notas'),
+      NotoTile(
+        icon: store.layoutMode == 1
+            ? Icons.view_agenda_outlined
+            : Icons.grid_view_rounded,
+        title: 'Visualização das notas',
+        subtitle: store.layoutMode == 1 ? 'Lista' : 'Grade',
+        onTap: () {
+          store.layoutMode = store.layoutMode == 1 ? 0 : 1;
+          store.save();
+        },
+      ),
+      if (store.layoutMode != 1)
+        NotoTile(
+          icon: Icons.view_column_outlined,
+          title: 'Colunas na grade',
+          subtitle: '${store.gridColumns} colunas',
+          onTap: () async {
+            final value = await _choose(
+              context,
+              'Colunas na grade',
+              const [(2, '2 colunas'), (3, '3 colunas')],
+              store.gridColumns,
+            );
+            if (value != null) {
+              store.gridColumns = value;
+              await store.save();
+            }
+          },
+        ),
+      NotoTile(
+        icon: Icons.rounded_corner_rounded,
+        title: 'Cantos dos cards',
+        subtitle: _label(_radiusOptions, store.cardRadius),
+        onTap: () async {
+          final value = await _choose(
+            context,
+            'Cantos dos cards',
+            _radiusOptions,
+            store.cardRadius,
+          );
+          if (value != null) {
+            store.cardRadius = value;
+            await store.save();
+          }
+        },
+      ),
+      NotoTile(
+        icon: Icons.short_text_rounded,
+        title: 'Prévia do texto nos cards',
+        subtitle: _label(_previewOptions, store.previewLines),
+        onTap: () async {
+          final value = await _choose(
+            context,
+            'Prévia do texto nos cards',
+            _previewOptions,
+            store.previewLines,
+          );
+          if (value != null) {
+            store.previewLines = value;
+            await store.save();
+          }
+        },
+      ),
+      Padding(
+        padding: const EdgeInsets.symmetric(vertical: 10),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Mostrar nos cards',
+              style: TextStyle(fontWeight: FontWeight.w700),
+            ),
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 8,
+              children: [
+                FilterChip(
+                  label: const Text('Pasta'),
+                  selected: store.cardShowFolder,
+                  onSelected: (value) {
+                    store.cardShowFolder = value;
+                    store.save();
+                  },
+                ),
+                FilterChip(
+                  label: const Text('Tags'),
+                  selected: store.cardShowTags,
+                  onSelected: (value) {
+                    store.cardShowTags = value;
+                    store.save();
+                  },
+                ),
+                FilterChip(
+                  label: const Text('Data'),
+                  selected: store.cardShowDate,
+                  onSelected: (value) {
+                    store.cardShowDate = value;
+                    store.save();
+                  },
                 ),
               ],
             ),
-            body: ListView(
-              padding: const EdgeInsets.fromLTRB(20, 8, 20, 42),
+          ],
+        ),
+      ),
+      SwitchListTile(
+        contentPadding: EdgeInsets.zero,
+        title: const Text('Cards compactos'),
+        subtitle: const Text('Mais notas na tela de uma vez'),
+        value: store.compactCards,
+        onChanged: (value) {
+          store.compactCards = value;
+          store.save();
+        },
+      ),
+    ];
+  }
+
+  List<Widget> _notesItems(BuildContext context) {
+    return [
+      const SectionTitle('Notas novas'),
+      NotoTile(
+        icon: Icons.add_circle_outline_rounded,
+        title: 'Botão +',
+        subtitle: _label(_plusOptions, store.plusAction),
+        onTap: () async {
+          final value = await _choose(
+            context,
+            'O que o botão + faz',
+            _plusOptions,
+            store.plusAction,
+          );
+          if (value != null) {
+            store.plusAction = value;
+            await store.save();
+          }
+        },
+      ),
+      NotoTile(
+        icon: Icons.format_color_fill_rounded,
+        iconColor: store.newNoteColor == 0
+            ? null
+            : NotoAppearance.noteColors[store.newNoteColor],
+        title: 'Cor das notas novas',
+        subtitle: store.newNoteColor == 0 ? 'Sem cor' : 'Personalizada',
+        onTap: () => _pickNewNoteColor(context),
+      ),
+      const SizedBox(height: 24),
+      const SectionTitle('Deslizar os cards'),
+      NotoTile(
+        icon: Icons.swipe_right_alt_rounded,
+        title: 'Deslizar o card para a direita',
+        subtitle: _label(_swipeOptions, store.swipeRight),
+        onTap: () async {
+          final value = await _choose(
+            context,
+            'Deslizar para a direita',
+            _swipeOptions,
+            store.swipeRight,
+          );
+          if (value != null) {
+            store.swipeRight = value;
+            await store.save();
+          }
+        },
+      ),
+      NotoTile(
+        icon: Icons.swipe_left_alt_rounded,
+        title: 'Deslizar o card para a esquerda',
+        subtitle: _label(_swipeOptions, store.swipeLeft),
+        onTap: () async {
+          final value = await _choose(
+            context,
+            'Deslizar para a esquerda',
+            _swipeOptions,
+            store.swipeLeft,
+          );
+          if (value != null) {
+            store.swipeLeft = value;
+            await store.save();
+          }
+        },
+      ),
+      // Só faz sentido escolher quando há notas para escolher.
+      if (_activeNotes.isNotEmpty) ...[
+        const SizedBox(height: 24),
+        const SectionTitle('Widget'),
+        NotoTile(
+          icon: Icons.widgets_outlined,
+          title: 'Nota do widget',
+          subtitle: _widgetNoteLabel(),
+          onTap: () => _pickWidgetNote(context),
+        ),
+      ],
+    ];
+  }
+
+  List<Widget> _dataItems(BuildContext context) {
+    return [
+      const SectionTitle('Backup'),
+      NotoTile(
+        icon: Icons.upload_file_outlined,
+        title: 'Fazer backup',
+        subtitle: store.lastBackupAt == null
+            ? 'Você ainda não fez nenhum backup'
+            : 'Último: ${DateFormat('dd/MM/yyyy').format(store.lastBackupAt!)}',
+        onTap: () => exportBackup(context, store),
+      ),
+      NotoTile(
+        icon: Icons.settings_backup_restore_rounded,
+        title: 'Restaurar backup',
+        onTap: () => importBackup(context, store),
+      ),
+      const SizedBox(height: 24),
+      const SectionTitle('Importar e exportar'),
+      NotoTile(
+        icon: Icons.file_open_outlined,
+        title: 'Importar arquivos de texto',
+        subtitle: 'Vários .txt ou .md de uma vez, cada um vira uma nota',
+        onTap: () => importTextFiles(context, store),
+      ),
+      NotoTile(
+        icon: Icons.ios_share_rounded,
+        title: 'Exportar todas as notas',
+        subtitle: 'Um arquivo de texto fácil de ler em qualquer lugar',
+        onTap: () => exportAllNotes(store),
+      ),
+      const SizedBox(height: 24),
+      const SectionTitle('Espaço e números'),
+      NotoTile(
+        icon: Icons.history_toggle_off_rounded,
+        title: 'Limpar versões antigas',
+        subtitle: 'Apaga o histórico de todas as notas (as notas ficam)',
+        onTap: () => _clearAllHistory(context),
+      ),
+      NotoTile(
+        icon: Icons.insights_outlined,
+        title: 'Estatísticas',
+        onTap: () => _showStats(context),
+      ),
+    ];
+  }
+
+  List<Widget> _helpItems(BuildContext context) {
+    return [
+      const SectionTitle('Ajuda'),
+      NotoTile(
+        icon: Icons.info_outline_rounded,
+        title: 'Sobre o Noto',
+        subtitle: 'Versão, créditos e licenças',
+        onTap: () => showAboutNoto(context),
+      ),
+      NotoTile(
+        icon: Icons.school_outlined,
+        title: 'Ver tutorial de novo',
+        subtitle: 'Como usar o Noto, passo a passo',
+        onTap: () => Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => TutorialPage(
+              onDone: () => Navigator.pop(context),
+            ),
+          ),
+        ),
+      ),
+    ];
+  }
+
+  void _open(
+    BuildContext context,
+    String title,
+    List<Widget> Function(BuildContext) items,
+  ) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => _SettingsSubpage(store: store, title: title, items: items),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) => AnimatedBuilder(
+    animation: store,
+    builder: (_, __) {
+      final cs = Theme.of(context).colorScheme;
+      final accent = NotoAppearance.accents[store.accent];
+      final theme = switch (store.mode) {
+        ThemeMode.system => 'Tema do sistema',
+        ThemeMode.light => 'Tema claro',
+        ThemeMode.dark => 'Tema escuro',
+      };
+      final backup = store.lastBackupAt == null
+          ? 'Nenhum backup ainda'
+          : 'Último backup: ${DateFormat('dd/MM').format(store.lastBackupAt!)}';
+      return Scaffold(
+        appBar: AppBar(title: const Text('Ajustes')),
+        body: ListView(
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 40),
+          children: [
+            _CategoryCard(
+              icon: Icons.palette_outlined,
+              color: accent.color,
+              title: 'Aparência',
+              subtitle: '$theme · ${accent.name} · ${NotoAppearance.fonts[store.font].name}',
+              onTap: () => _open(context, 'Aparência', _appearanceItems),
+            ),
+            _CategoryCard(
+              icon: Icons.dashboard_customize_outlined,
+              color: cs.tertiary,
+              title: 'Tela inicial e cards',
+              subtitle: store.layoutMode == 1 ? 'Lista · resumo, atalhos e cards' : 'Grade · resumo, atalhos e cards',
+              onTap: () => _open(context, 'Tela inicial e cards', _homeItems),
+            ),
+            _CategoryCard(
+              icon: Icons.swipe_rounded,
+              color: cs.secondary,
+              title: 'Notas, gestos e widget',
+              subtitle: 'Botão +, cor das notas novas, deslizar',
+              onTap: () => _open(context, 'Notas, gestos e widget', _notesItems),
+            ),
+            _CategoryCard(
+              icon: Icons.cloud_upload_outlined,
+              color: store.lastBackupAt == null ? cs.error : cs.primary,
+              title: 'Backup e dados',
+              subtitle: '$backup · importar, exportar',
+              onTap: () => _open(context, 'Backup e dados', _dataItems),
+            ),
+            _CategoryCard(
+              icon: Icons.help_outline_rounded,
+              color: cs.outline,
+              title: 'Ajuda e sobre',
+              subtitle: 'Tutorial, versão e créditos',
+              onTap: () => _open(context, 'Ajuda e sobre', _helpItems),
+            ),
+          ],
+        ),
+      );
+    },
+  );
+}
+
+class _SettingsSubpage extends StatelessWidget {
+  const _SettingsSubpage({
+    required this.store,
+    required this.title,
+    required this.items,
+  });
+
+  final AppStore store;
+  final String title;
+  final List<Widget> Function(BuildContext) items;
+
+  @override
+  Widget build(BuildContext context) => AnimatedBuilder(
+    animation: store,
+    builder: (_, __) => Scaffold(
+      appBar: AppBar(title: Text(title)),
+      body: ListView(
+        padding: const EdgeInsets.fromLTRB(20, 4, 20, 42),
+        children: items(context),
+      ),
+    ),
+  );
+}
+
+class _CategoryCard extends StatelessWidget {
+  const _CategoryCard({
+    required this.icon,
+    required this.color,
+    required this.title,
+    required this.subtitle,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final Color color;
+  final String title;
+  final String subtitle;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Material(
+        color: cs.surfaceContainerHigh,
+        borderRadius: BorderRadius.circular(20),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(20),
+          onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(14, 14, 10, 14),
+            child: Row(
               children: [
-                const SectionTitle('Aparência'),
-                NotoTile(
-                  icon: Icons.brightness_6_outlined,
-                  title: 'Tema',
-                  subtitle: switch (store.mode) {
-                    ThemeMode.system => 'Sistema',
-                    ThemeMode.light => 'Claro',
-                    ThemeMode.dark => 'Escuro',
-                  },
-                  onTap: () => _pickTheme(context),
-                ),
-                NotoTile(
-                  icon: Icons.circle,
-                  iconColor: NotoAppearance.accents[store.accent].color,
-                  title: 'Cor de destaque',
-                  subtitle: NotoAppearance.accents[store.accent].name,
-                  onTap: () => _pickAccent(context),
-                ),
-                NotoTile(
-                  icon: Icons.text_fields_rounded,
-                  title: 'Fonte',
-                  subtitle: NotoAppearance.fonts[store.font].name,
-                  onTap: () async {
-                    final selected = await showModalBottomSheet<int>(
-                      context: context,
-                      isScrollControlled: true,
-                      useSafeArea: true,
-                      builder: (_) => FontPickerSheet(selected: store.font),
-                    );
-                    if (selected != null) {
-                      store.font = selected;
-                      await store.save();
-                    }
-                  },
-                ),
-                NotoTile(
-                  icon: Icons.format_size_rounded,
-                  title: 'Tamanho do texto',
-                  subtitle: '${store.fontSize.round()}',
-                  onTap: () => _pickTextSize(context),
-                ),
-                NotoTile(
-                  icon: Icons.wallpaper_outlined,
-                  title: 'Fundo do aplicativo',
-                  subtitle: hasWallpaper ? 'Personalizado' : 'Padrão',
-                  onTap: () => showModalBottomSheet<void>(
-                    context: context,
-                    isScrollControlled: true,
-                    useSafeArea: true,
-                    builder: (_) => WallpaperSheet(store: store),
+                Container(
+                  width: 46,
+                  height: 46,
+                  decoration: BoxDecoration(
+                    color: color.withValues(alpha: .16),
+                    borderRadius: BorderRadius.circular(15),
                   ),
+                  child: Icon(icon, color: color),
                 ),
-                if (hasWallpaper) _WallpaperTuning(store: store),
-                NotoTile(
-                  icon: store.layoutMode == 1
-                      ? Icons.view_agenda_outlined
-                      : Icons.grid_view_rounded,
-                  title: 'Visualização das notas',
-                  subtitle: store.layoutMode == 1 ? 'Lista' : 'Grade',
-                  onTap: () {
-                    store.layoutMode = store.layoutMode == 1 ? 0 : 1;
-                    store.save();
-                  },
-                ),
-                const SizedBox(height: 28),
-                const SectionTitle('Personalização'),
-                SwitchListTile(
-                  contentPadding: EdgeInsets.zero,
-                  title: const Text('Preto puro no tema escuro'),
-                  subtitle: const Text('Fundo totalmente preto, bom para telas OLED'),
-                  value: store.pureBlack,
-                  onChanged: (value) {
-                    store.pureBlack = value;
-                    store.save();
-                  },
-                ),
-                NotoTile(
-                  icon: Icons.badge_outlined,
-                  title: 'Nome no topo da tela inicial',
-                  subtitle: store.homeTitle.trim().isEmpty
-                      ? 'Noto'
-                      : store.homeTitle.trim(),
-                  onTap: () => _editHomeTitle(context),
-                ),
-                NotoTile(
-                  icon: Icons.rounded_corner_rounded,
-                  title: 'Cantos dos cards',
-                  subtitle: _label(_radiusOptions, store.cardRadius),
-                  onTap: () async {
-                    final value = await _choose(
-                      context,
-                      'Cantos dos cards',
-                      _radiusOptions,
-                      store.cardRadius,
-                    );
-                    if (value != null) {
-                      store.cardRadius = value;
-                      await store.save();
-                    }
-                  },
-                ),
-                if (store.layoutMode != 1)
-                  NotoTile(
-                    icon: Icons.view_column_outlined,
-                    title: 'Colunas na grade',
-                    subtitle: '${store.gridColumns} colunas',
-                    onTap: () async {
-                      final value = await _choose(
-                        context,
-                        'Colunas na grade',
-                        const [(2, '2 colunas'), (3, '3 colunas')],
-                        store.gridColumns,
-                      );
-                      if (value != null) {
-                        store.gridColumns = value;
-                        await store.save();
-                      }
-                    },
-                  ),
-                NotoTile(
-                  icon: Icons.short_text_rounded,
-                  title: 'Prévia do texto nos cards',
-                  subtitle: _label(_previewOptions, store.previewLines),
-                  onTap: () async {
-                    final value = await _choose(
-                      context,
-                      'Prévia do texto nos cards',
-                      _previewOptions,
-                      store.previewLines,
-                    );
-                    if (value != null) {
-                      store.previewLines = value;
-                      await store.save();
-                    }
-                  },
-                ),
-                Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 10),
+                const SizedBox(width: 14),
+                Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text(
-                        'Mostrar nos cards',
-                        style: TextStyle(fontWeight: FontWeight.w700),
+                      Text(
+                        title,
+                        style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w800,
+                        ),
                       ),
-                      const SizedBox(height: 8),
-                      Wrap(
-                        spacing: 8,
-                        children: [
-                          FilterChip(
-                            label: const Text('Pasta'),
-                            selected: store.cardShowFolder,
-                            onSelected: (value) {
-                              store.cardShowFolder = value;
-                              store.save();
-                            },
-                          ),
-                          FilterChip(
-                            label: const Text('Tags'),
-                            selected: store.cardShowTags,
-                            onSelected: (value) {
-                              store.cardShowTags = value;
-                              store.save();
-                            },
-                          ),
-                          FilterChip(
-                            label: const Text('Data'),
-                            selected: store.cardShowDate,
-                            onSelected: (value) {
-                              store.cardShowDate = value;
-                              store.save();
-                            },
-                          ),
-                        ],
+                      const SizedBox(height: 2),
+                      Text(
+                        subtitle,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: 12.5,
+                          color: cs.onSurface.withValues(alpha: .62),
+                        ),
                       ),
                     ],
                   ),
                 ),
-                NotoTile(
-                  icon: Icons.format_line_spacing_rounded,
-                  title: 'Espaço entre as linhas do texto',
-                  subtitle: _label(
-                    _spacingOptions,
-                    (store.editorLineHeight * 10).round(),
-                  ),
-                  onTap: () async {
-                    final value = await _choose(
-                      context,
-                      'Espaço entre as linhas',
-                      _spacingOptions,
-                      (store.editorLineHeight * 10).round(),
-                    );
-                    if (value != null) {
-                      store.editorLineHeight = value / 10;
-                      await store.save();
-                    }
-                  },
-                ),
-                const SizedBox(height: 28),
-                const SectionTitle('Tela inicial'),
-                SwitchListTile(
-                  contentPadding: EdgeInsets.zero,
-                  title: const Text('Resumo de hoje'),
-                  subtitle: const Text('Tarefas, lembretes e notas editadas hoje'),
-                  value: store.homeShowToday,
-                  onChanged: (value) {
-                    store.homeShowToday = value;
-                    store.save();
-                  },
-                ),
-                SwitchListTile(
-                  contentPadding: EdgeInsets.zero,
-                  title: const Text('Atalhos de pastas e filtros'),
-                  subtitle: const Text('Todas, Favoritas, Atrasadas e suas pastas'),
-                  value: store.showFolderChips,
-                  onChanged: (value) {
-                    store.showFolderChips = value;
-                    store.save();
-                  },
-                ),
-                SwitchListTile(
-                  contentPadding: EdgeInsets.zero,
-                  title: const Text('Cards compactos'),
-                  subtitle: const Text('Mais notas na tela de uma vez'),
-                  value: store.compactCards,
-                  onChanged: (value) {
-                    store.compactCards = value;
-                    store.save();
-                  },
-                ),
-                NotoTile(
-                  icon: Icons.swipe_right_alt_rounded,
-                  title: 'Deslizar o card para a direita',
-                  subtitle: _label(_swipeOptions, store.swipeRight),
-                  onTap: () async {
-                    final value = await _choose(
-                      context,
-                      'Deslizar para a direita',
-                      _swipeOptions,
-                      store.swipeRight,
-                    );
-                    if (value != null) {
-                      store.swipeRight = value;
-                      await store.save();
-                    }
-                  },
-                ),
-                NotoTile(
-                  icon: Icons.swipe_left_alt_rounded,
-                  title: 'Deslizar o card para a esquerda',
-                  subtitle: _label(_swipeOptions, store.swipeLeft),
-                  onTap: () async {
-                    final value = await _choose(
-                      context,
-                      'Deslizar para a esquerda',
-                      _swipeOptions,
-                      store.swipeLeft,
-                    );
-                    if (value != null) {
-                      store.swipeLeft = value;
-                      await store.save();
-                    }
-                  },
-                ),
-                SwitchListTile(
-                  contentPadding: EdgeInsets.zero,
-                  title: const Text('Barra de atalhos no topo'),
-                  subtitle: const Text('Arquivadas, Lixeira, Pastas e Tags'),
-                  value: store.showShortcutsBar,
-                  onChanged: (value) {
-                    store.showShortcutsBar = value;
-                    store.save();
-                  },
-                ),
-                NotoTile(
-                  icon: Icons.add_circle_outline_rounded,
-                  title: 'Botão +',
-                  subtitle: _label(_plusOptions, store.plusAction),
-                  onTap: () async {
-                    final value = await _choose(
-                      context,
-                      'O que o botão + faz',
-                      _plusOptions,
-                      store.plusAction,
-                    );
-                    if (value != null) {
-                      store.plusAction = value;
-                      await store.save();
-                    }
-                  },
-                ),
-                NotoTile(
-                  icon: Icons.format_color_fill_rounded,
-                  iconColor: store.newNoteColor == 0
-                      ? null
-                      : NotoAppearance.noteColors[store.newNoteColor],
-                  title: 'Cor das notas novas',
-                  subtitle: store.newNoteColor == 0 ? 'Sem cor' : 'Personalizada',
-                  onTap: () => _pickNewNoteColor(context),
-                ),
-                // Só faz sentido escolher quando há notas para escolher.
-                if (_activeNotes.isNotEmpty)
-                  NotoTile(
-                  icon: Icons.widgets_outlined,
-                  title: 'Nota do widget',
-                  subtitle: _widgetNoteLabel(),
-                  onTap: () => _pickWidgetNote(context),
-                ),
-                const SizedBox(height: 28),
-                const SectionTitle('Dados e ajuda'),
-                NotoTile(
-                  icon: Icons.upload_file_outlined,
-                  title: 'Fazer backup',
-                  subtitle: store.lastBackupAt == null
-                      ? 'Você ainda não fez nenhum backup'
-                      : 'Último: ${DateFormat('dd/MM/yyyy').format(store.lastBackupAt!)}',
-                  onTap: () => exportBackup(context, store),
-                ),
-                NotoTile(
-                  icon: Icons.settings_backup_restore_rounded,
-                  title: 'Restaurar backup',
-                  onTap: () => importBackup(context, store),
-                ),
-                NotoTile(
-                  icon: Icons.file_open_outlined,
-                  title: 'Importar arquivos de texto',
-                  subtitle: 'Vários .txt ou .md de uma vez, cada um vira uma nota',
-                  onTap: () => importTextFiles(context, store),
-                ),
-                NotoTile(
-                  icon: Icons.ios_share_rounded,
-                  title: 'Exportar todas as notas',
-                  subtitle: 'Um arquivo de texto fácil de ler em qualquer lugar',
-                  onTap: () => exportAllNotes(store),
-                ),
-                NotoTile(
-                  icon: Icons.history_toggle_off_rounded,
-                  title: 'Limpar versões antigas',
-                  subtitle: 'Apaga o histórico de todas as notas (as notas ficam)',
-                  onTap: () => _clearAllHistory(context),
-                ),
-                NotoTile(
-                  icon: Icons.insights_outlined,
-                  title: 'Estatísticas',
-                  onTap: () => _showStats(context),
-                ),
-                NotoTile(
-                  icon: Icons.school_outlined,
-                  title: 'Ver tutorial de novo',
-                  subtitle: 'Como usar o Noto em 6 telas',
-                  onTap: () => Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => TutorialPage(
-                        onDone: () => Navigator.pop(context),
-                      ),
-                    ),
-                  ),
-                ),
+                const Icon(Icons.chevron_right_rounded),
               ],
             ),
-          );
-        },
-      );
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 class _SheetHeader extends StatelessWidget {

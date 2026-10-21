@@ -43,6 +43,30 @@ O app funciona sem conta e sem internet. As notas e preferências ficam armazena
 - Apresentação inicial e tela Sobre
 - Salvamento local e funcionamento totalmente offline
 
+## Novidades da v2.8.0
+
+**Nota mais arrumada**
+- Barra de edição única, presa em cima do teclado: desfazer, refazer, negrito, itálico, virar lista, voz, inserir e **Aa**.
+- Etiquetas logo abaixo do título (pasta e tags, lembrete, prazo, prioridade); é só tocar para mudar.
+- Um só menu ⋮ com ações rápidas (fixar, favoritar, enviar, copiar) e o resto separado por assunto.
+- O botão **Aa** junta o estilo da nota e a formatação do texto. Modo foco e contagem de palavras foram para o menu.
+
+**Menu unificado**
+- Na tela inicial, o botão **Menu** reúne tarefas, lembretes, calendário, pastas, tags, arquivadas, lixeira, backup e Ajustes.
+- A busca avançada fica dentro da própria busca.
+- Os Ajustes viraram categorias: Aparência, Tela inicial e cards, Notas e gestos, Backup e dados, Ajuda e sobre.
+
+**5 funções novas**
+- Soma automática dos valores em R$ da nota, com quanto falta nas listas.
+- Compartilhar a nota como imagem.
+- Ouvir a nota em voz alta (usa o leitor de voz do Android).
+- Lembrete escrito do jeito que a gente fala: "amanhã às 9", "sexta 18h", "em 2 horas".
+- "Desfazer" depois de arquivar ou apagar uma nota de dentro dela, e prazo com contagem nos cards ("vence amanhã").
+
+**Tutorial novo** com ilustrações e animação leve.
+
+Ilustrações do tutorial: [Fluent Emoji](https://github.com/microsoft/fluentui-emoji), da Microsoft, licença MIT.
+
 ## Novidades da v2.7.0
 
 **Widget novo 2x2 "Resumo do dia":** tarefas a fazer, próximo lembrete e botões + Nota e + Lista. Os widgets ganharam as cores novas do Noto.

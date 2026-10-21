@@ -1,4 +1,6 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:timezone/data/latest.dart' as tzdata;
@@ -60,6 +62,13 @@ Future<void> main() async {
         pendingNoteOpen = id;
       }
     }
+  });
+  // Créditos das ilustrações do tutorial em "Ver licenças".
+  LicenseRegistry.addLicense(() async* {
+    final text = await rootBundle.loadString(
+      'assets/onboarding/LICENSE-fluent-emoji.txt',
+    );
+    yield LicenseEntryWithLineBreaks(['Fluent Emoji (Microsoft)'], text);
   });
   runApp(const NotoApp());
 }

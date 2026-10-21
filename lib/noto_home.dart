@@ -16,6 +16,7 @@ import 'noto_models.dart';
 import 'noto_power_tools.dart';
 import 'noto_library.dart';
 import 'noto_settings.dart';
+import 'noto_smart.dart';
 import 'noto_store.dart';
 import 'noto_theme.dart';
 import 'noto_dictation.dart';
@@ -1307,6 +1308,109 @@ class _HomeShellState extends State<HomeShell> {
     }
   }
 
+  /// Menu único da tela inicial: tudo que não é nota fica aqui.
+  Future<void> _openHub({required int archived, required int trash}) async {
+    final pending = _active
+        .where((n) => !n.locked)
+        .fold<int>(0, (sum, n) => sum + countPendingTasks(n.body));
+    final reminders = widget.store.notes
+        .where(
+          (n) =>
+              n.deletedAt == null &&
+              !n.locked &&
+              n.reminderAt != null &&
+              (n.reminderRepeat > 0 || n.reminderAt!.isAfter(DateTime.now())),
+        )
+        .length;
+    final choice = await showModalBottomSheet<String>(
+      context: context,
+      useSafeArea: true,
+      showDragHandle: true,
+      builder: (ctx) {
+        Widget tile(String id, IconData icon, String label, [String? badge]) =>
+            _HubTile(
+              icon: icon,
+              label: label,
+              badge: badge,
+              onTap: () => Navigator.pop(ctx, id),
+            );
+        return Padding(
+          padding: EdgeInsets.fromLTRB(
+            16,
+            0,
+            16,
+            MediaQuery.viewPaddingOf(ctx).bottom + 16,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Menu',
+                style: Theme.of(ctx).textTheme.titleLarge?.copyWith(
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+              const SizedBox(height: 12),
+              GridView.count(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                crossAxisCount: 3,
+                mainAxisSpacing: 10,
+                crossAxisSpacing: 10,
+                childAspectRatio: 1.15,
+                children: [
+                  tile('tasks', Icons.checklist_rounded, 'Tarefas',
+                      pending > 0 ? '$pending' : null),
+                  tile('reminders', Icons.notifications_active_outlined,
+                      'Lembretes', reminders > 0 ? '$reminders' : null),
+                  tile('calendar', Icons.calendar_month_outlined, 'Calendário'),
+                  tile('folders', Icons.folder_outlined, 'Pastas'),
+                  tile('tags', Icons.label_outline_rounded, 'Tags'),
+                  tile('archive', Icons.archive_outlined, 'Arquivadas',
+                      archived > 0 ? '$archived' : null),
+                  tile('trash', Icons.delete_outline_rounded, 'Lixeira',
+                      trash > 0 ? '$trash' : null),
+                  tile('backup', Icons.cloud_upload_outlined, 'Backup'),
+                  tile('settings', Icons.settings_outlined, 'Ajustes'),
+                ],
+              ),
+            ],
+          ),
+        );
+      },
+    );
+    if (!mounted) return;
+    switch (choice) {
+      case 'tasks':
+        _openTasks();
+      case 'reminders':
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => UpcomingRemindersPage(
+              store: widget.store,
+              onOpen: (note) => _openNote(note),
+            ),
+          ),
+        );
+      case 'calendar':
+        _openCalendar();
+      case 'folders':
+        _manageCollection(folders: true);
+      case 'tags':
+        _manageCollection(folders: false);
+      case 'archive':
+        _openArchive();
+      case 'trash':
+        _openTrash();
+      case 'backup':
+        exportBackup(context, widget.store);
+      case 'settings':
+        _openSettings();
+    }
+  }
+
   void _openSettings() => Navigator.push(
     context,
     MaterialPageRoute(builder: (_) => SettingsPage(store: widget.store)),
@@ -1697,11 +1801,6 @@ class _HomeShellState extends State<HomeShell> {
           ),
           actions: [
             IconButton(
-              tooltip: 'Calendário',
-              onPressed: _openCalendar,
-              icon: const Icon(Icons.calendar_month_outlined),
-            ),
-            IconButton(
               tooltip: searching ? 'Fechar busca' : 'Buscar',
               onPressed: () => setState(() {
                 searching = !searching;
@@ -1710,23 +1809,23 @@ class _HomeShellState extends State<HomeShell> {
                   _searchController.clear();
                 }
               }),
-              icon: Icon(
-                searching ? Icons.close_rounded : Icons.search_rounded,
-              ),
-            ),
-            IconButton(
-              tooltip: 'Busca avançada',
-              onPressed: _showFilters,
               icon: Badge(
-                isLabelVisible: _hasFilters,
+                isLabelVisible: _hasFilters && !searching,
                 smallSize: 7,
-                child: const Icon(Icons.filter_list_rounded),
+                child: Icon(
+                  searching ? Icons.close_rounded : Icons.search_rounded,
+                ),
               ),
             ),
             IconButton(
-              tooltip: 'Ajustes',
-              onPressed: _openSettings,
-              icon: const Icon(Icons.settings_outlined),
+              tooltip: 'Calendário',
+              onPressed: _openCalendar,
+              icon: const Icon(Icons.calendar_month_outlined),
+            ),
+            IconButton(
+              tooltip: 'Menu',
+              onPressed: () => _openHub(archived: archived, trash: trash),
+              icon: const Icon(Icons.apps_rounded),
             ),
             const SizedBox(width: 6),
           ],
@@ -1756,6 +1855,15 @@ class _HomeShellState extends State<HomeShell> {
                     autofocus: true,
                     decoration: InputDecoration(
                       hintText: 'Buscar no Noto (dica: #tag)',
+                      prefixIcon: IconButton(
+                        tooltip: 'Busca avançada',
+                        onPressed: _showFilters,
+                        icon: Badge(
+                          isLabelVisible: _hasFilters,
+                          smallSize: 7,
+                          child: const Icon(Icons.tune_rounded),
+                        ),
+                      ),
                       suffixIcon: query.isEmpty
                           ? IconButton(
                               tooltip: 'Buscar falando',
@@ -1998,6 +2106,75 @@ class _HomeShellState extends State<HomeShell> {
       );
     },
   );
+}
+
+class _HubTile extends StatelessWidget {
+  const _HubTile({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+    this.badge,
+  });
+
+  final IconData icon;
+  final String label;
+  final String? badge;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    return Material(
+      color: cs.surfaceContainerHigh,
+      borderRadius: BorderRadius.circular(20),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(20),
+        onTap: onTap,
+        child: Stack(
+          children: [
+            Center(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(icon, size: 28, color: cs.primary),
+                  const SizedBox(height: 8),
+                  Text(
+                    label,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w700,
+                      fontSize: 13,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            if (badge != null)
+              Positioned(
+                top: 8,
+                right: 8,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: cs.primary,
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Text(
+                    badge!,
+                    style: TextStyle(
+                      color: cs.onPrimary,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
 }
 
 class _TopLibraryActions extends StatelessWidget {
@@ -2563,9 +2740,7 @@ class _NoteCard extends StatelessWidget {
                               ),
                             if (note.dueAt != null)
                               Text(
-                                overdue
-                                    ? 'venceu ${DateFormat('dd/MM').format(note.dueAt!)}'
-                                    : 'até ${DateFormat('dd/MM').format(note.dueAt!)}',
+                                dueCountdown(note.dueAt!, DateTime.now()),
                                 style: TextStyle(
                                   color: overdue ? cs.error : metadataColor,
                                   fontSize: 11,

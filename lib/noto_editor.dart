@@ -24,6 +24,8 @@ import 'noto_store.dart';
 import 'noto_theme.dart';
 import 'noto_dictation.dart';
 import 'noto_vault.dart';
+import 'noto_extras.dart';
+import 'noto_smart.dart';
 
 class EditorPage extends StatefulWidget {
   const EditorPage({
@@ -1020,288 +1022,440 @@ class _EditorPageState extends State<EditorPage>
     if (on) _maybeShowTaskTip();
   }
 
+  /// Folha com grade de botões, usada nos menus da nota.
+  Future<String?> _gridSheet({
+    required String title,
+    String? subtitle,
+    Widget? top,
+    required List<(String, List<_MenuAction>)> sections,
+  }) {
+    return showModalBottomSheet<String>(
+      context: context,
+      useSafeArea: true,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (ctx) {
+        final cs = Theme.of(ctx).colorScheme;
+        return ConstrainedBox(
+          constraints: BoxConstraints(
+            maxHeight: MediaQuery.sizeOf(ctx).height * .86,
+          ),
+          child: SingleChildScrollView(
+            padding: EdgeInsets.fromLTRB(
+              16,
+              0,
+              16,
+              MediaQuery.viewPaddingOf(ctx).bottom + 18,
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(ctx).textTheme.titleLarge?.copyWith(
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+                if (subtitle != null)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 2),
+                    child: Text(
+                      subtitle,
+                      style: TextStyle(
+                        fontSize: 12.5,
+                        color: cs.onSurface.withValues(alpha: .6),
+                      ),
+                    ),
+                  ),
+                if (top != null) ...[const SizedBox(height: 14), top],
+                for (final section in sections)
+                  if (section.$2.isNotEmpty) ...[
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(4, 18, 4, 6),
+                      child: Text(
+                        section.$1.toUpperCase(),
+                        style: TextStyle(
+                          fontSize: 11.5,
+                          letterSpacing: .8,
+                          fontWeight: FontWeight.w800,
+                          color: cs.primary,
+                        ),
+                      ),
+                    ),
+                    _MenuGrid(
+                      items: section.$2,
+                      onPick: (id) => Navigator.pop(ctx, id),
+                    ),
+                  ],
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
   Future<void> _showInsertMenu() async {
-    final value = await showModalBottomSheet<String>(
-      context: context,
-      useSafeArea: true,
-      isScrollControlled: true,
-      builder: (ctx) => SafeArea(
-        child: SingleChildScrollView(
-          child: Wrap(
-          children: [
-            const ListTile(title: Text('Inserir')),
-            if (widget.note.checklist)
-              ListTile(
-                leading: const Icon(Icons.notes_rounded),
-                title: const Text('Voltar para texto comum'),
-                subtitle: const Text('As tarefas viram itens de lista'),
-                onTap: () => Navigator.pop(ctx, 'plain'),
-              )
-            else
-              ListTile(
-                leading: const Icon(Icons.check_box_outlined),
-                title: const Text('Lista de tarefas'),
-                subtitle: const Text('Caixas de marcar junto com o texto'),
-                onTap: () => Navigator.pop(ctx, 'checklist'),
-              ),
-            ListTile(
-              leading: const Icon(Icons.table_chart_outlined),
-              title: const Text('Tabela'),
-              onTap: () => Navigator.pop(ctx, 'table'),
-            ),
-            ListTile(
-              leading: const Icon(Icons.code_rounded),
-              title: const Text('Bloco de código'),
-              onTap: () => Navigator.pop(ctx, 'code'),
-            ),
-            ListTile(
-              leading: const Icon(Icons.horizontal_rule_rounded),
-              title: const Text('Separador'),
-              onTap: () => Navigator.pop(ctx, 'divider'),
-            ),
-            ListTile(
-              leading: const Icon(Icons.today_outlined),
-              title: const Text('Data e hora de agora'),
-              onTap: () => Navigator.pop(ctx, 'datetime'),
-            ),
-            ListTile(
-              leading: const Icon(Icons.mic_none_rounded),
-              title: const Text('Ditar por voz'),
-              onTap: () => Navigator.pop(ctx, 'dictate'),
-            ),
-          ],
-          ),
-        ),
-      ),
-    );
-    if (value != null) _tool(value);
-  }
-
-  Future<void> _showFormatMenu() async {
-    final value = await showModalBottomSheet<String>(
-      context: context,
-      useSafeArea: true,
-      builder: (ctx) => SafeArea(
-        child: Wrap(
-          children: [
-            const ListTile(title: Text('Formatar texto')),
-            ListTile(
-              leading: const Icon(Icons.title_rounded),
-              title: const Text('Título'),
-              onTap: () => Navigator.pop(ctx, 'heading'),
-            ),
-            ListTile(
-              leading: const Icon(Icons.format_list_bulleted_rounded),
-              title: const Text('Lista'),
-              onTap: () => Navigator.pop(ctx, 'list'),
-            ),
-            ListTile(
-              leading: const Icon(Icons.format_quote_rounded),
-              title: const Text('Citação'),
-              onTap: () => Navigator.pop(ctx, 'quote'),
-            ),
-            ListTile(
-              leading: const Icon(Icons.font_download_outlined),
-              title: const Text('Fonte'),
-              onTap: () => Navigator.pop(ctx, 'font'),
-            ),
-            ListTile(
-              leading: const Icon(Icons.format_color_text_rounded),
-              title: const Text('Cor do texto'),
-              onTap: () => Navigator.pop(ctx, 'color'),
-            ),
-            ListTile(
-              leading: const Icon(Icons.highlight_rounded),
-              title: const Text('Marca-texto'),
-              onTap: () => Navigator.pop(ctx, 'highlight'),
-            ),
-            ListTile(
-              leading: const Icon(Icons.format_align_left_rounded),
-              title: const Text('Alinhamento'),
-              onTap: () => Navigator.pop(ctx, 'align'),
-            ),
-            ListTile(
-              leading: const Icon(Icons.text_fields_rounded),
-              title: const Text('Maiúsculas e minúsculas'),
-              subtitle: const Text('No trecho selecionado'),
-              onTap: () => Navigator.pop(ctx, 'case'),
-            ),
-          ],
-        ),
-      ),
-    );
-    if (value != null) _tool(value);
-  }
-
-  Future<void> _showEditorTools() async {
-    final value = await showModalBottomSheet<String>(
-      context: context,
-      useSafeArea: true,
-      isScrollControlled: true,
-      builder: (ctx) => SafeArea(
-        child: SingleChildScrollView(
-          child: Wrap(
-          children: [
-            const ListTile(title: Text('Ferramentas')),
-            ListTile(
-              leading: const Icon(Icons.find_replace_rounded),
-              title: const Text('Buscar e substituir'),
-              onTap: () => Navigator.pop(ctx, 'search'),
-            ),
-            ListTile(
-              leading: const Icon(Icons.copy_all_rounded),
-              title: const Text('Copiar nota'),
-              onTap: () => Navigator.pop(ctx, 'copy'),
-            ),
-            if (widget.note.checklist)
-              ListTile(
-                leading: Icon(
-                  hideDone
-                      ? Icons.visibility_outlined
-                      : Icons.visibility_off_outlined,
-                ),
-                title: Text(
-                  hideDone
-                      ? 'Mostrar tarefas concluídas'
-                      : 'Esconder tarefas concluídas',
-                ),
-                onTap: () => Navigator.pop(ctx, 'hide-done'),
-              ),
-            if (widget.note.checklist) ...[
-              ListTile(
-                leading: const Icon(Icons.restart_alt_rounded),
-                title: const Text('Desmarcar todas as tarefas'),
-                subtitle: const Text('Bom para listas que se repetem'),
-                onTap: () => Navigator.pop(ctx, 'uncheck-all'),
-              ),
-              ListTile(
-                leading: const Icon(Icons.playlist_remove_rounded),
-                title: const Text('Apagar tarefas concluídas'),
-                onTap: () => Navigator.pop(ctx, 'remove-done'),
-              ),
-              ListTile(
-                leading: const Icon(Icons.done_all_rounded),
-                title: const Text('Marcar todas como feitas'),
-                onTap: () => Navigator.pop(ctx, 'check-all'),
-              ),
-              ListTile(
-                leading: const Icon(Icons.content_copy_rounded),
-                title: const Text('Copiar só o que falta fazer'),
-                subtitle: const Text('Bom para mandar a lista de compras'),
-                onTap: () => Navigator.pop(ctx, 'copy-pending'),
-              ),
-              ListTile(
-                leading: const Icon(Icons.playlist_add_rounded),
-                title: const Text('Adicionar várias tarefas'),
-                subtitle: const Text('Uma por linha, de uma vez só'),
-                onTap: () => Navigator.pop(ctx, 'add-many'),
-              ),
-              ListTile(
-                leading: const Icon(Icons.sort_by_alpha_rounded),
-                title: const Text('Ordenar tarefas de A a Z'),
-                onTap: () => Navigator.pop(ctx, 'sort-tasks'),
-              ),
-            ] else ...[
-              ListTile(
-                leading: const Icon(Icons.sort_by_alpha_rounded),
-                title: const Text('Ordenar linhas de A a Z'),
-                subtitle: const Text('Bom para listas de nomes ou itens'),
-                onTap: () => Navigator.pop(ctx, 'sort-lines'),
-              ),
-              ListTile(
-                leading: const Icon(Icons.cleaning_services_outlined),
-                title: const Text('Limpar linhas vazias e espaços'),
-                onTap: () => Navigator.pop(ctx, 'clean'),
-              ),
-              ListTile(
-                leading: Icon(
-                  readOnly ? Icons.edit_outlined : Icons.chrome_reader_mode_outlined,
-                ),
-                title: Text(readOnly ? 'Voltar a editar' : 'Modo leitura'),
-                subtitle: readOnly
-                    ? null
-                    : const Text('Lê sem abrir o teclado por engano'),
-                onTap: () => Navigator.pop(ctx, 'read-mode'),
-              ),
+    final value = await _gridSheet(
+      title: 'Inserir',
+      sections: [
+        (
+          'Na nota',
+          [
+            if (!widget.note.checklist) ...const [
+              _MenuAction('table', Icons.table_chart_outlined, 'Tabela'),
+              _MenuAction('code', Icons.code_rounded, 'Bloco de código'),
+              _MenuAction('divider', Icons.horizontal_rule_rounded, 'Separador'),
             ],
-            ListTile(
-              leading: Icon(
-                widget.store.pinnedNotificationNoteId == widget.note.id
-                    ? Icons.notifications_off_outlined
-                    : Icons.push_pin_outlined,
-              ),
-              title: Text(
-                widget.store.pinnedNotificationNoteId == widget.note.id
-                    ? 'Tirar da barra de notificações'
-                    : 'Fixar na barra de notificações',
-              ),
-              onTap: () => Navigator.pop(ctx, 'pin-notification'),
-            ),
-            ListTile(
-              leading: const Icon(Icons.info_outline_rounded),
-              title: const Text('Informações da nota'),
-              onTap: () => Navigator.pop(ctx, 'info'),
-            ),
-            ListTile(
-              leading: const Icon(Icons.visibility_outlined),
-              title: const Text('Ver como vai ficar'),
-              onTap: () => Navigator.pop(ctx, 'preview'),
-            ),
+            const _MenuAction('datetime', Icons.today_outlined, 'Data e hora'),
+            const _MenuAction('dictate', Icons.mic_none_rounded, 'Ditar por voz'),
+            if (widget.note.checklist)
+              const _MenuAction('add-many', Icons.playlist_add_rounded, 'Várias tarefas'),
           ],
-          ),
         ),
-      ),
+      ],
     );
-    if (value == 'hide-done') {
-      _setHideDone(!hideDone);
-      return;
-    }
-    if (value == 'uncheck-all' || value == 'remove-done') {
-      _rewriteTasks(remove: value == 'remove-done');
-      return;
-    }
+    if (value == null || !mounted) return;
     if (value == 'add-many') {
       await _addManyTasks();
+    } else {
+      _tool(value);
+    }
+  }
+
+  /// Botão "Aa": aparência da nota e formatação do texto num lugar só.
+  Future<void> _showTextLook() async {
+    if (widget.note.checklist) {
+      openStyleSheet();
       return;
     }
-    if (value == 'sort-tasks' || value == 'sort-lines') {
-      _sortLines(tasksOnly: value == 'sort-tasks');
-      return;
+    final cs = Theme.of(context).colorScheme;
+    final value = await _gridSheet(
+      title: 'Aparência e formato',
+      top: Material(
+        color: cs.primaryContainer,
+        borderRadius: BorderRadius.circular(18),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(18),
+          onTap: () => Navigator.pop(context, 'style'),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 14, 12, 14),
+            child: Row(
+              children: [
+                Icon(Icons.palette_outlined, color: cs.onPrimaryContainer),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Estilo da nota',
+                        style: TextStyle(
+                          fontWeight: FontWeight.w800,
+                          color: cs.onPrimaryContainer,
+                        ),
+                      ),
+                      Text(
+                        'Cor, fundo, fonte e emoji',
+                        style: TextStyle(
+                          fontSize: 12.5,
+                          color: cs.onPrimaryContainer.withValues(alpha: .75),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Icon(Icons.chevron_right_rounded, color: cs.onPrimaryContainer),
+              ],
+            ),
+          ),
+        ),
+      ),
+      sections: const [
+        (
+          'Trecho selecionado',
+          [
+            _MenuAction('heading', Icons.title_rounded, 'Título'),
+            _MenuAction('list', Icons.format_list_bulleted_rounded, 'Lista'),
+            _MenuAction('quote', Icons.format_quote_rounded, 'Citação'),
+            _MenuAction('case', Icons.text_fields_rounded, 'Maiúsculas'),
+            _MenuAction('font', Icons.font_download_outlined, 'Fonte'),
+            _MenuAction('color', Icons.format_color_text_rounded, 'Cor do texto'),
+            _MenuAction('highlight', Icons.highlight_rounded, 'Marca-texto'),
+            _MenuAction('align', Icons.format_align_left_rounded, 'Alinhamento'),
+          ],
+        ),
+      ],
+    );
+    if (value == null || !mounted) return;
+    if (value == 'style') {
+      openStyleSheet();
+    } else {
+      _tool(value);
     }
-    if (value == 'clean') {
-      _cleanText();
-      return;
-    }
-    if (value == 'check-all') {
-      _checkAllTasks();
-      return;
-    }
-    if (value == 'copy-pending') {
-      await _copyPending();
-      return;
-    }
-    if (value == 'info') {
-      await _showNoteInfo();
-      return;
-    }
-    if (value == 'read-mode') {
-      setState(() => readOnly = !readOnly);
-      if (readOnly) FocusManager.instance.primaryFocus?.unfocus();
-      return;
-    }
-    if (value == 'pin-notification') {
-      _syncModel();
-      if (widget.isNew && !widget.store.notes.contains(widget.note)) {
-        if (!hasContent) return;
-        widget.store.notes.add(widget.note);
-      }
-      final pinned = widget.store.pinnedNotificationNoteId == widget.note.id;
-      if (pinned) {
-        await widget.store.hidePinnedNotification();
-      } else {
-        await widget.store.showPinnedNotification(widget.note);
-      }
-      if (mounted) {
+  }
+
+  /// Menu único da nota: ações rápidas no topo e o resto por assunto.
+  Future<void> _showNoteMenu() async {
+    FocusManager.instance.primaryFocus?.unfocus();
+    final note = widget.note;
+    final checklist = note.checklist;
+    final notified = widget.store.pinnedNotificationNoteId == note.id;
+    final speaking = NotoSpeech.speaking.value;
+    final cs = Theme.of(context).colorScheme;
+
+    Widget quick(String id, IconData icon, String label, {bool on = false}) =>
+        Expanded(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 4),
+            child: Material(
+              color: on ? cs.primaryContainer : cs.surfaceContainerHighest,
+              borderRadius: BorderRadius.circular(16),
+              child: InkWell(
+                borderRadius: BorderRadius.circular(16),
+                onTap: () => Navigator.pop(context, id),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  child: Column(
+                    children: [
+                      Icon(
+                        icon,
+                        color: on ? cs.onPrimaryContainer : cs.onSurface,
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        label,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                          color: on ? cs.onPrimaryContainer : cs.onSurface,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+        );
+
+    final value = await _gridSheet(
+      title: title.text.trim().isEmpty ? 'Nota sem título' : title.text.trim(),
+      subtitle:
+          'Editada ${DateFormat("dd/MM 'às' HH:mm").format(note.updatedAt)} · '
+          '$words ${words == 1 ? 'palavra' : 'palavras'}',
+      top: Row(
+        children: [
+          quick(
+            'pin',
+            note.pinned ? Icons.push_pin : Icons.push_pin_outlined,
+            note.pinned ? 'Fixada' : 'Fixar',
+            on: note.pinned,
+          ),
+          quick(
+            'favorite',
+            note.favorite ? Icons.star_rounded : Icons.star_outline_rounded,
+            note.favorite ? 'Favorita' : 'Favoritar',
+            on: note.favorite,
+          ),
+          quick('share', Icons.ios_share_rounded, 'Enviar'),
+          quick('copy', Icons.copy_all_rounded, 'Copiar'),
+        ],
+      ),
+      sections: [
+        (
+          'Organizar',
+          const [
+            _MenuAction('organize', Icons.drive_file_move_outline, 'Pasta e tags'),
+            _MenuAction('reminder', Icons.notifications_none_rounded, 'Lembrete'),
+            _MenuAction('task', Icons.flag_outlined, 'Prazo e prioridade'),
+            _MenuAction('connections', Icons.hub_outlined, 'Conexões'),
+          ],
+        ),
+        if (checklist)
+          (
+            'Tarefas',
+            [
+              _MenuAction(
+                'hide-done',
+                hideDone
+                    ? Icons.visibility_outlined
+                    : Icons.visibility_off_outlined,
+                hideDone ? 'Mostrar feitas' : 'Esconder feitas',
+              ),
+              const _MenuAction('add-many', Icons.playlist_add_rounded, 'Várias de uma vez'),
+              const _MenuAction('copy-pending', Icons.content_copy_rounded, 'Copiar o que falta'),
+              const _MenuAction('check-all', Icons.done_all_rounded, 'Marcar todas'),
+              const _MenuAction('uncheck-all', Icons.restart_alt_rounded, 'Desmarcar todas'),
+              const _MenuAction('remove-done', Icons.playlist_remove_rounded, 'Apagar feitas'),
+              const _MenuAction('sort-tasks', Icons.sort_by_alpha_rounded, 'Ordenar A-Z'),
+            ],
+          ),
+        (
+          'Ferramentas',
+          [
+            const _MenuAction('search', Icons.find_replace_rounded, 'Buscar e trocar'),
+            _MenuAction(
+              'speak',
+              speaking
+                  ? Icons.stop_circle_outlined
+                  : Icons.record_voice_over_outlined,
+              speaking ? 'Parar leitura' : 'Ler em voz alta',
+            ),
+            const _MenuAction('focus', Icons.fullscreen_rounded, 'Modo foco'),
+            if (!checklist) ...[
+              _MenuAction(
+                'read-mode',
+                readOnly
+                    ? Icons.edit_outlined
+                    : Icons.chrome_reader_mode_outlined,
+                readOnly ? 'Voltar a editar' : 'Modo leitura',
+              ),
+              const _MenuAction('preview', Icons.visibility_outlined, 'Ver formatada'),
+              const _MenuAction('sort-lines', Icons.sort_by_alpha_rounded, 'Ordenar linhas'),
+              const _MenuAction('clean', Icons.cleaning_services_outlined, 'Limpar espaços'),
+            ],
+            const _MenuAction('info', Icons.info_outline_rounded, 'Informações'),
+          ],
+        ),
+        (
+          'Salvar e enviar',
+          [
+            const _MenuAction('share-image', Icons.image_outlined, 'Como imagem'),
+            const _MenuAction('export', Icons.file_upload_outlined, 'Exportar arquivo'),
+            const _MenuAction('template', Icons.bookmark_add_outlined, 'Salvar como modelo'),
+            const _MenuAction('duplicate', Icons.copy_outlined, 'Duplicar'),
+            const _MenuAction('history', Icons.history_rounded, 'Versões antigas'),
+            _MenuAction(
+              'pin-notification',
+              notified
+                  ? Icons.notifications_off_outlined
+                  : Icons.notification_add_outlined,
+              notified ? 'Tirar da notificação' : 'Fixar na notificação',
+            ),
+          ],
+        ),
+        (
+          'Guardar',
+          [
+            _MenuAction(
+              'vault',
+              note.locked ? Icons.lock_open_rounded : Icons.lock_outline_rounded,
+              note.locked ? 'Tirar do cofre' : 'Mover para o cofre',
+            ),
+            const _MenuAction('archive', Icons.archive_outlined, 'Arquivar'),
+            const _MenuAction(
+              'delete',
+              Icons.delete_outline_rounded,
+              'Lixeira',
+              danger: true,
+            ),
+          ],
+        ),
+      ],
+    );
+    if (value == null || !mounted) return;
+    await _runNoteAction(value);
+  }
+
+  Future<void> _runNoteAction(String value) async {
+    switch (value) {
+      case 'pin':
+        setState(() => widget.store.togglePin(widget.note));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              widget.note.pinned
+                  ? 'Fixada no topo da tela inicial'
+                  : 'Tirada do topo',
+            ),
+          ),
+        );
+      case 'favorite':
+        setState(() => widget.note.favorite = !widget.note.favorite);
+        widget.store.save();
+      case 'share':
+        await shareNote();
+      case 'share-image':
+        _syncModel();
+        await shareNoteAsImage(
+          context,
+          title: title.text,
+          body: fullText,
+          background: NotoAppearance.safeNoteColorIndex(widget.note.color) == 0
+              ? null
+              : NotoAppearance.noteColors[
+                  NotoAppearance.safeNoteColorIndex(widget.note.color)],
+          fontFamily: NotoAppearance.familyAt(
+            widget.note.bodyFont ?? widget.note.font,
+          ),
+        );
+      case 'copy':
+        await _copyAll();
+      case 'organize':
+        await _showOrganize();
+      case 'reminder':
+        await chooseReminder();
+      case 'task':
+        await _showTaskDetails();
+      case 'connections':
+        await _showConnections();
+      case 'history':
+        await _showHistory();
+      case 'export':
+        await _showExport();
+      case 'template':
+        await _saveAsTemplate();
+      case 'duplicate':
+        await _duplicate();
+      case 'vault':
+        await _toggleVault();
+      case 'archive':
+        await _archiveAndClose();
+      case 'delete':
+        await _deleteAndClose();
+      case 'hide-done':
+        _setHideDone(!hideDone);
+      case 'uncheck-all' || 'remove-done':
+        _rewriteTasks(remove: value == 'remove-done');
+      case 'add-many':
+        await _addManyTasks();
+      case 'sort-tasks' || 'sort-lines':
+        _sortLines(tasksOnly: value == 'sort-tasks');
+      case 'clean':
+        _cleanText();
+      case 'check-all':
+        _checkAllTasks();
+      case 'copy-pending':
+        await _copyPending();
+      case 'info':
+        await _showNoteInfo();
+      case 'focus':
+        FocusManager.instance.primaryFocus?.unfocus();
+        setState(() => focusMode = true);
+      case 'speak':
+        await _toggleSpeech();
+      case 'read-mode':
+        setState(() => readOnly = !readOnly);
+        if (readOnly) FocusManager.instance.primaryFocus?.unfocus();
+      case 'pin-notification':
+        _syncModel();
+        if (widget.isNew && !widget.store.notes.contains(widget.note)) {
+          if (!hasContent) return;
+          widget.store.notes.add(widget.note);
+        }
+        final pinned = widget.store.pinnedNotificationNoteId == widget.note.id;
+        if (pinned) {
+          await widget.store.hidePinnedNotification();
+        } else {
+          await widget.store.showPinnedNotification(widget.note);
+        }
+        if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
@@ -1311,84 +1465,303 @@ class _EditorPageState extends State<EditorPage>
             ),
           ),
         );
-      }
-      return;
-    }
-    if (value == 'preview' && mounted) {
-      Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (_) =>
-              MarkdownPreviewPage(title: title.text, markdown: fullMarkdown),
-        ),
-      );
-    } else if (value != null) {
-      _tool(value);
+      case 'preview':
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) =>
+                MarkdownPreviewPage(title: title.text, markdown: fullMarkdown),
+          ),
+        );
+      default:
+        _tool(value);
     }
   }
 
-  Widget _richToolbar() {
-    final cs = Theme.of(context).colorScheme;
-    return Material(
-      color: cs.surfaceContainerHighest,
-      borderRadius: BorderRadius.circular(14),
-      // Botões compactos para caber tudo até em celulares estreitos.
-      child: IconButtonTheme(
-        data: IconButtonThemeData(
-          style: IconButton.styleFrom(
-            visualDensity: VisualDensity.compact,
-            minimumSize: const Size(38, 42),
-            padding: const EdgeInsets.symmetric(horizontal: 6),
+  Future<void> _toggleSpeech() async {
+    if (NotoSpeech.speaking.value) {
+      await NotoSpeech.stop();
+      return;
+    }
+    final text = speakableText(title.text, fullText);
+    if (text.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('A nota está vazia.')),
+      );
+      return;
+    }
+    final ok = await NotoSpeech.speak(text);
+    if (!ok && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Não achei o leitor de voz do celular. Veja em Ajustes do Android > Acessibilidade > Saída de texto para voz.',
           ),
         ),
-        child: Row(
+      );
+    }
+  }
+
+  void _showMoney(MoneySummary money) {
+    showModalBottomSheet<void>(
+      context: context,
+      useSafeArea: true,
+      showDragHandle: true,
+      builder: (ctx) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(8, 0, 8, 16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const ListTile(
+                title: Text(
+                  'Valores da nota',
+                  style: TextStyle(fontWeight: FontWeight.w900, fontSize: 20),
+                ),
+                subtitle: Text('Soma tudo que estiver escrito com R\$'),
+              ),
+              ListTile(
+                leading: const Icon(Icons.functions_rounded),
+                title: const Text('Total'),
+                trailing: Text(
+                  formatBRL(money.total),
+                  style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16),
+                ),
+              ),
+              if (money.hasTasks) ...[
+                ListTile(
+                  leading: const Icon(Icons.check_circle_outline_rounded),
+                  title: const Text('Já marcado'),
+                  trailing: Text(formatBRL(money.done)),
+                ),
+                ListTile(
+                  leading: const Icon(Icons.pending_outlined),
+                  title: const Text('Falta'),
+                  trailing: Text(
+                    formatBRL(money.pending),
+                    style: const TextStyle(fontWeight: FontWeight.w800),
+                  ),
+                ),
+              ],
+              ListTile(
+                leading: const Icon(Icons.copy_rounded),
+                title: const Text('Copiar o total'),
+                onTap: () {
+                  Clipboard.setData(ClipboardData(text: formatBRL(money.total)));
+                  Navigator.pop(ctx);
+                },
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Linha de etiquetas logo abaixo do título: pasta, lembrete, prazo...
+  Widget _metaChips(Color? fg) {
+    final note = widget.note;
+    final cs = Theme.of(context).colorScheme;
+    final base = fg ?? cs.onSurface;
+    final money = moneySummary(body.text);
+    final now = DateTime.now();
+    final overdue =
+        note.dueAt != null &&
+        DateUtils.dateOnly(note.dueAt!).isBefore(DateUtils.dateOnly(now));
+    Widget chip(
+      IconData icon,
+      String label,
+      VoidCallback onTap, {
+      Color? color,
+      String? tooltip,
+    }) {
+      final tint = color ?? base.withValues(alpha: .78);
+      return Padding(
+        padding: const EdgeInsets.only(right: 6),
+        child: Tooltip(
+          message: tooltip ?? label,
+          child: Material(
+            color: (color ?? base).withValues(alpha: color == null ? .07 : .14),
+            borderRadius: BorderRadius.circular(20),
+            child: InkWell(
+              borderRadius: BorderRadius.circular(20),
+              onTap: onTap,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(icon, size: 15, color: tint),
+                    const SizedBox(width: 5),
+                    Text(
+                      label,
+                      style: TextStyle(
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.w700,
+                        color: tint,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
+    final tagsLabel = note.tags.isEmpty
+        ? ''
+        : note.tags.length == 1
+        ? ' · #${note.tags.first}'
+        : ' · ${note.tags.length} tags';
+    return SizedBox(
+      height: 32,
+      child: ListView(
+        scrollDirection: Axis.horizontal,
         children: [
-          IconButton(
-            tooltip: 'Desfazer',
-            onPressed: undoStack.isEmpty ? null : () => _historyEdit(false),
-            icon: const Icon(Icons.undo_rounded),
+          chip(
+            Icons.folder_outlined,
+            '${note.folder}$tagsLabel',
+            _showOrganize,
+            tooltip: 'Pasta e tags',
           ),
-          IconButton(
-            tooltip: 'Refazer',
-            onPressed: redoStack.isEmpty ? null : () => _historyEdit(true),
-            icon: const Icon(Icons.redo_rounded),
-          ),
-          if (!widget.note.checklist) ...[
-            IconButton(
-              tooltip: 'Negrito',
-              onPressed: () => _tool('bold'),
-              icon: const Icon(Icons.format_bold_rounded),
+          if (note.reminderAt != null)
+            chip(
+              note.reminderRepeat == 0
+                  ? Icons.notifications_active_outlined
+                  : Icons.repeat_rounded,
+              note.reminderRepeat == 0
+                  ? DateFormat("dd/MM 'às' HH:mm").format(note.reminderAt!)
+                  : '${reminderRepeatLabels[note.reminderRepeat]} · ${DateFormat('HH:mm').format(note.reminderAt!)}',
+              chooseReminder,
+              color: cs.primary,
+              tooltip: 'Lembrete',
             ),
-            IconButton(
-              tooltip: 'Itálico',
-              onPressed: () => _tool('italic'),
-              icon: const Icon(Icons.format_italic_rounded),
+          if (note.dueAt != null)
+            chip(
+              Icons.event_outlined,
+              dueCountdown(note.dueAt!, now),
+              _showTaskDetails,
+              color: overdue ? cs.error : null,
+              tooltip: 'Prazo',
             ),
-          ],
-          const Spacer(),
-          IconButton(
-            tooltip: 'Ditar por voz',
-            onPressed: readOnly ? null : _dictate,
-            icon: const Icon(Icons.mic_none_rounded),
-          ),
-          IconButton(
-            tooltip: 'Inserir',
-            onPressed: _showInsertMenu,
-            icon: const Icon(Icons.add_circle_outline_rounded),
-          ),
-          if (!widget.note.checklist)
-            IconButton(
-              tooltip: 'Formatar',
-              onPressed: _showFormatMenu,
-              icon: const Icon(Icons.format_paint_outlined),
+          if (note.priority > 0)
+            chip(
+              priorityIcon(note.priority),
+              priorityLabel(note.priority),
+              _showTaskDetails,
+              color: note.priority == 3 ? cs.error : null,
             ),
-          IconButton(
-            tooltip: 'Ferramentas',
-            onPressed: _showEditorTools,
-            icon: const Icon(Icons.more_horiz_rounded),
-          ),
+          if (money.count >= 2)
+            chip(
+              Icons.payments_outlined,
+              money.hasTasks && money.done > 0 && money.pending > 0
+                  ? 'Falta ${formatBRL(money.pending)}'
+                  : 'Total ${formatBRL(money.total)}',
+              () => _showMoney(money),
+              tooltip: 'Valores da nota',
+            ),
+          if (tables.isNotEmpty || codeBlocks.isNotEmpty)
+            if (widget.note.checklist)
+              chip(
+                Icons.attachment_rounded,
+                'Tabelas e código (${tables.length + codeBlocks.length})',
+                _showAttachments,
+              ),
         ],
       ),
+    );
+  }
+
+  /// Barra única de edição, presa em cima do teclado.
+  Widget _bottomBar() {
+    final cs = Theme.of(context).colorScheme;
+    final checklist = widget.note.checklist;
+    final keyboard = MediaQuery.viewInsetsOf(context).bottom > 0;
+    Widget button(String tip, IconData icon, VoidCallback? onTap) => IconButton(
+      tooltip: tip,
+      onPressed: onTap,
+      icon: Icon(icon),
+    );
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(8, 4, 8, 6),
+      child: Material(
+        color: cs.surfaceContainerHigh,
+        borderRadius: BorderRadius.circular(18),
+        elevation: 1,
+        shadowColor: Colors.black26,
+        child: IconButtonTheme(
+          data: IconButtonThemeData(
+            style: IconButton.styleFrom(
+              visualDensity: VisualDensity.compact,
+              minimumSize: const Size(40, 44),
+              padding: const EdgeInsets.symmetric(horizontal: 6),
+            ),
+          ),
+          child: Row(
+            children: [
+              Expanded(
+                child: SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  padding: const EdgeInsets.symmetric(horizontal: 4),
+                  child: Row(
+                    children: [
+                      button(
+                        'Desfazer',
+                        Icons.undo_rounded,
+                        undoStack.isEmpty ? null : () => _historyEdit(false),
+                      ),
+                      button(
+                        'Refazer',
+                        Icons.redo_rounded,
+                        redoStack.isEmpty ? null : () => _historyEdit(true),
+                      ),
+                      if (!checklist) ...[
+                        button(
+                          'Negrito',
+                          Icons.format_bold_rounded,
+                          readOnly ? null : () => _tool('bold'),
+                        ),
+                        button(
+                          'Itálico',
+                          Icons.format_italic_rounded,
+                          readOnly ? null : () => _tool('italic'),
+                        ),
+                      ],
+                      button(
+                        checklist ? 'Virar texto comum' : 'Virar lista de tarefas',
+                        checklist ? Icons.notes_rounded : Icons.checklist_rounded,
+                        readOnly ? null : () => _setChecklistMode(!checklist),
+                      ),
+                      button(
+                        'Ditar por voz',
+                        Icons.mic_none_rounded,
+                        readOnly ? null : _dictate,
+                      ),
+                      button(
+                        'Inserir',
+                        Icons.add_box_outlined,
+                        readOnly ? null : _showInsertMenu,
+                      ),
+                      button(
+                        'Aparência e formato',
+                        Icons.text_format_rounded,
+                        _showTextLook,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              if (keyboard)
+                button(
+                  'Fechar teclado',
+                  Icons.keyboard_hide_outlined,
+                  () => FocusManager.instance.primaryFocus?.unfocus(),
+                ),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -1488,14 +1861,22 @@ class _EditorPageState extends State<EditorPage>
       current ?? now.add(const Duration(hours: 1)),
     );
     var repeat = widget.note.reminderRepeat;
+    final typed = TextEditingController();
+    String? understood;
 
     final action = await showModalBottomSheet<String>(
       context: context,
       useSafeArea: true,
       isScrollControlled: true,
       builder: (sheetContext) => StatefulBuilder(
-        builder: (context, setModalState) => Padding(
-          padding: const EdgeInsets.fromLTRB(20, 14, 20, 24),
+        builder: (context, setModalState) => SingleChildScrollView(
+          child: Padding(
+          padding: EdgeInsets.fromLTRB(
+            20,
+            14,
+            20,
+            24 + MediaQuery.viewInsetsOf(context).bottom,
+          ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -1505,7 +1886,39 @@ class _EditorPageState extends State<EditorPage>
                 style: Theme.of(context).textTheme.titleLarge
                     ?.copyWith(fontWeight: FontWeight.w900),
               ),
-              const SizedBox(height: 8),
+              const SizedBox(height: 10),
+              TextField(
+                controller: typed,
+                textInputAction: TextInputAction.done,
+                decoration: InputDecoration(
+                  prefixIcon: const Icon(Icons.edit_calendar_outlined),
+                  hintText: 'Escreva: amanhã às 9, sexta 18h, em 2 horas',
+                  helperText: understood,
+                  helperStyle: TextStyle(
+                    color: Theme.of(context).colorScheme.primary,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                onChanged: (value) => setModalState(() {
+                  final parsed = parseReminderText(value, DateTime.now());
+                  if (parsed == null) {
+                    understood = value.trim().isEmpty
+                        ? null
+                        : 'Ainda não entendi. Tente "amanhã às 9".';
+                    return;
+                  }
+                  date = DateUtils.dateOnly(parsed);
+                  time = TimeOfDay.fromDateTime(parsed);
+                  understood =
+                      'Entendi: ${DateFormat("EEEE, dd/MM 'às' HH:mm", 'pt_BR').format(parsed)}';
+                }),
+                onSubmitted: (_) {
+                  if (understood?.startsWith('Entendi') ?? false) {
+                    Navigator.pop(sheetContext, 'save');
+                  }
+                },
+              ),
+              const SizedBox(height: 10),
               Wrap(
                 spacing: 8,
                 runSpacing: 6,
@@ -1579,8 +1992,10 @@ class _EditorPageState extends State<EditorPage>
             ],
           ),
         ),
+        ),
       ),
     );
+    Future<void>.delayed(const Duration(milliseconds: 400), typed.dispose);
     if (action == null || !mounted) return;
     if (action == 'remove') {
       setState(() => widget.store.cancelReminder(widget.note));
@@ -1677,7 +2092,37 @@ class _EditorPageState extends State<EditorPage>
     widget.note.archived = true;
     await widget.store.save();
     saved = true;
-    if (mounted) Navigator.pop(context, true);
+    if (!mounted) return;
+    final messenger = ScaffoldMessenger.of(context);
+    Navigator.pop(context, true);
+    _offerUndo(messenger, 'Nota arquivada', () {
+      widget.note.archived = false;
+    });
+  }
+
+  /// Depois de fechar a nota, a tela anterior mostra "Desfazer".
+  void _offerUndo(
+    ScaffoldMessengerState messenger,
+    String message,
+    VoidCallback restore,
+  ) {
+    final store = widget.store;
+    final note = widget.note;
+    messenger
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          content: Text(message),
+          action: SnackBarAction(
+            label: 'Desfazer',
+            onPressed: () async {
+              restore();
+              await store.save();
+              await store.refreshReminder(note);
+            },
+          ),
+        ),
+      );
   }
 
   Future<void> _deleteAndClose() async {
@@ -1693,7 +2138,12 @@ class _EditorPageState extends State<EditorPage>
     widget.note.deletedAt = DateTime.now();
     await widget.store.save();
     saved = true;
-    if (mounted) Navigator.pop(context, true);
+    if (!mounted) return;
+    final messenger = ScaffoldMessenger.of(context);
+    Navigator.pop(context, true);
+    _offerUndo(messenger, 'Nota na lixeira', () {
+      widget.note.deletedAt = null;
+    });
   }
 
   Future<void> _duplicate() async {
@@ -2580,6 +3030,7 @@ class _EditorPageState extends State<EditorPage>
 
   @override
   void dispose() {
+    if (NotoSpeech.speaking.value) NotoSpeech.stop();
     if (_countsAsVault) widget.store.vaultScreenClosed();
     WidgetsBinding.instance.removeObserver(this);
     autosaveTimer?.cancel();
@@ -2606,6 +3057,9 @@ class _EditorPageState extends State<EditorPage>
       widget.note.bodyFont ?? widget.note.font,
     );
     final fg = editorTextColor;
+    final cs = Theme.of(context).colorScheme;
+    final failed = saveLabel.startsWith('Não salvou');
+    final saving = saveLabel == 'Salvando…';
 
     return PopScope(
       canPop: false,
@@ -2618,28 +3072,60 @@ class _EditorPageState extends State<EditorPage>
             ? null
             : AppBar(
                 leading: IconButton(
+                  tooltip: 'Voltar',
                   icon: const Icon(Icons.arrow_back_rounded),
                   onPressed: saveAndClose,
                 ),
+                titleSpacing: 0,
                 foregroundColor: selectedWallpaper != null
                     ? Colors.white
                     : null,
-                actions: [
-                  IconButton(
-                    tooltip: widget.note.favorite
-                        ? 'Remover dos favoritos'
-                        : 'Favoritar',
-                    icon: Icon(
-                      widget.note.favorite
-                          ? Icons.star_rounded
-                          : Icons.star_outline_rounded,
+                title: InkWell(
+                  borderRadius: BorderRadius.circular(12),
+                  onTap: failed ? _autosave : null,
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 6,
+                      vertical: 6,
                     ),
-                    onPressed: () {
-                      setState(
-                        () => widget.note.favorite = !widget.note.favorite,
-                      );
-                      widget.store.save();
-                    },
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          failed
+                              ? Icons.error_outline_rounded
+                              : saving
+                              ? Icons.sync_rounded
+                              : Icons.cloud_done_outlined,
+                          size: 17,
+                          color: failed ? cs.error : null,
+                        ),
+                        const SizedBox(width: 6),
+                        Flexible(
+                          child: Text(
+                            saveLabel,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                              color: failed ? cs.error : null,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                actions: [
+                  ValueListenableBuilder<bool>(
+                    valueListenable: NotoSpeech.speaking,
+                    builder: (_, speaking, __) => speaking
+                        ? IconButton(
+                            tooltip: 'Parar leitura',
+                            icon: const Icon(Icons.stop_circle_outlined),
+                            onPressed: NotoSpeech.stop,
+                          )
+                        : const SizedBox.shrink(),
                   ),
                   IconButton(
                     tooltip: 'Lembrete',
@@ -2650,137 +3136,10 @@ class _EditorPageState extends State<EditorPage>
                     ),
                     onPressed: chooseReminder,
                   ),
-                  PopupMenuButton<String>(
-                    onSelected: (value) async {
-                      if (value == 'organize') await _showOrganize();
-                      if (value == 'pin') {
-                        setState(() => widget.store.togglePin(widget.note));
-                        if (context.mounted) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: Text(
-                                widget.note.pinned
-                                    ? 'Fixada no topo da tela inicial'
-                                    : 'Tirada do topo',
-                              ),
-                            ),
-                          );
-                        }
-                      }
-                      if (value == 'task') await _showTaskDetails();
-                      if (value == 'connections') await _showConnections();
-                      if (value == 'history') await _showHistory();
-                      if (value == 'export') await _showExport();
-                      if (value == 'template') await _saveAsTemplate();
-                      if (value == 'share') await shareNote();
-                      if (value == 'duplicate') await _duplicate();
-                      if (value == 'vault') await _toggleVault();
-                      if (value == 'archive') await _archiveAndClose();
-                      if (value == 'delete') await _deleteAndClose();
-                    },
-                    itemBuilder: (_) => [
-                      PopupMenuItem(
-                        value: 'pin',
-                        child: ListTile(
-                          leading: Icon(
-                            widget.note.pinned
-                                ? Icons.push_pin
-                                : Icons.push_pin_outlined,
-                          ),
-                          title: Text(
-                            widget.note.pinned
-                                ? 'Tirar do topo'
-                                : 'Fixar no topo',
-                          ),
-                        ),
-                      ),
-                      PopupMenuItem(
-                        value: 'organize',
-                        child: ListTile(
-                          leading: Icon(Icons.drive_file_move_outline),
-                          title: Text('Organizar'),
-                        ),
-                      ),
-                      PopupMenuItem(
-                        value: 'task',
-                        child: ListTile(
-                          leading: Icon(Icons.flag_outlined),
-                          title: Text('Prioridade e prazo'),
-                        ),
-                      ),
-                      PopupMenuItem(
-                        value: 'connections',
-                        child: ListTile(
-                          leading: Icon(Icons.hub_outlined),
-                          title: Text('Conexões'),
-                        ),
-                      ),
-                      PopupMenuItem(
-                        value: 'export',
-                        child: ListTile(
-                          leading: Icon(Icons.file_upload_outlined),
-                          title: Text('Exportar'),
-                        ),
-                      ),
-                      PopupMenuItem(
-                        value: 'template',
-                        child: ListTile(
-                          leading: Icon(Icons.bookmark_add_outlined),
-                          title: Text('Salvar como modelo'),
-                        ),
-                      ),
-                      PopupMenuItem(
-                        value: 'history',
-                        child: ListTile(
-                          leading: Icon(Icons.history_rounded),
-                          title: Text('Histórico'),
-                        ),
-                      ),
-                      PopupMenuItem(
-                        value: 'share',
-                        child: ListTile(
-                          leading: Icon(Icons.ios_share_rounded),
-                          title: Text('Compartilhar'),
-                        ),
-                      ),
-                      PopupMenuItem(
-                        value: 'duplicate',
-                        child: ListTile(
-                          leading: Icon(Icons.copy_outlined),
-                          title: Text('Duplicar'),
-                        ),
-                      ),
-                      PopupMenuItem(
-                        value: 'vault',
-                        child: ListTile(
-                          leading: Icon(
-                            widget.note.locked
-                                ? Icons.lock_open_rounded
-                                : Icons.lock_outline_rounded,
-                          ),
-                          title: Text(
-                            widget.note.locked
-                                ? 'Tirar do cofre'
-                                : 'Mover para o cofre',
-                          ),
-                        ),
-                      ),
-                      const PopupMenuDivider(),
-                      PopupMenuItem(
-                        value: 'archive',
-                        child: ListTile(
-                          leading: Icon(Icons.archive_outlined),
-                          title: Text('Arquivar'),
-                        ),
-                      ),
-                      PopupMenuItem(
-                        value: 'delete',
-                        child: ListTile(
-                          leading: Icon(Icons.delete_outline_rounded),
-                          title: Text('Mover para a lixeira'),
-                        ),
-                      ),
-                    ],
+                  IconButton(
+                    tooltip: 'Mais opções',
+                    icon: const Icon(Icons.more_vert_rounded),
+                    onPressed: _showNoteMenu,
                   ),
                 ],
               ),
@@ -2803,166 +3162,44 @@ class _EditorPageState extends State<EditorPage>
               ),
             SafeArea(
               top: focusMode,
-              child: Padding(
-                padding: EdgeInsets.fromLTRB(
-                  focusMode ? 24 : 20,
-                  focusMode ? 22 : 8,
-                  focusMode ? 24 : 20,
-                  12,
-                ),
-                child: Column(
-                  children: [
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        if (widget.note.emoji.isNotEmpty) ...[
-                          Padding(
-                            padding: const EdgeInsets.only(top: 3, right: 8),
-                            child: Text(
-                              widget.note.emoji,
-                              style: const TextStyle(fontSize: 25),
-                            ),
-                          ),
-                        ],
-                        Expanded(
-                          child: TextField(
-                            controller: title,
-                            readOnly: readOnly,
-                            textInputAction: TextInputAction.next,
-                            onSubmitted: (_) => bodyFocus.requestFocus(),
-                            textCapitalization: TextCapitalization.sentences,
-                            decoration: InputDecoration(
-                              hintText: 'Título',
-                              hintStyle: TextStyle(
-                                color: fg?.withValues(alpha: .55),
-                              ),
-                              filled: false,
-                              border: InputBorder.none,
-                              enabledBorder: InputBorder.none,
-                              focusedBorder: InputBorder.none,
-                              contentPadding: EdgeInsets.zero,
-                            ),
-                            style: TextStyle(
-                              fontFamily: titleFamily,
-                              fontSize: focusMode ? 32 : 29,
-                              height: 1.18,
-                              fontWeight: FontWeight.w900,
-                              color: fg,
-                              letterSpacing: -.65,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                    if (!focusMode &&
-                        (widget.note.reminderAt != null ||
-                            widget.note.dueAt != null ||
-                            widget.note.priority > 0))
-                      Align(
-                        alignment: Alignment.centerLeft,
-                        child: Wrap(
-                          spacing: 6,
-                          runSpacing: 4,
-                          children: [
-                            if (widget.note.reminderAt != null)
-                              Chip(
-                                avatar: Icon(
-                                  widget.note.reminderRepeat == 0
-                                      ? Icons.notifications_active_outlined
-                                      : Icons.repeat_rounded,
-                                  size: 16,
-                                ),
-                                label: Text(
-                                  widget.note.reminderRepeat == 0
-                                      ? DateFormat("dd/MM 'às' HH:mm")
-                                          .format(widget.note.reminderAt!)
-                                      : '${reminderRepeatLabels[widget.note.reminderRepeat]} · ${DateFormat('HH:mm').format(widget.note.reminderAt!)}',
-                                ),
-                                onDeleted: () {
-                                  setState(
-                                    () => widget.store.cancelReminder(
-                                      widget.note,
-                                    ),
-                                  );
-                                  widget.store.save();
-                                },
-                              ),
-                            if (widget.note.priority > 0)
-                              Chip(
-                                avatar: Icon(
-                                  priorityIcon(widget.note.priority),
-                                  size: 16,
-                                ),
-                                label: Text(
-                                  priorityLabel(widget.note.priority),
-                                ),
-                              ),
-                            if (widget.note.dueAt != null)
-                              Chip(
-                                avatar: const Icon(
-                                  Icons.event_outlined,
-                                  size: 16,
-                                ),
-                                label: Text(
-                                  DateFormat('dd/MM')
-                                      .format(widget.note.dueAt!),
-                                ),
-                              ),
-                          ],
-                        ),
+              child: Column(
+                children: [
+                  Expanded(
+                    child: Padding(
+                      padding: EdgeInsets.fromLTRB(
+                        focusMode ? 24 : 20,
+                        focusMode ? 22 : 4,
+                        focusMode ? 24 : 20,
+                        0,
                       ),
-                    if (!focusMode) ...[
-                      _richToolbar(),
-                      const SizedBox(height: 8),
-                    ],
-                    SizedBox(height: focusMode ? 18 : 12),
-                    Expanded(
-                      child: widget.note.checklist
-                          ? Column(
-                              children: [
-                                Expanded(
-                                  child: MixedContentEditor(
-                                    key: ValueKey('mixed-$tableEpoch-$hideDone'),
-                                    hideDone: hideDone,
-                                    onShowDone: () => _setHideDone(false),
-                                    controller: body,
-                                    family: bodyFamily,
-                                    fontSize: widget.store.fontSize,
-                                    textColor: fg,
-                                    onChanged: () => setState(() {}),
+                      child: Column(
+                        children: [
+                          Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              if (widget.note.emoji.isNotEmpty)
+                                Padding(
+                                  padding: const EdgeInsets.only(
+                                    top: 3,
+                                    right: 8,
+                                  ),
+                                  child: Text(
+                                    widget.note.emoji,
+                                    style: const TextStyle(fontSize: 25),
                                   ),
                                 ),
-                                if (tables.isNotEmpty || codeBlocks.isNotEmpty)
-                                  TextButton.icon(
-                                    onPressed: _showAttachments,
-                                    icon: const Icon(Icons.attachment),
-                                    label: Text(
-                                      'Tabelas e código (${tables.length + codeBlocks.length})',
-                                    ),
-                                  ),
-                              ],
-                            )
-                          : ListView(
-                              controller: editorScroll,
-                              padding: const EdgeInsets.only(bottom: 24),
-                              children: [
-                                TextField(
-                                  controller: body,
-                                  focusNode: bodyFocus,
+                              Expanded(
+                                child: TextField(
+                                  controller: title,
                                   readOnly: readOnly,
-                                  inputFormatters: [
-                                    ListContinuationFormatter(),
-                                  ],
-                                  minLines: 6,
-                                  maxLines: null,
-                                  textAlign: alignment,
-                                  keyboardType: TextInputType.multiline,
+                                  textInputAction: TextInputAction.next,
+                                  onSubmitted: (_) => bodyFocus.requestFocus(),
                                   textCapitalization:
                                       TextCapitalization.sentences,
                                   decoration: InputDecoration(
-                                    hintText: 'Escreva aqui...',
+                                    hintText: 'Título',
                                     hintStyle: TextStyle(
-                                      color: fg?.withValues(alpha: .48),
+                                      color: fg?.withValues(alpha: .55),
                                     ),
                                     filled: false,
                                     border: InputBorder.none,
@@ -2971,93 +3208,117 @@ class _EditorPageState extends State<EditorPage>
                                     contentPadding: EdgeInsets.zero,
                                   ),
                                   style: TextStyle(
-                                    fontFamily: bodyFamily,
-                                    fontSize: widget.store.fontSize,
-                                    height: widget.store.editorLineHeight,
+                                    fontFamily: titleFamily,
+                                    fontSize: focusMode ? 32 : 28,
+                                    height: 1.18,
+                                    fontWeight: FontWeight.w900,
                                     color: fg,
+                                    letterSpacing: -.65,
                                   ),
                                 ),
-                                for (final code in codeBlocks)
-                                  NotoCodeBlock(
-                                    key: ValueKey('${code['id']}-$tableEpoch'),
-                                    data: code,
-                                    onChanged: _editorChanged,
-                                    onDelete: () {
-                                      codeBlocks.remove(code);
-                                      _editorChanged();
-                                    },
-                                  ),
-                                for (final table in tables)
-                                  VisualNoteTable(
-                                    key: ValueKey('${table.id}-$tableEpoch'),
-                                    table: table,
-                                    fontFamily: bodyFamily,
-                                    fontSize: widget.store.fontSize,
-                                    onChanged: _editorChanged,
-                                    onDelete: () {
-                                      tables.remove(table);
-                                      _editorChanged();
-                                    },
-                                  ),
-                              ],
-                            ),
-                    ),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: TextButton(
-                            onPressed: _autosave,
-                            child: Text(
-                              saveLabel,
-                              style: const TextStyle(fontSize: 11),
-                            ),
-                          ),
-                        ),
-                        IconButton(
-                          tooltip: 'Copiar nota',
-                          onPressed: _copyAll,
-                          icon: const Icon(Icons.copy_all, size: 20),
-                        ),
-                        IconButton(
-                          tooltip: 'Fechar teclado',
-                          onPressed: () =>
-                              FocusManager.instance.primaryFocus?.unfocus(),
-                          icon: const Icon(Icons.keyboard_hide_outlined),
-                        ),
-                      ],
-                    ),
-                    if (!focusMode)
-                      Row(
-                        children: [
-                          Expanded(
-                            child: Text(
-                              selectedWords > 0
-                                  ? '$selectedWords ${selectedWords == 1 ? 'palavra selecionada' : 'palavras selecionadas'}'
-                                  : '$words ${words == 1 ? 'palavra' : 'palavras'} · $characters ${characters == 1 ? 'caractere' : 'caracteres'}',
-                              overflow: TextOverflow.ellipsis,
-                              style: TextStyle(
-                                fontSize: 10.5,
-                                color: fg?.withValues(alpha: .65),
                               ),
-                            ),
+                            ],
                           ),
-                          IconButton.filledTonal(
-                            tooltip: 'Modo foco',
-                            onPressed: () {
-                              setState(() => focusMode = true);
-                            },
-                            icon: const Icon(Icons.fullscreen_rounded),
-                          ),
-                          const SizedBox(width: 8),
-                          FilledButton.tonalIcon(
-                            onPressed: openStyleSheet,
-                            icon: const Icon(Icons.tune_rounded, size: 18),
-                            label: const Text('Estilo'),
+                          if (!focusMode) ...[
+                            const SizedBox(height: 8),
+                            _metaChips(fg),
+                          ],
+                          SizedBox(height: focusMode ? 18 : 12),
+                          Expanded(
+                            child: widget.note.checklist
+                                ? MixedContentEditor(
+                                    key: ValueKey('mixed-$tableEpoch-$hideDone'),
+                                    hideDone: hideDone,
+                                    onShowDone: () => _setHideDone(false),
+                                    controller: body,
+                                    family: bodyFamily,
+                                    fontSize: widget.store.fontSize,
+                                    textColor: fg,
+                                    onChanged: () => setState(() {}),
+                                  )
+                                : ListView(
+                                    controller: editorScroll,
+                                    padding: const EdgeInsets.only(bottom: 24),
+                                    children: [
+                                      TextField(
+                                        controller: body,
+                                        focusNode: bodyFocus,
+                                        readOnly: readOnly,
+                                        inputFormatters: [
+                                          ListContinuationFormatter(),
+                                        ],
+                                        minLines: 8,
+                                        maxLines: null,
+                                        textAlign: alignment,
+                                        keyboardType: TextInputType.multiline,
+                                        textCapitalization:
+                                            TextCapitalization.sentences,
+                                        decoration: InputDecoration(
+                                          hintText: 'Escreva aqui...',
+                                          hintStyle: TextStyle(
+                                            color: fg?.withValues(alpha: .48),
+                                          ),
+                                          filled: false,
+                                          border: InputBorder.none,
+                                          enabledBorder: InputBorder.none,
+                                          focusedBorder: InputBorder.none,
+                                          contentPadding: EdgeInsets.zero,
+                                        ),
+                                        style: TextStyle(
+                                          fontFamily: bodyFamily,
+                                          fontSize: widget.store.fontSize,
+                                          height: widget.store.editorLineHeight,
+                                          color: fg,
+                                        ),
+                                      ),
+                                      for (final code in codeBlocks)
+                                        NotoCodeBlock(
+                                          key: ValueKey(
+                                            '${code['id']}-$tableEpoch',
+                                          ),
+                                          data: code,
+                                          onChanged: _editorChanged,
+                                          onDelete: () {
+                                            codeBlocks.remove(code);
+                                            _editorChanged();
+                                          },
+                                        ),
+                                      for (final table in tables)
+                                        VisualNoteTable(
+                                          key: ValueKey(
+                                            '${table.id}-$tableEpoch',
+                                          ),
+                                          table: table,
+                                          fontFamily: bodyFamily,
+                                          fontSize: widget.store.fontSize,
+                                          onChanged: _editorChanged,
+                                          onDelete: () {
+                                            tables.remove(table);
+                                            _editorChanged();
+                                          },
+                                        ),
+                                      if (selectedWords > 0)
+                                        Padding(
+                                          padding: const EdgeInsets.only(
+                                            top: 8,
+                                          ),
+                                          child: Text(
+                                            '$selectedWords ${selectedWords == 1 ? 'palavra selecionada' : 'palavras selecionadas'}',
+                                            style: TextStyle(
+                                              fontSize: 11.5,
+                                              color: fg?.withValues(alpha: .65),
+                                            ),
+                                          ),
+                                        ),
+                                    ],
+                                  ),
                           ),
                         ],
                       ),
-                  ],
-                ),
+                    ),
+                  ),
+                  if (!focusMode) _bottomBar(),
+                ],
               ),
             ),
             if (focusMode)
@@ -3077,6 +3338,80 @@ class _EditorPageState extends State<EditorPage>
           ],
         ),
       ),
+    );
+  }
+}
+
+class _MenuAction {
+  const _MenuAction(this.id, this.icon, this.label, {this.danger = false});
+  final String id;
+  final IconData icon;
+  final String label;
+  final bool danger;
+}
+
+/// Grade de 4 colunas com ícone e nome curto, para menus fáceis de bater o olho.
+class _MenuGrid extends StatelessWidget {
+  const _MenuGrid({required this.items, required this.onPick});
+
+  final List<_MenuAction> items;
+  final ValueChanged<String> onPick;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final columns = constraints.maxWidth >= 520 ? 6 : 4;
+        final width = constraints.maxWidth / columns;
+        return Wrap(
+          children: [
+            for (final item in items)
+              SizedBox(
+                width: width,
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(16),
+                  onTap: () => onPick(item.id),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 2),
+                    child: Column(
+                      children: [
+                        Container(
+                          width: 46,
+                          height: 46,
+                          decoration: BoxDecoration(
+                            color: item.danger
+                                ? cs.errorContainer
+                                : cs.surfaceContainerHighest,
+                            borderRadius: BorderRadius.circular(15),
+                          ),
+                          child: Icon(
+                            item.icon,
+                            size: 22,
+                            color: item.danger ? cs.onErrorContainer : cs.onSurface,
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          item.label,
+                          maxLines: 2,
+                          textAlign: TextAlign.center,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontSize: 11.5,
+                            height: 1.2,
+                            fontWeight: FontWeight.w600,
+                            color: item.danger ? cs.error : cs.onSurface,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+          ],
+        );
+      },
     );
   }
 }

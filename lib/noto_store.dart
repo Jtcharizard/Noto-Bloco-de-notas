@@ -412,7 +412,13 @@ class AppStore extends ChangeNotifier {
     newNoteColor = (prefs.getInt('newNoteColor') ?? 0)
         .clamp(0, NotoAppearance.noteColors.length - 1)
         .toInt();
-    showShortcutsBar = prefs.getBool('showShortcutsBar') ?? true;
+    showShortcutsBar = prefs.getBool('showShortcutsBar') ?? false;
+    // 2.8: Arquivadas, Lixeira, Pastas e Tags agora ficam no menu da tela
+    // inicial. A barra antiga some uma vez; dá para ligar de novo nos Ajustes.
+    if (prefs.getBool('menuUnificado28') != true) {
+      showShortcutsBar = false;
+      await prefs.setBool('menuUnificado28', true);
+    }
     recentSearches
       ..clear()
       ..addAll(prefs.getStringList('recentSearches') ?? const []);

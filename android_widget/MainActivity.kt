@@ -4,10 +4,13 @@ import android.content.Intent
 import android.net.Uri
 import android.os.Build
 import android.provider.OpenableColumns
+import android.speech.tts.TextToSpeech
+import android.speech.tts.UtteranceProgressListener
 import android.view.WindowManager
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
+import java.util.Locale
 
 /**
  * Recebe texto de outros apps ("Compartilhar > Noto") e entrega para o Flutter
@@ -16,6 +19,10 @@ import io.flutter.plugin.common.MethodChannel
 class MainActivity : FlutterActivity() {
     private var channel: MethodChannel? = null
     private var pending: Map<String, String>? = null
+    private var speechChannel: MethodChannel? = null
+    private var tts: TextToSpeech? = null
+    private var ttsReady = false
+    private var queuedSpeech: String? = null
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
@@ -41,6 +48,93 @@ class MainActivity : FlutterActivity() {
                 }
             }
         }
+        // Ler a nota em voz alta com o leitor de texto do próprio Android.
+        speechChannel = MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "noto/speech").also {
+            it.setMethodCallHandler { call, result ->
+                when (call.method) {
+                    "speak" -> {
+                        speak(call.arguments as? String ?: "")
+                        result.success(true)
+                    }
+                    "stop" -> {
+                        queuedSpeech = null
+                        tts?.stop()
+                        result.success(null)
+                    }
+                    else -> result.notImplemented()
+                }
+            }
+        }
+    }
+
+    private fun speak(text: String) {
+        if (text.isBlank()) return
+        if (tts == null) {
+            queuedSpeech = text
+            tts = TextToSpeech(this) { status ->
+                if (status == TextToSpeech.SUCCESS) {
+                    ttsReady = true
+                    tts?.setLanguage(Locale.forLanguageTag("pt-BR"))
+                    tts?.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
+                        override fun onStart(utteranceId: String?) {}
+                        override fun onDone(utteranceId: String?) {
+                            if (utteranceId == "noto-fim") finishedSpeaking()
+                        }
+                        @Deprecated("Deprecated in Java")
+                        override fun onError(utteranceId: String?) {
+                            finishedSpeaking()
+                        }
+                    })
+                    queuedSpeech?.let { say(it) }
+                    queuedSpeech = null
+                } else {
+                    tts = null
+                    queuedSpeech = null
+                    runOnUiThread { speechChannel?.invokeMethod("error", null) }
+                }
+            }
+            return
+        }
+        if (!ttsReady) {
+            queuedSpeech = text
+            return
+        }
+        say(text)
+    }
+
+    private fun finishedSpeaking() {
+        runOnUiThread { speechChannel?.invokeMethod("done", null) }
+    }
+
+    private fun say(text: String) {
+        val engine = tts ?: return
+        val limit = (TextToSpeech.getMaxSpeechInputLength() - 200).coerceAtLeast(500)
+        val parts = mutableListOf<String>()
+        for (paragraph in text.split("\n")) {
+            if (paragraph.isBlank()) continue
+            var rest = paragraph
+            while (rest.length > limit) {
+                val cut = rest.lastIndexOf(' ', limit).takeIf { it > 0 } ?: limit
+                parts.add(rest.substring(0, cut))
+                rest = rest.substring(cut)
+            }
+            parts.add(rest)
+        }
+        if (parts.isEmpty()) return
+        parts.forEachIndexed { index, part ->
+            engine.speak(
+                part,
+                if (index == 0) TextToSpeech.QUEUE_FLUSH else TextToSpeech.QUEUE_ADD,
+                null,
+                if (index == parts.lastIndex) "noto-fim" else "noto-$index",
+            )
+        }
+    }
+
+    override fun onDestroy() {
+        tts?.shutdown()
+        tts = null
+        super.onDestroy()
     }
 
     override fun onNewIntent(intent: Intent) {
