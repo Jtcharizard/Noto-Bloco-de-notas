@@ -71,6 +71,226 @@ class _HomeShellState extends State<HomeShell> {
     );
   }
 
+  /// Lista para escolher uma pasta ou tag que já existe, ou criar outra.
+  Future<String?> _pickFromList(
+    String title,
+    List<String> items,
+    IconData icon,
+    String createLabel,
+    Future<String?> Function() create,
+  ) async {
+    final picked = await showModalBottomSheet<String>(
+      context: context,
+      useSafeArea: true,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (ctx) => ConstrainedBox(
+        constraints: BoxConstraints(
+          maxHeight: MediaQuery.sizeOf(ctx).height * .7,
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
+              child: Text(
+                title,
+                style: Theme.of(ctx).textTheme.titleLarge?.copyWith(
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+            ),
+            ListTile(
+              leading: const Icon(Icons.add_rounded),
+              title: Text(createLabel),
+              onTap: () => Navigator.pop(ctx, '\u0000novo'),
+            ),
+            Flexible(
+              child: ListView(
+                shrinkWrap: true,
+                padding: EdgeInsets.only(
+                  bottom: MediaQuery.viewPaddingOf(ctx).bottom + 12,
+                ),
+                children: [
+                  for (final item in items)
+                    ListTile(
+                      leading: Icon(icon),
+                      title: Text(item),
+                      onTap: () => Navigator.pop(ctx, item),
+                    ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (picked == '\u0000novo') return create();
+    return picked;
+  }
+
+  /// Barra que aparece ao selecionar notas: ações principais com ícone e
+  /// nome, e o resto em "Mais".
+  Widget _selectionBar() {
+    final cs = Theme.of(context).colorScheme;
+    final chosen = _active.where((n) => selectedIds.contains(n.id)).toList();
+    final allPinned = chosen.isNotEmpty && chosen.every((n) => n.pinned);
+    final allSelected = _visible.every((n) => selectedIds.contains(n.id));
+    Widget action(String id, IconData icon, String label, {bool danger = false}) =>
+        Expanded(
+          child: InkWell(
+            borderRadius: BorderRadius.circular(14),
+            onTap: () => id == 'more' ? _moreBulk(chosen) : _bulk(id),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 6),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(icon, color: danger ? cs.error : cs.onSurface),
+                  const SizedBox(height: 4),
+                  Text(
+                    label,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                      color: danger ? cs.error : cs.onSurface,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+    return Material(
+      color: cs.surfaceContainerHigh,
+      elevation: 6,
+      shadowColor: Colors.black38,
+      borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+      child: SafeArea(
+        top: false,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(8, 6, 8, 8),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Row(
+                children: [
+                  IconButton(
+                    tooltip: 'Cancelar seleção',
+                    onPressed: () => setState(selectedIds.clear),
+                    icon: const Icon(Icons.close_rounded),
+                  ),
+                  Expanded(
+                    child: Text(
+                      selectedIds.length == 1
+                          ? '1 nota selecionada'
+                          : '${selectedIds.length} notas selecionadas',
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w800,
+                        fontSize: 15,
+                      ),
+                    ),
+                  ),
+                  TextButton(
+                    onPressed: () => setState(() {
+                      if (allSelected) {
+                        selectedIds.clear();
+                      } else {
+                        selectedIds.addAll(_visible.map((n) => n.id));
+                      }
+                    }),
+                    child: Text(allSelected ? 'Desmarcar' : 'Todas'),
+                  ),
+                ],
+              ),
+              Row(
+                children: [
+                  action('move', Icons.drive_file_move_outline, 'Pasta'),
+                  action(
+                    'pin',
+                    allPinned ? Icons.push_pin : Icons.push_pin_outlined,
+                    allPinned ? 'Desfixar' : 'Fixar',
+                  ),
+                  action('archive', Icons.archive_outlined, 'Arquivar'),
+                  action(
+                    'trash',
+                    Icons.delete_outline_rounded,
+                    'Lixeira',
+                    danger: true,
+                  ),
+                  action('more', Icons.more_horiz_rounded, 'Mais'),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _moreBulk(List<Note> chosen) async {
+    final allFavorite = chosen.isNotEmpty && chosen.every((n) => n.favorite);
+    final choice = await showModalBottomSheet<String>(
+      context: context,
+      useSafeArea: true,
+      showDragHandle: true,
+      builder: (ctx) {
+        Widget tile(String id, IconData icon, String label) => _HubTile(
+          icon: icon,
+          label: label,
+          onTap: () => Navigator.pop(ctx, id),
+        );
+        return Padding(
+          padding: EdgeInsets.fromLTRB(
+            16,
+            0,
+            16,
+            MediaQuery.viewPaddingOf(ctx).bottom + 16,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                chosen.length == 1
+                    ? 'Mais para 1 nota'
+                    : 'Mais para ${chosen.length} notas',
+                style: Theme.of(ctx).textTheme.titleLarge?.copyWith(
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+              const SizedBox(height: 12),
+              GridView.count(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                crossAxisCount: 3,
+                mainAxisSpacing: 10,
+                crossAxisSpacing: 10,
+                childAspectRatio: 1.15,
+                children: [
+                  tile('tag', Icons.label_outline_rounded, 'Adicionar tag'),
+                  tile(
+                    'favorite',
+                    allFavorite ? Icons.star_rounded : Icons.star_outline_rounded,
+                    allFavorite ? 'Desfavoritar' : 'Favoritar',
+                  ),
+                  tile('share', Icons.ios_share_rounded, 'Compartilhar'),
+                  if (chosen.length >= 2)
+                    tile('merge', Icons.call_merge_rounded, 'Juntar'),
+                  tile('vault', Icons.lock_outline_rounded, 'Cofre'),
+                ],
+              ),
+            ],
+          ),
+        );
+      },
+    );
+    if (choice != null && mounted) await _bulk(choice);
+  }
+
   /// Junta as notas escolhidas numa nova; as originais vão para a lixeira.
   Future<void> _mergeNotes(List<Note> chosen) async {
     if (chosen.length < 2) {
@@ -140,7 +360,13 @@ class _HomeShellState extends State<HomeShell> {
     String? destination;
     String? newTag;
     if (action == 'move') {
-      destination = await _askText('Mover para a pasta', 'Pasta', 'Mover');
+      destination = await _pickFromList(
+        'Mover para a pasta',
+        _allFolders,
+        Icons.folder_outlined,
+        'Nova pasta',
+        () => _askText('Nova pasta', 'Nome da pasta', 'Criar'),
+      );
       if (destination == null || !mounted) return;
       destination = _cleanFolder(destination);
       if (destination.isEmpty) return;
@@ -148,7 +374,13 @@ class _HomeShellState extends State<HomeShell> {
       await _saveCollections();
     }
     if (action == 'tag') {
-      newTag = await _askText('Adicionar tag', 'Tag', 'Adicionar');
+      newTag = await _pickFromList(
+        'Adicionar tag',
+        _allTags,
+        Icons.label_outline_rounded,
+        'Nova tag',
+        () => _askText('Nova tag', 'Nome da tag', 'Criar'),
+      );
       if (newTag == null || !mounted) return;
       newTag = newTag.replaceAll('#', '').trim();
       if (newTag.isEmpty) return;
@@ -632,6 +864,15 @@ class _HomeShellState extends State<HomeShell> {
           2 => 'checklist',
           _ => null,
         };
+    var canPaste = false;
+    if (shortcut == null) {
+      try {
+        canPaste = await Clipboard.hasStrings();
+      } catch (_) {
+        /* Sem área de transferência (ex.: testes). */
+      }
+      if (!mounted) return;
+    }
     final choice = shortcut ?? await showModalBottomSheet<String>(
       context: context,
       useSafeArea: true,
@@ -666,6 +907,12 @@ class _HomeShellState extends State<HomeShell> {
               subtitle: 'Com caixas para marcar',
               onTap: () => Navigator.pop(sheetContext, 'checklist'),
             ),
+            if (canPaste)
+              _CreateRow(
+                title: 'Colar o que copiei',
+                subtitle: 'Cria a nota com o texto copiado',
+                onTap: () => Navigator.pop(sheetContext, 'paste'),
+              ),
             if (widget.store.templates.isNotEmpty)
               _CreateRow(
                 title: 'Usar um modelo',
@@ -684,7 +931,30 @@ class _HomeShellState extends State<HomeShell> {
       return;
     }
 
-    final checklist = choice == 'checklist';
+    var pasted = '';
+    if (choice == 'paste') {
+      pasted = ((await Clipboard.getData(Clipboard.kTextPlain))?.text ?? '')
+          .replaceAll('\r\n', '\n')
+          .trim();
+      if (!mounted) return;
+      if (pasted.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Não tem texto copiado.')),
+        );
+        return;
+      }
+    }
+    // Texto colado: a primeira linha curta vira o título.
+    var pastedTitle = '';
+    if (pasted.isNotEmpty) {
+      final lines = pasted.split('\n');
+      if (lines.length > 1 && lines.first.trim().length <= 60) {
+        pastedTitle = lines.first.trim();
+        pasted = lines.skip(1).join('\n').trim();
+      }
+    }
+    final checklist =
+        choice == 'checklist' || (pasted.isNotEmpty && hasTaskLines(pasted));
     final targetFolder = folder ?? 'Geral';
     final targetTags = tag == null ? <String>[] : <String>[tag!];
     savedFolders.add(targetFolder);
@@ -693,8 +963,8 @@ class _HomeShellState extends State<HomeShell> {
 
     final note = Note(
       id: DateTime.now().microsecondsSinceEpoch.toString(),
-      title: '',
-      body: checklist ? '- [ ] ' : '',
+      title: pastedTitle,
+      body: pasted.isNotEmpty ? pasted : (checklist ? '- [ ] ' : ''),
       updatedAt: DateTime.now(),
       folder: targetFolder,
       tags: targetTags,
@@ -2019,71 +2289,7 @@ class _HomeShellState extends State<HomeShell> {
             ],
           ),
         ),
-        bottomNavigationBar: selectedIds.isEmpty
-            ? null
-            : SafeArea(
-                top: false,
-                minimum: const EdgeInsets.all(12),
-                child: Row(
-                  children: [
-                    IconButton(
-                      tooltip: 'Cancelar seleção',
-                      onPressed: () => setState(selectedIds.clear),
-                      icon: const Icon(Icons.close),
-                    ),
-                    Expanded(child: Text('${selectedIds.length} selecionadas')),
-                    IconButton(
-                      tooltip: 'Selecionar todas',
-                      onPressed: () => setState(
-                        () => selectedIds.addAll(_visible.map((n) => n.id)),
-                      ),
-                      icon: const Icon(Icons.select_all),
-                    ),
-                    PopupMenuButton<String>(
-                      tooltip: 'Ações em lote',
-                      onSelected: _bulk,
-                      itemBuilder: (_) => const [
-                        PopupMenuItem(
-                          value: 'move',
-                          child: Text('Mover para pasta'),
-                        ),
-                        PopupMenuItem(
-                          value: 'tag',
-                          child: Text('Adicionar tag'),
-                        ),
-                        PopupMenuItem(
-                          value: 'favorite',
-                          child: Text('Favoritar / desfavoritar'),
-                        ),
-                        PopupMenuItem(
-                          value: 'pin',
-                          child: Text('Fixar / desafixar no topo'),
-                        ),
-                        PopupMenuItem(
-                          value: 'share',
-                          child: Text('Compartilhar'),
-                        ),
-                        PopupMenuItem(
-                          value: 'merge',
-                          child: Text('Juntar numa nota só'),
-                        ),
-                        PopupMenuItem(
-                          value: 'vault',
-                          child: Text('Mover para o cofre'),
-                        ),
-                        PopupMenuItem(
-                          value: 'archive',
-                          child: Text('Arquivar'),
-                        ),
-                        PopupMenuItem(
-                          value: 'trash',
-                          child: Text('Mover para a lixeira'),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
+        bottomNavigationBar: selectedIds.isEmpty ? null : _selectionBar(),
         floatingActionButton: selectedIds.isNotEmpty
             ? null
             : GestureDetector(
@@ -2555,7 +2761,7 @@ class _NoteCard extends StatelessWidget {
     final cover = note.coverImage == null ? null : File(note.coverImage!);
     final hasCover = cover != null && FileCache.exists(note.coverImage);
 
-    return Material(
+    final card = Material(
         color: Colors.transparent,
         borderRadius: BorderRadius.circular(radius),
         clipBehavior: Clip.antiAlias,
@@ -2564,7 +2770,10 @@ class _NoteCard extends StatelessWidget {
             color: background,
             borderRadius: BorderRadius.circular(radius),
             border: Border.all(
-              color: hasWallpaper
+              width: selected ? 2.5 : 1,
+              color: selected
+                  ? cs.primary
+                  : hasWallpaper
                   ? Colors.white.withValues(alpha: .14)
                   : cs.outlineVariant.withValues(alpha: .6),
             ),
@@ -2587,11 +2796,6 @@ class _NoteCard extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                if (selected)
-                  const Align(
-                    alignment: Alignment.topRight,
-                    child: Icon(Icons.check_circle),
-                  ),
                 if (hasCover)
                   SizedBox(
                     height: 50,
@@ -2774,6 +2978,46 @@ class _NoteCard extends StatelessWidget {
             ),
           ),
         ),
+    );
+    // Selecionado: borda na cor de destaque, card um pouco menor e um
+    // selo de marcado no canto, sem empurrar o conteúdo.
+    return AnimatedScale(
+      scale: selected ? .96 : 1,
+      duration: const Duration(milliseconds: 140),
+      child: Stack(
+        fit: StackFit.passthrough,
+        children: [
+          card,
+          if (selected)
+            Positioned.fill(
+              child: IgnorePointer(
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    color: cs.primary.withValues(alpha: .10),
+                    borderRadius: BorderRadius.circular(radius),
+                  ),
+                ),
+              ),
+            ),
+          if (selected)
+            Positioned(
+              top: 8,
+              right: 8,
+              child: IgnorePointer(
+                child: Container(
+                  width: 26,
+                  height: 26,
+                  decoration: BoxDecoration(
+                    color: cs.primary,
+                    shape: BoxShape.circle,
+                    border: Border.all(color: cs.surface, width: 2),
+                  ),
+                  child: Icon(Icons.check_rounded, size: 16, color: cs.onPrimary),
+                ),
+              ),
+            ),
+        ],
+      ),
     );
   }
 }

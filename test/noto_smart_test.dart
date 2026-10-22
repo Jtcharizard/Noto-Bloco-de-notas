@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:bloco_personalizavel/noto_models.dart';
 import 'package:bloco_personalizavel/noto_smart.dart';
 
 void main() {
@@ -44,24 +45,6 @@ void main() {
     });
   });
 
-  group('valores em reais', () {
-    test('soma e quanto falta', () {
-      final s = moneySummary(
-        '- [x] Arroz R\$ 25,90\n- [ ] Carne R\$ 1.200\n- [ ] Pão R\$3,5\nobs sem valor',
-      );
-      expect(s.count, 3);
-      expect(s.hasTasks, isTrue);
-      expect(s.total, closeTo(1229.40, .001));
-      expect(s.pending, closeTo(1203.50, .001));
-      expect(s.done, closeTo(25.90, .001));
-    });
-    test('formatação', () {
-      expect(formatBRL(1229.4), 'R\$ 1.229,40');
-      expect(formatBRL(0.5), 'R\$ 0,50');
-      expect(formatBRL(1000000), 'R\$ 1.000.000,00');
-    });
-  });
-
   test('contagem do prazo', () {
     expect(dueCountdown(DateTime(2026, 10, 21), now), 'vence hoje');
     expect(dueCountdown(DateTime(2026, 10, 22), now), 'vence amanhã');
@@ -69,5 +52,24 @@ void main() {
     expect(dueCountdown(DateTime(2026, 10, 20), now), 'venceu ontem');
     expect(dueCountdown(DateTime(2026, 10, 18), now), 'venceu há 3 dias');
     expect(dueCountdown(DateTime(2026, 12, 1), now), 'até 01/12');
+  });
+
+  test('lista de rotina desmarca uma vez por dia', () {
+    final note = Note(
+      id: 'r',
+      title: 'Rotina',
+      body: '- [x] Remédio\n- [ ] Água\ntexto [x] solto',
+      updatedAt: now,
+      checklist: true,
+      editor: {'resetDaily': true, 'lastReset': '2026-10-20'},
+    );
+    final other = Note(id: 'o', title: '', body: '- [x] Fica', updatedAt: now);
+    expect(applyDailyResets([note, other], now), isTrue);
+    expect(note.body, '- [ ] Remédio\n- [ ] Água\ntexto [x] solto');
+    expect(note.editor['lastReset'], '2026-10-21');
+    expect(other.body, '- [x] Fica');
+    note.body = '- [x] Remédio';
+    expect(applyDailyResets([note], now), isFalse);
+    expect(note.body, '- [x] Remédio');
   });
 }

@@ -29,8 +29,9 @@ const _steps = <_TutorialStep>[
     [
       (Icons.add_circle_outline_rounded, 'Segure o + para criar direto o outro tipo.'),
       (Icons.keyboard_return_rounded, 'Enter cria a próxima tarefa e continua listas como "1-" ou "-".'),
-      (Icons.space_bar_rounded, 'A barra embaixo da nota tem desfazer, negrito, lista, voz, inserir e o Aa.'),
-      (Icons.payments_outlined, 'Escreveu valores com R\$? O Noto soma e mostra quanto falta.'),
+      (Icons.space_bar_rounded, 'A barra embaixo da nota tem desfazer, negrito, lista, voz e inserir.'),
+      (Icons.content_paste_rounded, 'Copiou um texto em outro app? No + aparece "Colar o que copiei".'),
+      (Icons.event_repeat_outlined, 'Lista de rotina? No ⋮, "Desmarcar todo dia" deixa ela zerada a cada dia.'),
     ],
   ),
   _TutorialStep(
@@ -72,9 +73,9 @@ const _steps = <_TutorialStep>[
     'Com a sua cara',
     'Cada nota pode ter cor, fundo e fonte próprios. O app também.',
     [
-      (Icons.text_format_rounded, 'Na nota, toque em Aa > Estilo da nota.'),
-      (Icons.palette_outlined, 'Em Ajustes > Aparência: tema, cor de destaque, fonte e fundo.'),
-      (Icons.record_voice_over_outlined, 'Pelo ⋮ dá para ouvir a nota em voz alta ou enviar como imagem.'),
+      (Icons.palette_outlined, 'Na nota, o botão da paleta, ao lado da barra, muda cor, fundo e fonte.'),
+      (Icons.settings_outlined, 'Em Ajustes > Aparência: tema, cor de destaque, fonte e fundo.'),
+      (Icons.image_outlined, 'Pelo ⋮ dá para enviar a nota como imagem ou proteger contra edição.'),
     ],
   ),
   _TutorialStep(

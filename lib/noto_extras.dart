@@ -3,52 +3,14 @@ import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
-import 'package:flutter/services.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 
 import 'noto_theme.dart';
 
-/// Leitura em voz alta usando o leitor de texto do Android.
-class NotoSpeech {
-  NotoSpeech._();
-
-  static const _channel = MethodChannel('noto/speech');
-  static final ValueNotifier<bool> speaking = ValueNotifier(false);
-  static bool _listening = false;
-
-  static Future<bool> speak(String text) async {
-    if (!_listening) {
-      _listening = true;
-      _channel.setMethodCallHandler((call) async {
-        if (call.method == 'done' || call.method == 'error') {
-          speaking.value = false;
-        }
-      });
-    }
-    try {
-      await _channel.invokeMethod('speak', text);
-      speaking.value = true;
-      return true;
-    } catch (_) {
-      speaking.value = false;
-      return false;
-    }
-  }
-
-  static Future<void> stop() async {
-    speaking.value = false;
-    try {
-      await _channel.invokeMethod('stop');
-    } catch (_) {
-      /* Sem leitor no aparelho: nada a parar. */
-    }
-  }
-}
-
 /// Texto da nota preparado para ler ou desenhar: tira marcações de Markdown
 /// e troca as caixas de tarefa por símbolos.
-String speakableText(String title, String body, {bool forImage = false}) {
+String noteImageText(String title, String body, {bool forImage = false}) {
   final lines = body.split('\n').map((line) {
     final task = RegExp(r'^\s*(?:[-*]\s*)?\[([ xX])\]\s?(.*)$').firstMatch(line);
     if (task != null) {
@@ -76,7 +38,7 @@ Future<void> shareNoteAsImage(
   String? fontFamily,
 }) async {
   final key = GlobalKey();
-  var text = speakableText(title, body, forImage: true);
+  var text = noteImageText(title, body, forImage: true);
   if (text.length > 1400) text = '${text.substring(0, 1400).trimRight()}…';
   final cs = Theme.of(context).colorScheme;
   final bg = background ?? cs.surfaceContainerHigh;

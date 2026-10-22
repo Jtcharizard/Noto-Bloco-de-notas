@@ -50,7 +50,11 @@ for node in root.iter('node'):
 PY
 )
   if [ -z "$xy" ]; then echo "::warning::Não achei '$1' para tocar"; return 1; fi
-  adb shell input tap $xy
+  if [ -n "$LONG" ]; then
+    adb shell input swipe $xy $xy 900
+  else
+    adb shell input tap $xy
+  fi
   sleep 1.5
 }
 launch() { adb shell monkey -p $PKG -c android.intent.category.LAUNCHER 1 >/dev/null; }
@@ -94,7 +98,7 @@ if tap_text "Criar primeira nota"; then
   shot 6-editor-com-teclado
   tap_text "Mais opções" && { shot 7-menu-da-nota; adb shell input keyevent 4; sleep 1; }
   shot 7b-editor
-  tap_text "Aparência e formato" && { shot 8-aparencia; adb shell input keyevent 4; sleep 1; }
+  tap_text "Estilo da nota" && { shot 8-estilo; adb shell input keyevent 4; sleep 1; }
   if tap_text "Lembrete"; then
     tap_text "Escreva" && adb shell input text "amanha%sas%s9"
     sleep 1
@@ -106,6 +110,13 @@ if tap_text "Criar primeira nota"; then
   tap_text "Voltar" || true
   sleep 2
   shot 10-tela-com-nota
+  # Seleção: segurar o card e abrir "Mais".
+  if LONG=1 tap_text "Arroz"; then
+    shot 10b-selecao
+    tap_text "Mais" && { shot 10c-selecao-mais; adb shell input keyevent 4; sleep 1; }
+    tap_text "Cancelar seleção" || adb shell input keyevent 4
+    sleep 1
+  fi
 fi
 if tap_text "Menu"; then tap_text "Ajustes" && shot 11-ajustes; adb shell input keyevent 4; sleep 1; fi
 

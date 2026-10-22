@@ -43,6 +43,15 @@ O app funciona sem conta e sem internet. As notas e preferências ficam armazena
 - Apresentação inicial e tela Sobre
 - Salvamento local e funcionamento totalmente offline
 
+## Novidades da v2.9.0
+
+- Saíram a soma de valores em R$, a leitura em voz alta e "Limpar espaços".
+- Botão de **estilo da nota** (paleta) separado, ao lado da barra de edição. Na barra ficou "Formatar texto" para título, lista, cor e alinhamento.
+- Seleção de várias notas refeita: card marcado com borda e selo, barra com Pasta, Fixar, Arquivar, Lixeira e Mais. Mover e adicionar tag agora mostram as pastas e tags que já existem.
+- Novo: **lista que desmarca todo dia** (rotina, remédios, academia).
+- Novo: **colar o que copiei** como nota nova, direto no +.
+- Novo: **proteger contra edição**: a nota abre só para ler até tocar em "Editar".
+
 ## Novidades da v2.8.0
 
 **Nota mais arrumada**
@@ -56,10 +65,8 @@ O app funciona sem conta e sem internet. As notas e preferências ficam armazena
 - A busca avançada fica dentro da própria busca.
 - Os Ajustes viraram categorias: Aparência, Tela inicial e cards, Notas e gestos, Backup e dados, Ajuda e sobre.
 
-**5 funções novas**
-- Soma automática dos valores em R$ da nota, com quanto falta nas listas.
+**Funções novas**
 - Compartilhar a nota como imagem.
-- Ouvir a nota em voz alta (usa o leitor de voz do Android).
 - Lembrete escrito do jeito que a gente fala: "amanhã às 9", "sexta 18h", "em 2 horas".
 - "Desfazer" depois de arquivar ou apagar uma nota de dentro dela, e prazo com contagem nos cards ("vence amanhã").
 

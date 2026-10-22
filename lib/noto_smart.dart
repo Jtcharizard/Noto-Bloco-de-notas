@@ -15,67 +15,6 @@ String dueCountdown(DateTime due, DateTime now) {
   return 'até $dd/$mm';
 }
 
-/// Soma dos valores em reais escritos na nota.
-class MoneySummary {
-  const MoneySummary(this.total, this.pending, this.count, this.hasTasks);
-
-  /// Soma de tudo.
-  final double total;
-
-  /// Soma só das tarefas que ainda não foram marcadas.
-  final double pending;
-
-  /// Quantos valores foram encontrados.
-  final int count;
-  final bool hasTasks;
-
-  double get done => total - pending;
-}
-
-final RegExp _money = RegExp(
-  r'R\$\s*(\d{1,3}(?:\.\d{3})+|\d+)(?:,(\d{1,2}))?',
-  caseSensitive: false,
-);
-final RegExp _taskLine = RegExp(r'^\s*(?:[-*]\s*)?\[([ xX])\]');
-
-MoneySummary moneySummary(String body) {
-  var total = 0.0, pending = 0.0;
-  var count = 0;
-  var hasTasks = false;
-  for (final line in body.split('\n')) {
-    final task = _taskLine.firstMatch(line);
-    var lineSum = 0.0;
-    for (final m in _money.allMatches(line)) {
-      final reais = int.parse(m.group(1)!.replaceAll('.', ''));
-      final centsText = m.group(2);
-      final cents = centsText == null
-          ? 0
-          : int.parse(centsText.length == 1 ? '${centsText}0' : centsText);
-      lineSum += reais + cents / 100;
-      count++;
-    }
-    if (lineSum == 0) continue;
-    total += lineSum;
-    if (task != null) {
-      hasTasks = true;
-      if (task.group(1) == ' ') pending += lineSum;
-    }
-  }
-  return MoneySummary(total, pending, count, hasTasks);
-}
-
-/// 1234.5 -> "R$ 1.234,50"
-String formatBRL(double value) {
-  final cents = (value * 100).round().abs();
-  final reais = (cents ~/ 100).toString();
-  final buffer = StringBuffer();
-  for (var i = 0; i < reais.length; i++) {
-    if (i > 0 && (reais.length - i) % 3 == 0) buffer.write('.');
-    buffer.write(reais[i]);
-  }
-  return 'R\$ ${value < 0 ? '-' : ''}$buffer,${(cents % 100).toString().padLeft(2, '0')}';
-}
-
 const _weekdays = {
   'segunda': DateTime.monday,
   'terca': DateTime.tuesday,
@@ -195,4 +134,30 @@ DateTime? parseReminderText(String input, DateTime now) {
     return candidate;
   }
   return DateTime(day.year, day.month, day.day, hour ?? 9, minute);
+}
+
+/// "2026-10-22": chave do dia, para saber se a lista já foi desmarcada hoje.
+String dayKey(DateTime day) =>
+    '${day.year}-${day.month.toString().padLeft(2, '0')}-${day.day.toString().padLeft(2, '0')}';
+
+/// Desmarca todas as tarefas do texto.
+String uncheckAllTasks(String body) => body.replaceAllMapped(
+  RegExp(r'^(\s*(?:[-*]\s*)?)\[[xX]\]', multiLine: true),
+  (m) => '${m.group(1)}[ ]',
+);
+
+/// Listas marcadas como "desmarcar todo dia" voltam desmarcadas quando o dia
+/// vira. Devolve true se alguma nota mudou.
+bool applyDailyResets(List<Note> notes, DateTime now) {
+  final today = dayKey(now);
+  var changed = false;
+  for (final note in notes) {
+    if (note.editor['resetDaily'] != true || note.deletedAt != null) continue;
+    if (note.editor['lastReset'] == today) continue;
+    final body = uncheckAllTasks(note.body);
+    note.editor = {...note.editor, 'lastReset': today};
+    if (body != note.body) note.body = body;
+    changed = true;
+  }
+  return changed;
 }

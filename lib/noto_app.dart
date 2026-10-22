@@ -67,6 +67,7 @@ class _NotoAppState extends State<NotoApp> with WidgetsBindingObserver {
     if (state == AppLifecycleState.paused || state == AppLifecycleState.hidden) {
       _leftAt ??= DateTime.now();
     } else if (state == AppLifecycleState.resumed) {
+      store.runDailyResets();
       final left = _leftAt;
       _leftAt = null;
       if (left != null &&

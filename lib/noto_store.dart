@@ -13,6 +13,7 @@ import 'package:timezone/timezone.dart' as tz;
 import 'noto_features.dart';
 import 'noto_models.dart';
 import 'noto_rich_editor.dart';
+import 'noto_smart.dart';
 
 final notifications = FlutterLocalNotificationsPlugin();
 
@@ -485,6 +486,16 @@ class AppStore extends ChangeNotifier {
 
     loaded = true;
     notifyListeners();
+    runDailyResets();
+  }
+
+  /// Desmarca as listas de rotina quando o dia vira.
+  void runDailyResets() {
+    if (!loaded) return;
+    if (applyDailyResets(notes, DateTime.now())) {
+      notifyListeners();
+      unawaited(save());
+    }
   }
 
   Future<void> _saveQueue = Future<void>.value();

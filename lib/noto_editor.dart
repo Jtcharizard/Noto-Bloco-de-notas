@@ -71,6 +71,12 @@ class _EditorPageState extends State<EditorPage>
   bool hideDone = false;
   bool _countsAsVault = false;
   bool readOnly = false;
+
+  /// Nota protegida: abre só para ler, até tocar em "Editar".
+  bool protectedNote = false;
+
+  /// Lista que volta desmarcada todo dia (rotina, remédios, academia).
+  bool resetDaily = false;
   Timer? autosaveTimer;
   SharedPreferences? editorPrefs;
   String saveLabel = 'Salvo';
@@ -89,6 +95,9 @@ class _EditorPageState extends State<EditorPage>
     }
     final metadata = widget.note.editor;
     hideDone = metadata['hideDone'] == true;
+    protectedNote = metadata['protected'] == true;
+    readOnly = protectedNote;
+    resetDaily = metadata['resetDaily'] == true;
     codeBlocks.addAll(
       ((metadata['code'] as List?) ?? []).map(
         (e) => Map<String, dynamic>.from(e as Map),
@@ -188,6 +197,9 @@ class _EditorPageState extends State<EditorPage>
     'tables': tables.map((t) => t.toJson()).toList(),
     'align': alignment.index,
     'hideDone': hideDone,
+    if (protectedNote) 'protected': true,
+    if (resetDaily) 'resetDaily': true,
+    if (resetDaily) 'lastReset': widget.note.editor['lastReset'] ?? dayKey(DateTime.now()),
     'cursor': body.selection.isValid ? body.selection.extentOffset : 0,
     'scroll': editorScroll.hasClients ? editorScroll.offset : 0,
   };
@@ -760,25 +772,6 @@ class _EditorPageState extends State<EditorPage>
     _undoSnack('Linhas ordenadas de A a Z');
   }
 
-  /// Junta linhas vazias repetidas e tira espaços sobrando no fim das linhas.
-  void _cleanText() {
-    final cleaned = body.text
-        .split('\n')
-        .map((line) => line.trimRight().replaceAll(RegExp(r'(?<=\S) {2,}'), ' '))
-        .join('\n')
-        .replaceAll(RegExp(r'\n{3,}'), '\n\n')
-        .trim();
-    if (cleaned == body.text) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('O texto já está limpo.')),
-      );
-      return;
-    }
-    body.text = cleaned;
-    _editorChanged();
-    _undoSnack('Texto limpo');
-  }
-
   Future<void> _changeCase() async {
     final selection = body.selection;
     if (!selection.isValid || selection.isCollapsed) {
@@ -985,6 +978,13 @@ class _EditorPageState extends State<EditorPage>
     );
   }
 
+  /// Salva mudanças que não mexem no texto (proteção, rotina...).
+  void _markMetaChanged() {
+    dirty = true;
+    autosaveTimer?.cancel();
+    autosaveTimer = Timer(const Duration(milliseconds: 300), _autosave);
+  }
+
   void _setHideDone(bool value) {
     setState(() => hideDone = value);
     dirty = true;
@@ -1130,62 +1130,24 @@ class _EditorPageState extends State<EditorPage>
     }
   }
 
-  /// Botão "Aa": aparência da nota e formatação do texto num lugar só.
-  Future<void> _showTextLook() async {
-    if (widget.note.checklist) {
-      openStyleSheet();
-      return;
-    }
-    final cs = Theme.of(context).colorScheme;
+  /// Formatação do trecho de texto (título, lista, cor...).
+  Future<void> _showFormatText() async {
     final value = await _gridSheet(
-      title: 'Aparência e formato',
-      top: Material(
-        color: cs.primaryContainer,
-        borderRadius: BorderRadius.circular(18),
-        child: InkWell(
-          borderRadius: BorderRadius.circular(18),
-          onTap: () => Navigator.pop(context, 'style'),
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(16, 14, 12, 14),
-            child: Row(
-              children: [
-                Icon(Icons.palette_outlined, color: cs.onPrimaryContainer),
-                const SizedBox(width: 14),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Estilo da nota',
-                        style: TextStyle(
-                          fontWeight: FontWeight.w800,
-                          color: cs.onPrimaryContainer,
-                        ),
-                      ),
-                      Text(
-                        'Cor, fundo, fonte e emoji',
-                        style: TextStyle(
-                          fontSize: 12.5,
-                          color: cs.onPrimaryContainer.withValues(alpha: .75),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                Icon(Icons.chevron_right_rounded, color: cs.onPrimaryContainer),
-              ],
-            ),
-          ),
-        ),
-      ),
+      title: 'Formatar texto',
+      subtitle: 'Vale para o trecho selecionado ou para onde está o cursor',
       sections: const [
         (
-          'Trecho selecionado',
+          'Formato',
           [
             _MenuAction('heading', Icons.title_rounded, 'Título'),
             _MenuAction('list', Icons.format_list_bulleted_rounded, 'Lista'),
             _MenuAction('quote', Icons.format_quote_rounded, 'Citação'),
             _MenuAction('case', Icons.text_fields_rounded, 'Maiúsculas'),
+          ],
+        ),
+        (
+          'Cor e letra',
+          [
             _MenuAction('font', Icons.font_download_outlined, 'Fonte'),
             _MenuAction('color', Icons.format_color_text_rounded, 'Cor do texto'),
             _MenuAction('highlight', Icons.highlight_rounded, 'Marca-texto'),
@@ -1195,11 +1157,7 @@ class _EditorPageState extends State<EditorPage>
       ],
     );
     if (value == null || !mounted) return;
-    if (value == 'style') {
-      openStyleSheet();
-    } else {
-      _tool(value);
-    }
+    _tool(value);
   }
 
   /// Menu único da nota: ações rápidas no topo e o resto por assunto.
@@ -1208,7 +1166,6 @@ class _EditorPageState extends State<EditorPage>
     final note = widget.note;
     final checklist = note.checklist;
     final notified = widget.store.pinnedNotificationNoteId == note.id;
-    final speaking = NotoSpeech.speaking.value;
     final cs = Theme.of(context).colorScheme;
 
     Widget quick(String id, IconData icon, String label, {bool on = false}) =>
@@ -1298,31 +1255,26 @@ class _EditorPageState extends State<EditorPage>
               const _MenuAction('uncheck-all', Icons.restart_alt_rounded, 'Desmarcar todas'),
               const _MenuAction('remove-done', Icons.playlist_remove_rounded, 'Apagar feitas'),
               const _MenuAction('sort-tasks', Icons.sort_by_alpha_rounded, 'Ordenar A-Z'),
+              _MenuAction(
+                'reset-daily',
+                resetDaily ? Icons.event_busy_outlined : Icons.event_repeat_outlined,
+                resetDaily ? 'Parar de desmarcar' : 'Desmarcar todo dia',
+              ),
             ],
           ),
         (
           'Ferramentas',
           [
             const _MenuAction('search', Icons.find_replace_rounded, 'Buscar e trocar'),
-            _MenuAction(
-              'speak',
-              speaking
-                  ? Icons.stop_circle_outlined
-                  : Icons.record_voice_over_outlined,
-              speaking ? 'Parar leitura' : 'Ler em voz alta',
-            ),
             const _MenuAction('focus', Icons.fullscreen_rounded, 'Modo foco'),
+            _MenuAction(
+              'protect',
+              protectedNote ? Icons.lock_open_rounded : Icons.edit_off_outlined,
+              protectedNote ? 'Tirar proteção' : 'Proteger contra edição',
+            ),
             if (!checklist) ...[
-              _MenuAction(
-                'read-mode',
-                readOnly
-                    ? Icons.edit_outlined
-                    : Icons.chrome_reader_mode_outlined,
-                readOnly ? 'Voltar a editar' : 'Modo leitura',
-              ),
               const _MenuAction('preview', Icons.visibility_outlined, 'Ver formatada'),
               const _MenuAction('sort-lines', Icons.sort_by_alpha_rounded, 'Ordenar linhas'),
-              const _MenuAction('clean', Icons.cleaning_services_outlined, 'Limpar espaços'),
             ],
             const _MenuAction('info', Icons.info_outline_rounded, 'Informações'),
           ],
@@ -1431,8 +1383,6 @@ class _EditorPageState extends State<EditorPage>
         await _addManyTasks();
       case 'sort-tasks' || 'sort-lines':
         _sortLines(tasksOnly: value == 'sort-tasks');
-      case 'clean':
-        _cleanText();
       case 'check-all':
         _checkAllTasks();
       case 'copy-pending':
@@ -1442,8 +1392,40 @@ class _EditorPageState extends State<EditorPage>
       case 'focus':
         FocusManager.instance.primaryFocus?.unfocus();
         setState(() => focusMode = true);
-      case 'speak':
-        await _toggleSpeech();
+      case 'protect':
+        setState(() {
+          protectedNote = !protectedNote;
+          readOnly = protectedNote;
+        });
+        if (readOnly) FocusManager.instance.primaryFocus?.unfocus();
+        _markMetaChanged();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              protectedNote
+                  ? 'Nota protegida: abre só para ler. Toque em "Editar" quando precisar mudar.'
+                  : 'Proteção tirada.',
+            ),
+          ),
+        );
+      case 'reset-daily':
+        setState(() => resetDaily = !resetDaily);
+        if (resetDaily) {
+          widget.note.editor = {
+            ...widget.note.editor,
+            'lastReset': dayKey(DateTime.now()),
+          };
+        }
+        _markMetaChanged();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              resetDaily
+                  ? 'Todo dia, ao abrir o Noto, as tarefas desta lista voltam desmarcadas.'
+                  : 'A lista não desmarca mais sozinha.',
+            ),
+          ),
+        );
       case 'read-mode':
         setState(() => readOnly = !readOnly);
         if (readOnly) FocusManager.instance.primaryFocus?.unfocus();
@@ -1482,92 +1464,11 @@ class _EditorPageState extends State<EditorPage>
     }
   }
 
-  Future<void> _toggleSpeech() async {
-    if (NotoSpeech.speaking.value) {
-      await NotoSpeech.stop();
-      return;
-    }
-    final text = speakableText(title.text, fullText);
-    if (text.trim().isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('A nota está vazia.')),
-      );
-      return;
-    }
-    final ok = await NotoSpeech.speak(text);
-    if (!ok && mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            'Não achei o leitor de voz do celular. Veja em Ajustes do Android > Acessibilidade > Saída de texto para voz.',
-          ),
-        ),
-      );
-    }
-  }
-
-  void _showMoney(MoneySummary money) {
-    showModalBottomSheet<void>(
-      context: context,
-      useSafeArea: true,
-      showDragHandle: true,
-      builder: (ctx) => SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(8, 0, 8, 16),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const ListTile(
-                title: Text(
-                  'Valores da nota',
-                  style: TextStyle(fontWeight: FontWeight.w900, fontSize: 20),
-                ),
-                subtitle: Text('Soma tudo que estiver escrito com R\$'),
-              ),
-              ListTile(
-                leading: const Icon(Icons.functions_rounded),
-                title: const Text('Total'),
-                trailing: Text(
-                  formatBRL(money.total),
-                  style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16),
-                ),
-              ),
-              if (money.hasTasks) ...[
-                ListTile(
-                  leading: const Icon(Icons.check_circle_outline_rounded),
-                  title: const Text('Já marcado'),
-                  trailing: Text(formatBRL(money.done)),
-                ),
-                ListTile(
-                  leading: const Icon(Icons.pending_outlined),
-                  title: const Text('Falta'),
-                  trailing: Text(
-                    formatBRL(money.pending),
-                    style: const TextStyle(fontWeight: FontWeight.w800),
-                  ),
-                ),
-              ],
-              ListTile(
-                leading: const Icon(Icons.copy_rounded),
-                title: const Text('Copiar o total'),
-                onTap: () {
-                  Clipboard.setData(ClipboardData(text: formatBRL(money.total)));
-                  Navigator.pop(ctx);
-                },
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
   /// Linha de etiquetas logo abaixo do título: pasta, lembrete, prazo...
   Widget _metaChips(Color? fg) {
     final note = widget.note;
     final cs = Theme.of(context).colorScheme;
     final base = fg ?? cs.onSurface;
-    final money = moneySummary(body.text);
     final now = DateTime.now();
     final overdue =
         note.dueAt != null &&
@@ -1624,6 +1525,17 @@ class _EditorPageState extends State<EditorPage>
       child: ListView(
         scrollDirection: Axis.horizontal,
         children: [
+          if (protectedNote)
+            chip(
+              readOnly ? Icons.edit_outlined : Icons.lock_outline_rounded,
+              readOnly ? 'Editar' : 'Editando · proteger de novo',
+              () => setState(() {
+                readOnly = !readOnly;
+                if (readOnly) FocusManager.instance.primaryFocus?.unfocus();
+              }),
+              color: cs.primary,
+              tooltip: 'Nota protegida contra edição',
+            ),
           chip(
             Icons.folder_outlined,
             '${note.folder}$tagsLabel',
@@ -1657,14 +1569,12 @@ class _EditorPageState extends State<EditorPage>
               _showTaskDetails,
               color: note.priority == 3 ? cs.error : null,
             ),
-          if (money.count >= 2)
+          if (resetDaily && widget.note.checklist)
             chip(
-              Icons.payments_outlined,
-              money.hasTasks && money.done > 0 && money.pending > 0
-                  ? 'Falta ${formatBRL(money.pending)}'
-                  : 'Total ${formatBRL(money.total)}',
-              () => _showMoney(money),
-              tooltip: 'Valores da nota',
+              Icons.event_repeat_outlined,
+              'Desmarca todo dia',
+              () => _runNoteAction('reset-daily'),
+              tooltip: 'Toque para parar',
             ),
           if (tables.isNotEmpty || codeBlocks.isNotEmpty)
             if (widget.note.checklist)
@@ -1682,7 +1592,6 @@ class _EditorPageState extends State<EditorPage>
   Widget _bottomBar() {
     final cs = Theme.of(context).colorScheme;
     final checklist = widget.note.checklist;
-    final keyboard = MediaQuery.viewInsetsOf(context).bottom > 0;
     Widget button(String tip, IconData icon, VoidCallback? onTap) => Expanded(
       child: IconButton(
         tooltip: tip,
@@ -1692,7 +1601,10 @@ class _EditorPageState extends State<EditorPage>
     );
     return Padding(
       padding: const EdgeInsets.fromLTRB(6, 4, 6, 6),
-      child: Material(
+      child: Row(
+        children: [
+          Expanded(
+            child: Material(
         color: cs.surfaceContainerHigh,
         borderRadius: BorderRadius.circular(18),
         elevation: 1,
@@ -1701,7 +1613,7 @@ class _EditorPageState extends State<EditorPage>
           data: IconButtonThemeData(
             style: IconButton.styleFrom(
               visualDensity: VisualDensity.compact,
-              minimumSize: const Size(32, 44),
+              minimumSize: const Size(28, 46),
               padding: EdgeInsets.zero,
             ),
           ),
@@ -1746,21 +1658,42 @@ class _EditorPageState extends State<EditorPage>
                         Icons.add_box_outlined,
                         readOnly ? null : _showInsertMenu,
                       ),
-                      button(
-                        'Aparência e formato',
-                        Icons.text_format_rounded,
-                        _showTextLook,
-                      ),
-              if (keyboard)
-                button(
-                  'Fechar teclado',
-                  Icons.keyboard_hide_outlined,
-                  () => FocusManager.instance.primaryFocus?.unfocus(),
-                ),
+                      if (!checklist)
+                        button(
+                          'Formatar texto',
+                          Icons.text_format_rounded,
+                          readOnly ? null : _showFormatText,
+                        ),
               ],
             ),
           ),
         ),
+            ),
+          ),
+          const SizedBox(width: 8),
+          // Estilo fica num botão próprio, fora da barra de edição.
+          Tooltip(
+            message: 'Estilo da nota',
+            child: Material(
+              color: cs.primaryContainer,
+              borderRadius: BorderRadius.circular(16),
+              elevation: 1,
+              shadowColor: Colors.black26,
+              child: InkWell(
+                borderRadius: BorderRadius.circular(16),
+                onTap: openStyleSheet,
+                child: SizedBox(
+                  width: 48,
+                  height: 46,
+                  child: Icon(
+                    Icons.palette_outlined,
+                    color: cs.onPrimaryContainer,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -3029,7 +2962,6 @@ class _EditorPageState extends State<EditorPage>
 
   @override
   void dispose() {
-    if (NotoSpeech.speaking.value) NotoSpeech.stop();
     if (_countsAsVault) widget.store.vaultScreenClosed();
     WidgetsBinding.instance.removeObserver(this);
     autosaveTimer?.cancel();
@@ -3116,16 +3048,6 @@ class _EditorPageState extends State<EditorPage>
                   ),
                 ),
                 actions: [
-                  ValueListenableBuilder<bool>(
-                    valueListenable: NotoSpeech.speaking,
-                    builder: (_, speaking, __) => speaking
-                        ? IconButton(
-                            tooltip: 'Parar leitura',
-                            icon: const Icon(Icons.stop_circle_outlined),
-                            onPressed: NotoSpeech.stop,
-                          )
-                        : const SizedBox.shrink(),
-                  ),
                   IconButton(
                     tooltip: 'Lembrete',
                     icon: Icon(
@@ -3225,7 +3147,9 @@ class _EditorPageState extends State<EditorPage>
                           SizedBox(height: focusMode ? 18 : 12),
                           Expanded(
                             child: widget.note.checklist
-                                ? MixedContentEditor(
+                                ? AbsorbPointer(
+                                    absorbing: readOnly,
+                                    child: MixedContentEditor(
                                     key: ValueKey('mixed-$tableEpoch-$hideDone'),
                                     hideDone: hideDone,
                                     onShowDone: () => _setHideDone(false),
@@ -3234,6 +3158,7 @@ class _EditorPageState extends State<EditorPage>
                                     fontSize: widget.store.fontSize,
                                     textColor: fg,
                                     onChanged: () => setState(() {}),
+                                  ),
                                   )
                                 : ListView(
                                     controller: editorScroll,
