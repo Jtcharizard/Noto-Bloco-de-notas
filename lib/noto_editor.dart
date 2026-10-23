@@ -1498,7 +1498,7 @@ class _EditorPageState extends State<EditorPage>
             _MenuAction(
               'protect',
               protectedNote ? Icons.lock_open_rounded : Icons.edit_off_outlined,
-              protectedNote ? 'Tirar proteção' : 'Proteger contra edição',
+              protectedNote ? 'Tirar proteção' : 'Proteger nota',
             ),
             if (!checklist) ...[
               const _MenuAction('preview', Icons.visibility_outlined, 'Ver formatada'),

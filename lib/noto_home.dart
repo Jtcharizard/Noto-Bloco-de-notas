@@ -1634,6 +1634,7 @@ class _HomeShellState extends State<HomeShell> {
       context: context,
       useSafeArea: true,
       showDragHandle: true,
+      isScrollControlled: true,
       builder: (ctx) {
         Widget tile(String id, IconData icon, String label, [String? badge]) =>
             _HubTile(
@@ -1642,7 +1643,8 @@ class _HomeShellState extends State<HomeShell> {
               badge: badge,
               onTap: () => Navigator.pop(ctx, id),
             );
-        return Padding(
+        return SingleChildScrollView(
+          child: Padding(
           padding: EdgeInsets.fromLTRB(
             16,
             0,
@@ -1685,6 +1687,7 @@ class _HomeShellState extends State<HomeShell> {
                 ],
               ),
             ],
+          ),
           ),
         );
       },
