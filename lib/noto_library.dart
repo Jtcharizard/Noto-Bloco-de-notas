@@ -759,7 +759,7 @@ Future<void> importBackup(BuildContext context, AppStore store) async {
 void showAboutNoto(BuildContext context) => showAboutDialog(
   context: context,
   applicationName: 'Noto',
-  applicationVersion: '2.9',
+  applicationVersion: '3.0',
   applicationIcon: ClipRRect(
     borderRadius: BorderRadius.circular(18),
     child: Image.asset('assets/noto_mark.png', width: 68, height: 68),

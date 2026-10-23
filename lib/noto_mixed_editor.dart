@@ -17,6 +17,7 @@ class MixedContentEditor extends StatefulWidget {
     this.textColor,
     this.hideDone = false,
     this.onShowDone,
+    this.onAllDone,
   });
 
   final TextEditingController controller;
@@ -28,6 +29,9 @@ class MixedContentEditor extends StatefulWidget {
   /// Esconde as tarefas já marcadas.
   final bool hideDone;
   final VoidCallback? onShowDone;
+
+  /// Chamado quando a última tarefa da lista é marcada.
+  final VoidCallback? onAllDone;
 
   @override
   State<MixedContentEditor> createState() => _MixedContentEditorState();
@@ -177,9 +181,13 @@ class _MixedContentEditorState extends State<MixedContentEditor> {
     final tasks = lines.where((item) => item.task).toList();
     if (checked && tasks.length >= 2 && tasks.every((item) => item.checked)) {
       HapticFeedback.mediumImpact();
-      ScaffoldMessenger.maybeOf(context)?.showSnackBar(
-        const SnackBar(content: Text('Tudo feito! 🎉')),
-      );
+      if (widget.onAllDone != null) {
+        widget.onAllDone!();
+      } else {
+        ScaffoldMessenger.maybeOf(context)?.showSnackBar(
+          const SnackBar(content: Text('Tudo feito! 🎉')),
+        );
+      }
     }
   }
 

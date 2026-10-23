@@ -161,3 +161,91 @@ bool applyDailyResets(List<Note> notes, DateTime now) {
   }
   return changed;
 }
+
+/// Link, e-mail ou telefone encontrado no texto da nota.
+class NoteLink {
+  const NoteLink(this.kind, this.text, this.uri);
+
+  /// 'web', 'email' ou 'phone'.
+  final String kind;
+  final String text;
+  final Uri uri;
+}
+
+final RegExp _webLink = RegExp(
+  r'''(?:https?://|www\.)[^\s<>"'()\[\]]+''',
+  caseSensitive: false,
+);
+final RegExp _emailLink = RegExp(
+  r'[\w.+-]+@[\w-]+(?:\.[\w-]+)+',
+);
+final RegExp _phoneLink = RegExp(
+  r'(?<![\w/.])(?:\+?55\s?)?(?:\(?\d{2}\)?\s?)?9?\d{4}[-\s]?\d{4}(?![\w/])',
+);
+
+/// Acha links, e-mails e telefones na nota, sem repetir.
+List<NoteLink> extractLinks(String body) {
+  final found = <NoteLink>[];
+  final seen = <String>{};
+  final taken = <(int, int)>[];
+  bool overlaps(Match m) =>
+      taken.any((r) => m.start < r.$2 && m.end > r.$1);
+  void add(NoteLink link, Match m) {
+    taken.add((m.start, m.end));
+    if (seen.add('${link.kind}:${link.uri}')) found.add(link);
+  }
+
+  for (final m in _webLink.allMatches(body)) {
+    var text = m.group(0)!.replaceFirst(RegExp(r'[.,;:!?]+$'), '');
+    final uri = Uri.tryParse(
+      text.toLowerCase().startsWith('www.') ? 'https://$text' : text,
+    );
+    if (uri != null && uri.host.isNotEmpty) add(NoteLink('web', text, uri), m);
+  }
+  for (final m in _emailLink.allMatches(body)) {
+    if (overlaps(m)) continue;
+    final text = m.group(0)!.replaceFirst(RegExp(r'[.]+$'), '');
+    add(NoteLink('email', text, Uri(scheme: 'mailto', path: text)), m);
+  }
+  for (final m in _phoneLink.allMatches(body)) {
+    if (overlaps(m)) continue;
+    final text = m.group(0)!.trim();
+    final digits = text.replaceAll(RegExp(r'[^\d+]'), '');
+    if (digits.replaceAll('+', '').length < 8) continue;
+    add(NoteLink('phone', text, Uri(scheme: 'tel', path: digits)), m);
+  }
+  return found;
+}
+
+/// Seção da nota: linha que começa com # (criada pelo "Título").
+class NoteSection {
+  const NoteSection(this.title, this.level, this.offset);
+  final String title;
+  final int level;
+
+  /// Posição do fim da linha do título no texto.
+  final int offset;
+}
+
+List<NoteSection> extractSections(String body) {
+  final sections = <NoteSection>[];
+  var position = 0;
+  for (final line in body.split('\n')) {
+    final m = RegExp(r'^(#{1,3})\s+(.+)$').firstMatch(line);
+    if (m != null) {
+      sections.add(
+        NoteSection(m.group(2)!.trim(), m.group(1)!.length, position + line.length),
+      );
+    }
+    position += line.length + 1;
+  }
+  return sections;
+}
+
+/// Tira todas as linhas de tarefa e devolve o que sobrar do texto.
+String removeTaskLines(String body) => body
+    .split('\n')
+    .where((line) => !RegExp(r'^\s*(?:[-*]\s*)?\[[ xX]\]').hasMatch(line))
+    .join('\n')
+    .replaceAll(RegExp(r'\n{3,}'), '\n\n')
+    .trim();

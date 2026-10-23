@@ -1,6 +1,10 @@
 package com.example.bloco_personalizavel
 
+import android.annotation.TargetApi
 import android.content.Intent
+import android.content.pm.ShortcutInfo
+import android.content.pm.ShortcutManager
+import android.graphics.drawable.Icon
 import android.net.Uri
 import android.os.Build
 import android.provider.OpenableColumns
@@ -36,10 +40,44 @@ class MainActivity : FlutterActivity() {
                         window.clearFlags(WindowManager.LayoutParams.FLAG_SECURE)
                     }
                     result.success(null)
+                } else if (call.method == "pinShortcut") {
+                    result.success(
+                        Build.VERSION.SDK_INT >= 26 &&
+                            pinShortcut(
+                                call.argument<String>("id") ?: "",
+                                call.argument<String>("title") ?: "",
+                            ),
+                    )
                 } else {
                     result.notImplemented()
                 }
             }
+        }
+    }
+
+    /** Ícone de uma nota na tela inicial; abre como o widget (noto://abrir?id=). */
+    @TargetApi(26)
+    private fun pinShortcut(id: String, title: String): Boolean {
+        if (id.isEmpty()) return false
+        return try {
+            val manager = getSystemService(ShortcutManager::class.java) ?: return false
+            if (!manager.isRequestPinShortcutSupported) return false
+            val open = Intent(
+                "es.antonborri.home_widget.action.LAUNCH",
+                Uri.parse("noto://abrir?id=" + Uri.encode(id)),
+                this,
+                MainActivity::class.java,
+            )
+            val label = title.ifBlank { "Nota" }
+            val info = ShortcutInfo.Builder(this, "nota-$id")
+                .setShortLabel(label.take(24))
+                .setLongLabel(label.take(60))
+                .setIcon(Icon.createWithResource(this, R.mipmap.ic_launcher))
+                .setIntent(open)
+                .build()
+            manager.requestPinShortcut(info, null)
+        } catch (e: Exception) {
+            false
         }
     }
 

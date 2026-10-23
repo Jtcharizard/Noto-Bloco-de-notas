@@ -42,6 +42,7 @@ const _steps = <_TutorialStep>[
       (Icons.folder_outlined, 'Na nota, toque na etiqueta da pasta, abaixo do título, para mudar pasta e tags.'),
       (Icons.more_vert_rounded, 'O ⋮ da nota junta tudo: fixar, enviar, exportar, cofre e mais.'),
       (Icons.apps_rounded, 'Na tela inicial, o Menu tem tarefas, lembretes, pastas, lixeira e Ajustes.'),
+      (Icons.today_rounded, 'Menu > Hoje abre a nota do dia, como um diário.'),
       (Icons.swipe_rounded, 'Segure um card para selecionar vários. Deslize para arquivar ou apagar.'),
     ],
   ),

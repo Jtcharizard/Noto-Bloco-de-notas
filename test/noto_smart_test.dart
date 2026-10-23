@@ -72,4 +72,34 @@ void main() {
     expect(applyDailyResets([note], now), isFalse);
     expect(note.body, '- [x] Remédio');
   });
+
+  test('links, e-mails e telefones', () {
+    final links = extractLinks(
+      'Site: https://exemplo.com/a?b=1. Outro www.noto.app\n'
+      'Mande para ana.souza@gmail.com ou ligue (11) 98765-4321\n'
+      'Repetido https://exemplo.com/a?b=1 e data 21/10/2026 não é telefone',
+    );
+    expect(links.map((l) => l.kind).toList(), ['web', 'web', 'email', 'phone']);
+    expect(links[0].uri.toString(), 'https://exemplo.com/a?b=1');
+    expect(links[1].uri.toString(), 'https://www.noto.app');
+    expect(links[2].uri.toString(), 'mailto:ana.souza@gmail.com');
+    expect(links[3].uri.toString(), 'tel:11987654321');
+    expect(extractLinks('nada aqui, só 2026 e 15:30'), isEmpty);
+  });
+
+  test('seções da nota', () {
+    const body = '# Viagem\nmalas\n## Dia 1\npraia\nsem #título';
+    final sections = extractSections(body);
+    expect(sections.map((s) => s.title).toList(), ['Viagem', 'Dia 1']);
+    expect(sections[1].level, 2);
+    expect(body.substring(0, sections[1].offset).endsWith('## Dia 1'), isTrue);
+  });
+
+  test('excluir a lista mantém o texto', () {
+    expect(
+      removeTaskLines('Compras\n- [ ] leite\n- [x] pão\n\nobs: ver preço'),
+      'Compras\n\nobs: ver preço',
+    );
+    expect(removeTaskLines('- [ ] só tarefa'), '');
+  });
 }

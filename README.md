@@ -43,6 +43,15 @@ O app funciona sem conta e sem internet. As notas e preferências ficam armazena
 - Apresentação inicial e tela Sobre
 - Salvamento local e funcionamento totalmente offline
 
+## Novidades da v3.0.0
+
+- Saiu "Ordenar linhas". Entrou **Excluir lista**: tira as tarefas da nota e deixa o texto (com Desfazer).
+- **Nota de hoje** (como no Obsidian): Menu > Hoje abre ou cria a nota do dia na pasta Diário. Também no atalho do ícone do app.
+- **Atalho na tela inicial** (como no Keep): ⋮ > Atalho na tela inicial põe a nota como ícone no celular.
+- **Ir para seção** (como no Notion): pula para cada título da nota.
+- **Arquivar ao terminar** (como no Todoist): marcou a última tarefa, aparece "Arquivar lista".
+- **Links da nota** (como no Apple Notes): sites, e-mails e telefones da nota viram uma etiqueta para abrir com um toque.
+
 ## Novidades da v2.9.0
 
 - Saíram a soma de valores em R$, a leitura em voz alta e "Limpar espaços".

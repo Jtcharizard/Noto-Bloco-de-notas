@@ -15,6 +15,7 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:share_plus/share_plus.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import 'noto_features.dart';
 import 'noto_formatting.dart';
@@ -200,6 +201,7 @@ class _EditorPageState extends State<EditorPage>
     if (protectedNote) 'protected': true,
     if (resetDaily) 'resetDaily': true,
     if (resetDaily) 'lastReset': widget.note.editor['lastReset'] ?? dayKey(DateTime.now()),
+    if (widget.note.editor['daily'] != null) 'daily': widget.note.editor['daily'],
     'cursor': body.selection.isValid ? body.selection.extentOffset : 0,
     'scroll': editorScroll.hasClients ? editorScroll.offset : 0,
   };
@@ -978,6 +980,226 @@ class _EditorPageState extends State<EditorPage>
     );
   }
 
+  /// Tira a lista de tarefas da nota e deixa só o texto. Dá para desfazer.
+  void _deleteTaskList() {
+    if (!hasTaskLines(body.text)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Esta nota não tem lista.')),
+      );
+      return;
+    }
+    final rest = removeTaskLines(body.text);
+    // Sem tarefas, a nota vira texto comum com o que sobrou.
+    widget.note.checklist = false;
+    body.text = rest;
+    tableEpoch++;
+    _editorChanged();
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: const Text('Lista excluída da nota'),
+        action: SnackBarAction(
+          label: 'Desfazer',
+          onPressed: () => _historyEdit(false),
+        ),
+      ),
+    );
+  }
+
+  /// Sumário da nota: pula para cada título (linhas com #).
+  Future<void> _showSections() async {
+    final sections = extractSections(body.text);
+    if (sections.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Sem seções ainda. Use Formatar texto > Título para criar uma.',
+          ),
+        ),
+      );
+      return;
+    }
+    final picked = await showModalBottomSheet<NoteSection>(
+      context: context,
+      useSafeArea: true,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (ctx) => ConstrainedBox(
+        constraints: BoxConstraints(
+          maxHeight: MediaQuery.sizeOf(ctx).height * .7,
+        ),
+        child: ListView(
+          shrinkWrap: true,
+          padding: EdgeInsets.fromLTRB(
+            8,
+            0,
+            8,
+            MediaQuery.viewPaddingOf(ctx).bottom + 12,
+          ),
+          children: [
+            const ListTile(
+              title: Text(
+                'Ir para seção',
+                style: TextStyle(fontWeight: FontWeight.w900, fontSize: 20),
+              ),
+            ),
+            for (final section in sections)
+              ListTile(
+                contentPadding: EdgeInsets.only(
+                  left: 16.0 + (section.level - 1) * 18,
+                  right: 16,
+                ),
+                leading: Icon(
+                  section.level == 1
+                      ? Icons.title_rounded
+                      : Icons.subdirectory_arrow_right_rounded,
+                ),
+                title: Text(
+                  section.title,
+                  style: TextStyle(
+                    fontWeight: section.level == 1
+                        ? FontWeight.w800
+                        : FontWeight.w600,
+                  ),
+                ),
+                onTap: () => Navigator.pop(ctx, section),
+              ),
+          ],
+        ),
+      ),
+    );
+    if (picked == null || !mounted) return;
+    body.selection = TextSelection.collapsed(
+      offset: picked.offset.clamp(0, body.text.length),
+    );
+    bodyFocus.requestFocus();
+  }
+
+  static const _shortcutChannel = MethodChannel('noto/share');
+
+  /// Cria um ícone da nota na tela inicial do celular.
+  Future<void> _pinToHomeScreen() async {
+    if (widget.note.locked) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Notas do cofre não ganham atalho.')),
+      );
+      return;
+    }
+    final persisted = await _saveDraft();
+    if (!mounted) return;
+    if (!persisted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Escreva algo na nota primeiro.')),
+      );
+      return;
+    }
+    var ok = false;
+    try {
+      ok = await _shortcutChannel.invokeMethod<bool>('pinShortcut', {
+            'id': widget.note.id,
+            'title': displayTitle(widget.note),
+          }) ??
+          false;
+    } catch (_) {
+      ok = false;
+    }
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          ok
+              ? 'Confirme no aviso do celular para pôr a nota na tela inicial.'
+              : 'Este celular não deixa criar atalhos de notas.',
+        ),
+      ),
+    );
+  }
+
+  /// Links, e-mails e telefones da nota, para abrir com um toque.
+  void _showLinks(List<NoteLink> links) {
+    showModalBottomSheet<void>(
+      context: context,
+      useSafeArea: true,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (ctx) => ConstrainedBox(
+        constraints: BoxConstraints(
+          maxHeight: MediaQuery.sizeOf(ctx).height * .7,
+        ),
+        child: ListView(
+          shrinkWrap: true,
+          padding: EdgeInsets.fromLTRB(
+            8,
+            0,
+            8,
+            MediaQuery.viewPaddingOf(ctx).bottom + 12,
+          ),
+          children: [
+            const ListTile(
+              title: Text(
+                'Links da nota',
+                style: TextStyle(fontWeight: FontWeight.w900, fontSize: 20),
+              ),
+              subtitle: Text('Toque para abrir. Segure para copiar.'),
+            ),
+            for (final link in links)
+              ListTile(
+                leading: Icon(switch (link.kind) {
+                  'email' => Icons.mail_outline_rounded,
+                  'phone' => Icons.call_outlined,
+                  _ => Icons.public_rounded,
+                }),
+                title: Text(
+                  link.text,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                subtitle: Text(switch (link.kind) {
+                  'email' => 'Escrever e-mail',
+                  'phone' => 'Ligar',
+                  _ => 'Abrir no navegador',
+                }),
+                onTap: () async {
+                  Navigator.pop(ctx);
+                  final ok = await launchUrl(
+                    link.uri,
+                    mode: LaunchMode.externalApplication,
+                  ).catchError((_) => false);
+                  if (!ok && mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Nenhum app do celular abre esse link.'),
+                      ),
+                    );
+                  }
+                },
+                onLongPress: () {
+                  Clipboard.setData(ClipboardData(text: link.text));
+                  Navigator.pop(ctx);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Copiado')),
+                  );
+                },
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Lista toda marcada: oferece arquivar (como no Keep e no Todoist).
+  void _listFinished() {
+    final messenger = ScaffoldMessenger.of(context);
+    messenger.hideCurrentSnackBar();
+    messenger.showSnackBar(
+      SnackBar(
+        content: const Text('Tudo feito! 🎉'),
+        action: resetDaily
+            ? null
+            : SnackBarAction(label: 'Arquivar lista', onPressed: _archiveAndClose),
+      ),
+    );
+  }
+
   /// Salva mudanças que não mexem no texto (proteção, rotina...).
   void _markMetaChanged() {
     dirty = true;
@@ -1255,6 +1477,12 @@ class _EditorPageState extends State<EditorPage>
               const _MenuAction('uncheck-all', Icons.restart_alt_rounded, 'Desmarcar todas'),
               const _MenuAction('remove-done', Icons.playlist_remove_rounded, 'Apagar feitas'),
               const _MenuAction('sort-tasks', Icons.sort_by_alpha_rounded, 'Ordenar A-Z'),
+              const _MenuAction(
+                'delete-list',
+                Icons.delete_sweep_outlined,
+                'Excluir lista',
+                danger: true,
+              ),
               _MenuAction(
                 'reset-daily',
                 resetDaily ? Icons.event_busy_outlined : Icons.event_repeat_outlined,
@@ -1274,7 +1502,7 @@ class _EditorPageState extends State<EditorPage>
             ),
             if (!checklist) ...[
               const _MenuAction('preview', Icons.visibility_outlined, 'Ver formatada'),
-              const _MenuAction('sort-lines', Icons.sort_by_alpha_rounded, 'Ordenar linhas'),
+              const _MenuAction('sections', Icons.toc_rounded, 'Ir para seção'),
             ],
             const _MenuAction('info', Icons.info_outline_rounded, 'Informações'),
           ],
@@ -1287,6 +1515,7 @@ class _EditorPageState extends State<EditorPage>
             const _MenuAction('template', Icons.bookmark_add_outlined, 'Salvar como modelo'),
             const _MenuAction('duplicate', Icons.copy_outlined, 'Duplicar'),
             const _MenuAction('history', Icons.history_rounded, 'Versões antigas'),
+            const _MenuAction('home-shortcut', Icons.add_to_home_screen_rounded, 'Atalho na tela inicial'),
             _MenuAction(
               'pin-notification',
               notified
@@ -1381,8 +1610,14 @@ class _EditorPageState extends State<EditorPage>
         _rewriteTasks(remove: value == 'remove-done');
       case 'add-many':
         await _addManyTasks();
-      case 'sort-tasks' || 'sort-lines':
-        _sortLines(tasksOnly: value == 'sort-tasks');
+      case 'sort-tasks':
+        _sortLines(tasksOnly: true);
+      case 'delete-list':
+        _deleteTaskList();
+      case 'sections':
+        await _showSections();
+      case 'home-shortcut':
+        await _pinToHomeScreen();
       case 'check-all':
         _checkAllTasks();
       case 'copy-pending':
@@ -1515,6 +1750,7 @@ class _EditorPageState extends State<EditorPage>
       );
     }
 
+    final links = extractLinks(body.text);
     final tagsLabel = note.tags.isEmpty
         ? ''
         : note.tags.length == 1
@@ -1568,6 +1804,13 @@ class _EditorPageState extends State<EditorPage>
               priorityLabel(note.priority),
               _showTaskDetails,
               color: note.priority == 3 ? cs.error : null,
+            ),
+          if (links.isNotEmpty)
+            chip(
+              Icons.link_rounded,
+              links.length == 1 ? '1 link' : '${links.length} links',
+              () => _showLinks(links),
+              tooltip: 'Links da nota',
             ),
           if (resetDaily && widget.note.checklist)
             chip(
@@ -3153,6 +3396,7 @@ class _EditorPageState extends State<EditorPage>
                                     key: ValueKey('mixed-$tableEpoch-$hideDone'),
                                     hideDone: hideDone,
                                     onShowDone: () => _setHideDone(false),
+                                    onAllDone: _listFinished,
                                     controller: body,
                                     family: bodyFamily,
                                     fontSize: widget.store.fontSize,

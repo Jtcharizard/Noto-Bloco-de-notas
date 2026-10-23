@@ -534,6 +534,38 @@ class _HomeShellState extends State<HomeShell> {
     color: widget.store.newNoteColor,
   );
 
+  /// Nota do dia (como no Obsidian e no Logseq): uma por dia, na pasta Diário.
+  Future<void> _openToday() async {
+    final now = DateTime.now();
+    final key = dayKey(now);
+    for (final note in widget.store.notes) {
+      if (note.deletedAt == null && note.editor['daily'] == key) {
+        if (note.locked) {
+          final ok = await unlockVault(context, widget.store);
+          if (!ok || !mounted) return;
+        }
+        await _openNote(note);
+        return;
+      }
+    }
+    savedFolders.add('Diário');
+    await _saveCollections();
+    if (!mounted) return;
+    final weekday = DateFormat('EEEE', 'pt_BR').format(now);
+    final note = Note(
+      id: now.microsecondsSinceEpoch.toString(),
+      title: '${weekday[0].toUpperCase()}${weekday.substring(1)}, '
+          '${DateFormat('dd/MM/yyyy').format(now)}',
+      body: '',
+      updatedAt: now,
+      folder: 'Diário',
+      font: widget.store.font,
+      color: widget.store.newNoteColor,
+      editor: {'daily': key},
+    );
+    await _openNote(note, isNew: true);
+  }
+
   void _openTasks() => Navigator.push(
     context,
     MaterialPageRoute(
@@ -549,6 +581,10 @@ class _HomeShellState extends State<HomeShell> {
         if (!mounted) return;
         if (type == 'buscar') {
           setState(() => searching = true);
+          return;
+        }
+        if (type == 'hoje') {
+          _openToday();
           return;
         }
         if (type == 'ultima') {
@@ -576,7 +612,7 @@ class _HomeShellState extends State<HomeShell> {
       actions.setShortcutItems(const [
         ShortcutItem(type: 'nova-nota', localizedTitle: 'Nova nota'),
         ShortcutItem(type: 'nova-lista', localizedTitle: 'Nova lista de tarefas'),
-        ShortcutItem(type: 'buscar', localizedTitle: 'Buscar'),
+        ShortcutItem(type: 'hoje', localizedTitle: 'Nota de hoje'),
         ShortcutItem(type: 'ultima', localizedTitle: 'Última nota editada'),
         ShortcutItem(type: 'ditar', localizedTitle: 'Ditar uma nota'),
       ]);
@@ -678,6 +714,8 @@ class _HomeShellState extends State<HomeShell> {
         if (id != null) _openById(id);
       case 'tarefas':
         _openTasks();
+      case 'hoje':
+        _openToday();
     }
   }
 
@@ -1630,6 +1668,7 @@ class _HomeShellState extends State<HomeShell> {
                 crossAxisSpacing: 10,
                 childAspectRatio: 1.15,
                 children: [
+                  tile('today', Icons.today_rounded, 'Hoje'),
                   tile('tasks', Icons.checklist_rounded, 'Tarefas',
                       pending > 0 ? '$pending' : null),
                   tile('reminders', Icons.notifications_active_outlined,
@@ -1652,6 +1691,8 @@ class _HomeShellState extends State<HomeShell> {
     );
     if (!mounted) return;
     switch (choice) {
+      case 'today':
+        _openToday();
       case 'tasks':
         _openTasks();
       case 'reminders':
