@@ -118,7 +118,13 @@ if tap_text "Criar primeira nota"; then
     sleep 1
   fi
 fi
-if tap_text "Menu"; then tap_text "Ajustes" && shot 11-ajustes; adb shell input keyevent 4; sleep 1; fi
+if tap_text "Menu"; then
+  if tap_text "Ajustes"; then
+    shot 11-ajustes
+    tap_text "Aparência" && { shot 12-aparencia; adb shell input keyevent 4; sleep 1; }
+  fi
+  adb shell input keyevent 4; sleep 1
+fi
 
 # Os três widgets precisam estar registrados no Android.
 for widget in NotoWidgetProvider NotoQuickWidgetProvider NotoSummaryWidgetProvider; do
