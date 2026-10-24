@@ -1235,14 +1235,20 @@ class _EditorPageState extends State<EditorPage>
             : '${body.text.trimRight()}\n- [ ] ';
       }
     } else {
+      // Tarefas viram itens "- ". Tarefas vazias somem, então uma lista
+      // nova sem nada volta a ser uma nota em branco.
       final task = RegExp(r'^\s*(?:[-*]\s*)?\[([ xX])\]\s?(.*)$');
       body.text = body.text
           .split('\n')
           .map((line) {
             final match = task.firstMatch(line);
-            return match == null ? line : '- ${match.group(2) ?? ''}';
+            if (match == null) return line;
+            final text = (match.group(2) ?? '').trim();
+            return text.isEmpty ? null : '- $text';
           })
-          .join('\n');
+          .whereType<String>()
+          .join('\n')
+          .trim();
     }
     tableEpoch++;
     _editorChanged();
