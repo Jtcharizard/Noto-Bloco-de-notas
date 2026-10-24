@@ -412,6 +412,42 @@ class SettingsPage extends StatelessWidget {
     );
   }
 
+  Future<void> _editHeaderPhrase(BuildContext context) async {
+    final controller = TextEditingController(text: store.headerPhrase);
+    final value = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Frase abaixo da saudação'),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          maxLength: 60,
+          textCapitalization: TextCapitalization.sentences,
+          decoration: const InputDecoration(
+            hintText: 'Ex.: Um passo de cada vez',
+            helperText: 'Deixe vazio para mostrar a data',
+          ),
+          onSubmitted: (text) => Navigator.pop(dialogContext, text),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('Cancelar'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, controller.text),
+            child: const Text('Salvar'),
+          ),
+        ],
+      ),
+    );
+    await Future<void>.delayed(const Duration(milliseconds: 300));
+    controller.dispose();
+    if (value == null) return;
+    store.headerPhrase = value.trim();
+    await store.save();
+  }
+
   Future<void> _editUserName(BuildContext context) async {
     final controller = TextEditingController(text: store.userName);
     final value = await showDialog<String>(
@@ -698,7 +734,42 @@ class SettingsPage extends StatelessWidget {
 
   List<Widget> _homeItems(BuildContext context) {
     return [
-      const SectionTitle('Tela inicial'),
+      const SectionTitle('Saudação'),
+      SwitchListTile(
+        contentPadding: EdgeInsets.zero,
+        title: const Text('Cartão de saudação no topo'),
+        subtitle: const Text('Avatar, "Bom dia" e o resumo do dia'),
+        value: store.showGreeting,
+        onChanged: (value) {
+          store.showGreeting = value;
+          store.save();
+        },
+      ),
+      NotoTile(
+        icon: Icons.face_rounded,
+        title: 'Seu avatar',
+        subtitle: store.userAvatar.trim().isEmpty
+            ? 'Inicial do nome · toque para escolher um emoji'
+            : store.userAvatar.trim(),
+        onTap: () async {
+          final emoji = await pickEmoji(
+            context,
+            title: 'Seu avatar',
+            current: store.userAvatar,
+          );
+          if (emoji == null) return;
+          store.userAvatar = emoji;
+          await store.save();
+        },
+      ),
+      NotoTile(
+        icon: Icons.format_quote_rounded,
+        title: 'Frase abaixo da saudação',
+        subtitle: store.headerPhrase.trim().isEmpty
+            ? 'Mostra a data de hoje'
+            : store.headerPhrase.trim(),
+        onTap: () => _editHeaderPhrase(context),
+      ),
       NotoTile(
         icon: Icons.waving_hand_outlined,
         title: 'Seu nome na saudação',
@@ -707,6 +778,8 @@ class SettingsPage extends StatelessWidget {
             : store.userName.trim(),
         onTap: () => _editUserName(context),
       ),
+      const SizedBox(height: 24),
+      const SectionTitle('Tela inicial'),
       NotoTile(
         icon: Icons.badge_outlined,
         title: 'Nome no topo da tela inicial',
@@ -747,6 +820,18 @@ class SettingsPage extends StatelessWidget {
       ),
       const SizedBox(height: 24),
       const SectionTitle('Cards das notas'),
+      SwitchListTile(
+        contentPadding: EdgeInsets.zero,
+        title: const Text('Cards de vidro'),
+        subtitle: const Text(
+          'Translúcidos, deixando o fundo do app aparecer (com um fundo escolhido)',
+        ),
+        value: store.glassCards,
+        onChanged: (value) {
+          store.glassCards = value;
+          store.save();
+        },
+      ),
       NotoTile(
         icon: store.layoutMode == 1
             ? Icons.view_agenda_outlined

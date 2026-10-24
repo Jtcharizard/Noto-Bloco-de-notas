@@ -535,6 +535,17 @@ class _HomeShellState extends State<HomeShell> {
     color: widget.store.newNoteColor,
   );
 
+  Future<void> _pickAvatar() async {
+    final emoji = await pickEmoji(
+      context,
+      title: 'Seu avatar',
+      current: widget.store.userAvatar,
+    );
+    if (emoji == null || !mounted) return;
+    setState(() => widget.store.userAvatar = emoji);
+    await widget.store.save();
+  }
+
   /// Nota do dia (como no Obsidian e no Logseq): uma por dia, na pasta Diário.
   Future<void> _openToday() async {
     final now = DateTime.now();
@@ -1907,6 +1918,7 @@ class _HomeShellState extends State<HomeShell> {
         showTags: widget.store.cardShowTags,
         highlight: foldForSearch(query.trim()),
         folderLabel: widget.store.folderLabel(note.folder),
+        glass: widget.store.glassCards && _hasWallpaper,
       ),
     );
   }
@@ -1970,14 +1982,10 @@ class _HomeShellState extends State<HomeShell> {
     (n) => n.favorite || n.reminderAt != null || _isOverdue(n),
   );
 
-  Widget _quickChip(String label, bool selected, VoidCallback toggle) => Padding(
-    padding: const EdgeInsets.only(right: 8),
-    child: FilterChip(
-      label: Text(label),
-      selected: selected,
-      showCheckmark: false,
-      onSelected: (_) => setState(toggle),
-    ),
+  Widget _quickChip(String label, bool selected, VoidCallback toggle) => _Pill(
+    label: label,
+    selected: selected,
+    onTap: () => setState(toggle),
   );
 
   Widget _recentSearches() => SizedBox(
@@ -2005,26 +2013,24 @@ class _HomeShellState extends State<HomeShell> {
   Widget _folderChips() {
     final folders = _allFolders;
     return SizedBox(
-      height: 46,
+      height: 48,
       child: ListView(
         scrollDirection: Axis.horizontal,
         padding: const EdgeInsets.fromLTRB(20, 8, 20, 0),
         children: [
-          Padding(
-            padding: const EdgeInsets.only(right: 8),
-            child: ChoiceChip(
-              label: const Text('Todas'),
-              selected: folder == null &&
-                  scope == _NoteScope.all &&
-                  !reminderOnly &&
-                  !overdueOnly,
-              onSelected: (_) => setState(() {
-                folder = null;
-                scope = _NoteScope.all;
-                reminderOnly = false;
-                overdueOnly = false;
-              }),
-            ),
+          _Pill(
+            label: 'Todas',
+            icon: Icons.notes_rounded,
+            selected: folder == null &&
+                scope == _NoteScope.all &&
+                !reminderOnly &&
+                !overdueOnly,
+            onTap: () => setState(() {
+              folder = null;
+              scope = _NoteScope.all;
+              reminderOnly = false;
+              overdueOnly = false;
+            }),
           ),
           if (_active.any((n) => n.favorite))
             _quickChip(
@@ -2047,10 +2053,8 @@ class _HomeShellState extends State<HomeShell> {
             ...folders.where(widget.store.pinnedFolders.contains),
             ...folders.where((f) => !widget.store.pinnedFolders.contains(f)),
           ])
-            Padding(
-              padding: const EdgeInsets.only(right: 8),
-              // Segurar a pasta fixa ela no começo dos atalhos.
-              child: GestureDetector(
+            _Pill(
+                // Segurar a pasta fixa ela no começo dos atalhos.
                 onLongPress: () {
                   HapticFeedback.selectionClick();
                   final pinned = widget.store.pinnedFolders;
@@ -2065,17 +2069,15 @@ class _HomeShellState extends State<HomeShell> {
                     ),
                   );
                 },
-                child: ChoiceChip(
-                  avatar: widget.store.pinnedFolders.contains(item)
-                      ? const Icon(Icons.push_pin, size: 14)
-                      : null,
-                  label: Text('${widget.store.folderLabel(item)}  ${_active.where((n) => _inFolder(n.folder, item)).length}'),
-                  selected: folder == item,
-                  onSelected: (_) => setState(
-                    () => folder = folder == item ? null : item,
-                  ),
+                icon: widget.store.pinnedFolders.contains(item)
+                    ? Icons.push_pin
+                    : null,
+                label: widget.store.folderLabel(item),
+                count: _active.where((n) => _inFolder(n.folder, item)).length,
+                selected: folder == item,
+                onTap: () => setState(
+                  () => folder = folder == item ? null : item,
                 ),
-              ),
             ),
         ],
       ),
@@ -2115,6 +2117,21 @@ class _HomeShellState extends State<HomeShell> {
         backgroundColor: _hasWallpaper ? Colors.transparent : null,
         appBar: AppBar(
           titleSpacing: 20,
+          backgroundColor: _hasWallpaper ? Colors.transparent : null,
+          surfaceTintColor: Colors.transparent,
+          scrolledUnderElevation: 0,
+          elevation: 0,
+          flexibleSpace: _hasWallpaper
+              ? const DecoratedBox(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: [Color(0x99000000), Color(0x00000000)],
+                    ),
+                  ),
+                )
+              : null,
           title: Row(
             children: [
               RawGestureDetector(
@@ -2242,11 +2259,14 @@ class _HomeShellState extends State<HomeShell> {
                   query.isEmpty &&
                   widget.store.recentSearches.isNotEmpty)
                 _recentSearches(),
-              if (widget.store.userName.trim().isNotEmpty &&
-                  !searching &&
-                  selectedIds.isEmpty)
-                _Greeting(name: widget.store.userName.trim()),
-              if (widget.store.homeShowToday)
+              if (widget.store.showGreeting && !searching && selectedIds.isEmpty)
+                _HomeHero(
+                  store: widget.store,
+                  snapshot: snapshot,
+                  onTasks: _openTasks,
+                  onAvatar: _pickAvatar,
+                )
+              else if (widget.store.homeShowToday)
                 _TodayLine(snapshot: snapshot, onTasks: _openTasks),
               if (widget.store.showFolderChips &&
                   (_allFolders.length > 1 || _hasQuickFilters(active)))
@@ -2384,12 +2404,16 @@ class _HomeShellState extends State<HomeShell> {
                     direct: widget.store.plusAction == 2 ? 'blank' : 'checklist',
                   );
                 },
-                child: FloatingActionButton(
+                child: FloatingActionButton.extended(
                   onPressed: _createNote,
                   tooltip: widget.store.plusAction == 2
                       ? 'Nova lista (segure para nota em branco)'
                       : 'Nova nota (segure para lista de tarefas)',
-                  child: const Icon(Icons.add_rounded),
+                  icon: const Icon(Icons.add_rounded),
+                  label: Text(
+                    widget.store.plusAction == 2 ? 'Nova lista' : 'Nova nota',
+                    style: const TextStyle(fontWeight: FontWeight.w800),
+                  ),
                 ),
               ),
       ),
@@ -2398,39 +2422,275 @@ class _HomeShellState extends State<HomeShell> {
   );
 }
 
-/// "Boa noite, Ana" no topo da tela inicial, com a data de hoje.
-class _Greeting extends StatelessWidget {
-  const _Greeting({required this.name});
+/// Cartão do topo da tela inicial: avatar, saudação, frase ou data
+/// e o resumo do dia.
+class _HomeHero extends StatelessWidget {
+  const _HomeHero({
+    required this.store,
+    required this.snapshot,
+    required this.onTasks,
+    required this.onAvatar,
+  });
 
-  final String name;
+  final AppStore store;
+  final TodaySnapshot snapshot;
+  final VoidCallback onTasks;
+  final VoidCallback onAvatar;
 
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     final now = DateTime.now();
+    final name = store.userName.trim();
     final date = DateFormat("EEEE, d 'de' MMMM", 'pt_BR').format(now);
+    final phrase = store.headerPhrase.trim();
+    final subtitle = phrase.isNotEmpty
+        ? phrase
+        : '${date[0].toUpperCase()}${date.substring(1)}';
+    final avatar = store.userAvatar.trim();
+    final items = <(IconData, String, bool)>[
+      if (store.homeShowToday && snapshot.pendingTasks > 0)
+        (
+          Icons.check_box_outline_blank_rounded,
+          snapshot.pendingTasks == 1
+              ? '1 tarefa'
+              : '${snapshot.pendingTasks} tarefas',
+          true,
+        ),
+      if (store.homeShowToday && snapshot.remindersToday > 0)
+        (
+          Icons.notifications_none_rounded,
+          snapshot.remindersToday == 1
+              ? '1 lembrete hoje'
+              : '${snapshot.remindersToday} lembretes hoje',
+          false,
+        ),
+      if (store.homeShowToday && snapshot.touched > 0)
+        (
+          Icons.edit_outlined,
+          snapshot.touched == 1
+              ? '1 editada hoje'
+              : '${snapshot.touched} editadas hoje',
+          false,
+        ),
+    ];
     return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 2, 20, 10),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            '${greetingFor(now)}, $name',
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-              fontWeight: FontWeight.w900,
-              letterSpacing: -.5,
+      padding: const EdgeInsets.fromLTRB(16, 4, 16, 6),
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.fromLTRB(16, 16, 16, 14),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(26),
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              Color.alphaBlend(
+                cs.primary.withValues(alpha: .30),
+                cs.surfaceContainerHigh.withValues(alpha: .88),
+              ),
+              cs.surfaceContainerHigh.withValues(alpha: .78),
+            ],
+          ),
+          border: Border.all(color: cs.primary.withValues(alpha: .25)),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Tooltip(
+                  message: 'Trocar avatar',
+                  child: InkWell(
+                    customBorder: const CircleBorder(),
+                    onTap: onAvatar,
+                    child: Container(
+                      width: 50,
+                      height: 50,
+                      alignment: Alignment.center,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        gradient: LinearGradient(
+                          colors: [
+                            cs.primary,
+                            Color.lerp(cs.primary, cs.tertiary, .6)!,
+                          ],
+                        ),
+                      ),
+                      child: avatar.isNotEmpty
+                          ? Text(avatar, style: const TextStyle(fontSize: 26))
+                          : name.isNotEmpty
+                          ? Text(
+                              name.characters.first.toUpperCase(),
+                              style: TextStyle(
+                                fontSize: 22,
+                                fontWeight: FontWeight.w900,
+                                color: cs.onPrimary,
+                              ),
+                            )
+                          : Icon(Icons.waving_hand_rounded, color: cs.onPrimary),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        name.isEmpty
+                            ? '${greetingFor(now)}!'
+                            : '${greetingFor(now)}, $name',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                          fontWeight: FontWeight.w900,
+                          letterSpacing: -.4,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        subtitle,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: 13,
+                          height: 1.3,
+                          color: cs.onSurface.withValues(alpha: .68),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            if (items.isNotEmpty) ...[
+              const SizedBox(height: 12),
+              Wrap(
+                spacing: 6,
+                runSpacing: 6,
+                children: [
+                  for (final item in items)
+                    Material(
+                      color: cs.surface.withValues(alpha: .55),
+                      borderRadius: BorderRadius.circular(20),
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(20),
+                        onTap: item.$3 ? onTasks : null,
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 6,
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(item.$1, size: 15, color: cs.primary),
+                              const SizedBox(width: 5),
+                              Text(
+                                item.$2,
+                                style: const TextStyle(
+                                  fontSize: 12.5,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                              if (item.$3)
+                                Icon(
+                                  Icons.chevron_right_rounded,
+                                  size: 15,
+                                  color: cs.onSurface.withValues(alpha: .5),
+                                ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Atalho em forma de pílula (pastas e filtros da tela inicial).
+class _Pill extends StatelessWidget {
+  const _Pill({
+    required this.label,
+    required this.selected,
+    required this.onTap,
+    this.onLongPress,
+    this.icon,
+    this.count,
+  });
+
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+  final VoidCallback? onLongPress;
+  final IconData? icon;
+  final int? count;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final fg = selected ? cs.onPrimary : cs.onSurface;
+    return Padding(
+      padding: const EdgeInsets.only(right: 8),
+      child: Material(
+        color: selected ? cs.primary : cs.surfaceContainerHigh.withValues(alpha: .82),
+        shape: StadiumBorder(
+          side: BorderSide(
+            color: selected
+                ? Colors.transparent
+                : cs.outlineVariant.withValues(alpha: .5),
+          ),
+        ),
+        child: InkWell(
+          customBorder: const StadiumBorder(),
+          onTap: onTap,
+          onLongPress: onLongPress,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 14),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (icon != null) ...[
+                  Icon(icon, size: 16, color: fg),
+                  const SizedBox(width: 6),
+                ],
+                Text(
+                  label,
+                  style: TextStyle(
+                    fontWeight: FontWeight.w700,
+                    fontSize: 13.5,
+                    color: fg,
+                  ),
+                ),
+                if (count != null) ...[
+                  const SizedBox(width: 7),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 1),
+                    decoration: BoxDecoration(
+                      color: fg.withValues(alpha: .14),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Text(
+                      '$count',
+                      style: TextStyle(
+                        fontSize: 11.5,
+                        fontWeight: FontWeight.w800,
+                        color: fg,
+                      ),
+                    ),
+                  ),
+                ],
+              ],
             ),
           ),
-          Text(
-            '${date[0].toUpperCase()}${date.substring(1)}',
-            style: TextStyle(
-              fontSize: 13,
-              color: cs.onSurface.withValues(alpha: .6),
-            ),
-          ),
-        ],
+        ),
       ),
     );
   }
@@ -2787,7 +3047,11 @@ class _NoteCard extends StatelessWidget {
     this.showTags = true,
     this.highlight = '',
     this.folderLabel,
+    this.glass = false,
   });
+
+  /// Card translúcido (opção "Cards de vidro").
+  final bool glass;
   final VoidCallback? onLongPress;
 
   /// Nome da pasta já com o emoji, se tiver.
@@ -2837,7 +3101,11 @@ class _NoteCard extends StatelessWidget {
     final hasWallpaper = wallpaper != null;
     final noteColor = NotoAppearance
         .noteColors[NotoAppearance.safeNoteColorIndex(note.color)];
-    final background = note.color == 0 ? cs.surfaceContainerLow : noteColor;
+    final solid = note.color == 0 ? cs.surfaceContainerLow : noteColor;
+    // Cards de vidro: o fundo do app aparece por trás.
+    final background = glass && !hasWallpaper
+        ? solid.withValues(alpha: .58)
+        : solid;
     final titleFont = NotoAppearance.familyAt(note.titleFont ?? note.font);
     final bodyFont = NotoAppearance.familyAt(note.bodyFont ?? note.font);
     final customTextColor = note.textColor == 0
@@ -2981,6 +3249,18 @@ class _NoteCard extends StatelessWidget {
                             snippet,
                             maxLines: 4,
                             overflow: TextOverflow.ellipsis,
+                          ),
+                        ] else if (preview.isEmpty &&
+                            note.title.trim().isEmpty &&
+                            note.body.trim().isEmpty) ...[
+                          const SizedBox(height: 7),
+                          Text(
+                            'Nota vazia',
+                            style: TextStyle(
+                              color: contentSecondary.withValues(alpha: .6),
+                              fontStyle: FontStyle.italic,
+                              fontSize: 13,
+                            ),
                           ),
                         ] else if (preview.isNotEmpty && previewLines > 0) ...[
                           const SizedBox(height: 7),

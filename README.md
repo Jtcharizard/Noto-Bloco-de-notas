@@ -43,6 +43,14 @@ O app funciona sem conta e sem internet. As notas e preferências ficam armazena
 - Apresentação inicial e tela Sobre
 - Salvamento local e funcionamento totalmente offline
 
+## Novidades da v3.2.0
+
+- Tela inicial mais bonita: cartão de saudação com avatar, frase ou data e o resumo do dia; atalhos de pasta em pílula com contagem; barra do topo transparente sobre o fundo; botão "Nova nota" com nome; card de nota vazia com aviso.
+- 8 temas prontos novos: Lavanda, Café, Neon, Menta, Cereja, Gelo, Grafite e Limão (16 no total).
+- **Avatar**: um emoji seu no cartão de saudação (toque nele para trocar).
+- **Frase do topo**: escreva uma frase para aparecer no lugar da data.
+- **Cards de vidro**: cards translúcidos que deixam o fundo do app aparecer.
+
 ## Novidades da v3.1.0
 
 - Corrigido: virar uma lista vazia em texto deixava um "- " sobrando. Agora a nota volta em branco.

@@ -310,6 +310,14 @@ const notoPresets = <NotoPreset>[
   NotoPreset(name: 'Chiclete', mode: ThemeMode.light, accent: 14, font: 25, cardRadius: 26),
   NotoPreset(name: 'Pôr do sol', mode: ThemeMode.dark, accent: 11, font: 29),
   NotoPreset(name: 'Código', mode: ThemeMode.dark, accent: 6, font: 22, pureBlack: true, cardRadius: 4),
+  NotoPreset(name: 'Lavanda', mode: ThemeMode.light, accent: 16, font: 15, cardRadius: 26),
+  NotoPreset(name: 'Café', mode: ThemeMode.light, accent: 10, font: 33, cardRadius: 10),
+  NotoPreset(name: 'Neon', mode: ThemeMode.dark, accent: 15, font: 28, pureBlack: true),
+  NotoPreset(name: 'Menta', mode: ThemeMode.light, accent: 4, font: 30, cardRadius: 26),
+  NotoPreset(name: 'Cereja', mode: ThemeMode.dark, accent: 13, font: 5),
+  NotoPreset(name: 'Gelo', mode: ThemeMode.light, accent: 3, font: 31, cardRadius: 10),
+  NotoPreset(name: 'Grafite', mode: ThemeMode.dark, accent: 1, font: 16, cardRadius: 4),
+  NotoPreset(name: 'Limão', mode: ThemeMode.light, accent: 7, font: 19, cardRadius: 26),
 ];
 
 /// "Bom dia", "Boa tarde" ou "Boa noite" pela hora certa do celular.

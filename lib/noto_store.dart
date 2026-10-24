@@ -134,6 +134,18 @@ class AppStore extends ChangeNotifier {
   /// Como a pessoa quer ser chamada na saudação da tela inicial.
   String userName = '';
 
+  /// Emoji que aparece como avatar na saudação ('' = inicial do nome).
+  String userAvatar = '';
+
+  /// Frase abaixo da saudação ('' = mostra a data de hoje).
+  String headerPhrase = '';
+
+  /// Mostra o cartão de saudação no topo da tela inicial.
+  bool showGreeting = true;
+
+  /// Cards translúcidos, deixando o fundo do app aparecer.
+  bool glassCards = false;
+
   /// Emoji de cada pasta ("Mercado" -> "🛒").
   final Map<String, String> folderEmojis = {};
 
@@ -412,6 +424,10 @@ class AppStore extends ChangeNotifier {
         .toDouble();
     homeTitle = prefs.getString('homeTitle') ?? '';
     userName = prefs.getString('userName') ?? '';
+    userAvatar = prefs.getString('userAvatar') ?? '';
+    headerPhrase = prefs.getString('headerPhrase') ?? '';
+    showGreeting = prefs.getBool('showGreeting') ?? true;
+    glassCards = prefs.getBool('glassCards') ?? false;
     folderEmojis.clear();
     try {
       final raw = prefs.getString('folderEmojis');
@@ -621,6 +637,10 @@ class AppStore extends ChangeNotifier {
     await prefs.setDouble('editorLineHeight', editorLineHeight);
     await prefs.setString('homeTitle', homeTitle);
     await prefs.setString('userName', userName);
+    await prefs.setString('userAvatar', userAvatar);
+    await prefs.setString('headerPhrase', headerPhrase);
+    await prefs.setBool('showGreeting', showGreeting);
+    await prefs.setBool('glassCards', glassCards);
     await prefs.setString('folderEmojis', jsonEncode(folderEmojis));
     await prefs.setInt('plusAction', plusAction);
     await prefs.setInt('swipeRight', swipeRight);
