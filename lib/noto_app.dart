@@ -133,6 +133,7 @@ class _NotoAppState extends State<NotoApp> with WidgetsBindingObserver {
               child: HomeShell(store: store),
             )
           : TutorialPage(
+              onName: (value) => store.userName = value,
               onDone: () {
                 store.onboardingDone = true;
                 store.save();

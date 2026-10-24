@@ -131,6 +131,18 @@ class AppStore extends ChangeNotifier {
   double editorLineHeight = 1.6;
   String homeTitle = '';
 
+  /// Como a pessoa quer ser chamada na saudação da tela inicial.
+  String userName = '';
+
+  /// Emoji de cada pasta ("Mercado" -> "🛒").
+  final Map<String, String> folderEmojis = {};
+
+  /// "🛒 Mercado" quando a pasta tem emoji.
+  String folderLabel(String folder) {
+    final emoji = folderEmojis[folder];
+    return emoji == null || emoji.isEmpty ? folder : '$emoji $folder';
+  }
+
   /// O que o botão + faz: 0 = perguntar, 1 = nota em branco, 2 = lista de tarefas.
   int plusAction = 0;
 
@@ -399,6 +411,16 @@ class AppStore extends ChangeNotifier {
         .clamp(1.2, 2.2)
         .toDouble();
     homeTitle = prefs.getString('homeTitle') ?? '';
+    userName = prefs.getString('userName') ?? '';
+    folderEmojis.clear();
+    try {
+      final raw = prefs.getString('folderEmojis');
+      if (raw != null) {
+        folderEmojis.addAll(Map<String, String>.from(jsonDecode(raw) as Map));
+      }
+    } catch (_) {
+      /* Emojis estragados: começa sem. */
+    }
     plusAction = (prefs.getInt('plusAction') ?? 0).clamp(0, 2).toInt();
     swipeRight = (prefs.getInt('swipeRight') ?? 0).clamp(0, 4).toInt();
     swipeLeft = (prefs.getInt('swipeLeft') ?? 1).clamp(0, 4).toInt();
@@ -598,6 +620,8 @@ class AppStore extends ChangeNotifier {
     await prefs.setBool('cardShowTags', cardShowTags);
     await prefs.setDouble('editorLineHeight', editorLineHeight);
     await prefs.setString('homeTitle', homeTitle);
+    await prefs.setString('userName', userName);
+    await prefs.setString('folderEmojis', jsonEncode(folderEmojis));
     await prefs.setInt('plusAction', plusAction);
     await prefs.setInt('swipeRight', swipeRight);
     await prefs.setInt('swipeLeft', swipeLeft);

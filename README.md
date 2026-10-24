@@ -43,6 +43,13 @@ O app funciona sem conta e sem internet. As notas e preferências ficam armazena
 - Apresentação inicial e tela Sobre
 - Salvamento local e funcionamento totalmente offline
 
+## Novidades da v3.1.0
+
+- Corrigido: virar uma lista vazia em texto deixava um "- " sobrando. Agora a nota volta em branco.
+- **Temas prontos**: Ajustes > Aparência tem 8 combinações de um toque (Meia-noite, Papel, Oceano, Floresta, Chiclete, Pôr do sol, Código e o padrão).
+- **Saudação com seu nome**: "Boa noite, Ana" com a data no topo da tela inicial. O nome pode ser posto no fim do tutorial ou em Ajustes > Tela inicial.
+- **Emoji nas pastas**: Menu > Pastas > ⋮ > Escolher emoji. Aparece nos atalhos, nos cards e dentro da nota.
+
 ## Novidades da v3.0.0
 
 - Saiu "Ordenar linhas". Entrou **Excluir lista**: tira as tarefas da nota e deixa o texto (com Desfazer).

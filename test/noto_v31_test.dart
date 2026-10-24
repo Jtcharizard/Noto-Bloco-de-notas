@@ -23,6 +23,8 @@ void main() {
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
     final store = AppStore()..loaded = true;
+    // Sem a dica de tarefas, que cobre a barra de baixo por alguns segundos.
+    store.seenTips.add('tasks-enter');
     final note = Note(
       id: 'lista',
       title: 'Mercado',

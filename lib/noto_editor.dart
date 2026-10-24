@@ -1780,7 +1780,7 @@ class _EditorPageState extends State<EditorPage>
             ),
           chip(
             Icons.folder_outlined,
-            '${note.folder}$tagsLabel',
+            '${widget.store.folderLabel(note.folder)}$tagsLabel',
             _showOrganize,
             tooltip: 'Pasta e tags',
           ),

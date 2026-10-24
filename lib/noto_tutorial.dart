@@ -43,6 +43,7 @@ const _steps = <_TutorialStep>[
       (Icons.more_vert_rounded, 'O ⋮ da nota junta tudo: fixar, enviar, exportar, cofre e mais.'),
       (Icons.apps_rounded, 'Na tela inicial, o Menu tem tarefas, lembretes, pastas, lixeira e Ajustes.'),
       (Icons.today_rounded, 'Menu > Hoje abre a nota do dia, como um diário.'),
+      (Icons.emoji_emotions_outlined, 'Em Menu > Pastas, dê um emoji para cada pasta.'),
       (Icons.swipe_rounded, 'Segure um card para selecionar vários. Deslize para arquivar ou apagar.'),
     ],
   ),
@@ -75,7 +76,7 @@ const _steps = <_TutorialStep>[
     'Cada nota pode ter cor, fundo e fonte próprios. O app também.',
     [
       (Icons.palette_outlined, 'Na nota, o botão da paleta, ao lado da barra, muda cor, fundo e fonte.'),
-      (Icons.settings_outlined, 'Em Ajustes > Aparência: tema, cor de destaque, fonte e fundo.'),
+      (Icons.settings_outlined, 'Em Ajustes > Aparência tem temas prontos de um toque, cores e fontes.'),
       (Icons.image_outlined, 'Pelo ⋮ dá para enviar a nota como imagem ou proteger contra edição.'),
     ],
   ),
@@ -91,9 +92,12 @@ const _steps = <_TutorialStep>[
 
 /// Tutorial de uso com ilustrações. Aparece na primeira vez e pelos Ajustes.
 class TutorialPage extends StatefulWidget {
-  const TutorialPage({super.key, required this.onDone});
+  const TutorialPage({super.key, required this.onDone, this.onName});
 
   final VoidCallback onDone;
+
+  /// Guarda o nome para a saudação (só na primeira abertura).
+  final ValueChanged<String>? onName;
 
   @override
   State<TutorialPage> createState() => _TutorialPageState();
@@ -102,6 +106,7 @@ class TutorialPage extends StatefulWidget {
 class _TutorialPageState extends State<TutorialPage>
     with SingleTickerProviderStateMixin {
   final controller = PageController();
+  final name = TextEditingController();
   late final AnimationController floating = AnimationController(
     vsync: this,
     duration: const Duration(milliseconds: 1400),
@@ -120,6 +125,7 @@ class _TutorialPageState extends State<TutorialPage>
   void dispose() {
     floating.dispose();
     controller.dispose();
+    name.dispose();
     super.dispose();
   }
 
@@ -127,6 +133,7 @@ class _TutorialPageState extends State<TutorialPage>
 
   void _next() {
     if (_last) {
+      if (name.text.trim().isNotEmpty) widget.onName?.call(name.text.trim());
       widget.onDone();
       return;
     }
@@ -301,6 +308,24 @@ class _TutorialPageState extends State<TutorialPage>
                                       ],
                                     ),
                                   ),
+                                if (index == _steps.length - 1 &&
+                                    widget.onName != null) ...[
+                                  const SizedBox(height: 8),
+                                  TextField(
+                                    controller: name,
+                                    maxLength: 20,
+                                    textCapitalization:
+                                        TextCapitalization.words,
+                                    textInputAction: TextInputAction.done,
+                                    onSubmitted: (_) => _next(),
+                                    decoration: const InputDecoration(
+                                      prefixIcon: Icon(Icons.waving_hand_outlined),
+                                      labelText: 'Como quer ser chamado?',
+                                      helperText:
+                                          'Opcional. O Noto te cumprimenta pelo nome.',
+                                    ),
+                                  ),
+                                ],
                               ],
                             ),
                           );

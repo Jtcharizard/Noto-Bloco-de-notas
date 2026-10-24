@@ -515,6 +515,8 @@ Future<void> exportBackup(BuildContext context, AppStore store) async {
       'cardShowTags': store.cardShowTags,
       'editorLineHeight': store.editorLineHeight,
       'homeTitle': store.homeTitle,
+      'userName': store.userName,
+      'folderEmojis': store.folderEmojis,
       'plusAction': store.plusAction,
       'newNoteColor': store.newNoteColor,
       'showShortcutsBar': store.showShortcutsBar,
@@ -684,6 +686,13 @@ Future<void> importBackup(BuildContext context, AppStore store) async {
         .clamp(1.2, 2.2)
         .toDouble();
     store.homeTitle = pick('homeTitle', store.homeTitle);
+    store.userName = pick('userName', store.userName);
+    final emojis = settings['folderEmojis'];
+    if (emojis is Map) {
+      store.folderEmojis
+        ..clear()
+        ..addAll(emojis.map((k, v) => MapEntry('$k', '$v')));
+    }
     store.plusAction = pick<num>('plusAction', store.plusAction).toInt().clamp(0, 2).toInt();
     store.newNoteColor = pick<num>('newNoteColor', store.newNoteColor)
         .toInt()
@@ -759,7 +768,7 @@ Future<void> importBackup(BuildContext context, AppStore store) async {
 void showAboutNoto(BuildContext context) => showAboutDialog(
   context: context,
   applicationName: 'Noto',
-  applicationVersion: '3.0',
+  applicationVersion: '3.1',
   applicationIcon: ClipRRect(
     borderRadius: BorderRadius.circular(18),
     child: Image.asset('assets/noto_mark.png', width: 68, height: 68),

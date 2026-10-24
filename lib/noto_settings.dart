@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
+import 'noto_extras.dart';
 import 'noto_features.dart';
 import 'noto_models.dart';
 import 'noto_library.dart';
@@ -314,6 +315,139 @@ class SettingsPage extends StatelessWidget {
     await store.save();
   }
 
+  /// Cartões de temas prontos: um toque muda tema, cor, fonte e cantos.
+  Widget _presetRow(BuildContext context) {
+    final brightness = MediaQuery.platformBrightnessOf(context);
+    return SizedBox(
+      height: 132,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(vertical: 6),
+        itemCount: notoPresets.length,
+        separatorBuilder: (_, __) => const SizedBox(width: 10),
+        itemBuilder: (context, index) {
+          final preset = notoPresets[index];
+          final accent = NotoAppearance.accents[preset.accent].color;
+          final dark = preset.mode == ThemeMode.dark ||
+              (preset.mode == ThemeMode.system && brightness == Brightness.dark);
+          final bg = dark
+              ? (preset.pureBlack ? Colors.black : const Color(0xFF1C1B22))
+              : const Color(0xFFF8F6FB);
+          final fg = dark ? Colors.white : const Color(0xFF1B1B1F);
+          final active = store.accent == preset.accent &&
+              store.font == preset.font &&
+              store.mode == preset.mode &&
+              store.pureBlack == preset.pureBlack;
+          return GestureDetector(
+            onTap: () {
+              store
+                ..mode = preset.mode
+                ..accent = preset.accent
+                ..font = preset.font
+                ..pureBlack = preset.pureBlack
+                ..cardRadius = preset.cardRadius;
+              store.save();
+              ScaffoldMessenger.of(context).hideCurrentSnackBar();
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(content: Text('Tema ${preset.name} aplicado')),
+              );
+            },
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 160),
+              width: 104,
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: bg,
+                borderRadius: BorderRadius.circular(18),
+                border: Border.all(
+                  color: active ? accent : fg.withValues(alpha: .12),
+                  width: active ? 3 : 1,
+                ),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Container(
+                        width: 18,
+                        height: 18,
+                        decoration: BoxDecoration(
+                          color: accent,
+                          shape: BoxShape.circle,
+                        ),
+                      ),
+                      const Spacer(),
+                      if (active)
+                        Icon(Icons.check_circle_rounded, size: 18, color: accent),
+                    ],
+                  ),
+                  const Spacer(),
+                  Text(
+                    'Aa',
+                    style: TextStyle(
+                      fontFamily: NotoAppearance.fonts[preset.font].family,
+                      fontSize: 26,
+                      fontWeight: FontWeight.w700,
+                      color: fg,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    preset.name,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.w800,
+                      color: fg.withValues(alpha: .8),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  Future<void> _editUserName(BuildContext context) async {
+    final controller = TextEditingController(text: store.userName);
+    final value = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Como quer ser chamado?'),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          maxLength: 20,
+          textCapitalization: TextCapitalization.words,
+          decoration: const InputDecoration(
+            hintText: 'Seu nome ou apelido',
+            helperText: 'Aparece na saudação da tela inicial',
+          ),
+          onSubmitted: (text) => Navigator.pop(dialogContext, text),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('Cancelar'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, controller.text),
+            child: const Text('Salvar'),
+          ),
+        ],
+      ),
+    );
+    await Future<void>.delayed(const Duration(milliseconds: 300));
+    controller.dispose();
+    if (value == null) return;
+    store.userName = value.trim();
+    await store.save();
+  }
+
   Future<void> _editHomeTitle(BuildContext context) async {
     final controller = TextEditingController(text: store.homeTitle);
     final value = await showDialog<String>(
@@ -469,6 +603,9 @@ class SettingsPage extends StatelessWidget {
   List<Widget> _appearanceItems(BuildContext context) {
     final hasWallpaper = store.customWallpaper != null || store.wallpaper > 0;
     return [
+      const SectionTitle('Temas prontos'),
+      _presetRow(context),
+      const SizedBox(height: 24),
       const SectionTitle('Tema e cores'),
       NotoTile(
         icon: Icons.brightness_6_outlined,
@@ -562,6 +699,14 @@ class SettingsPage extends StatelessWidget {
   List<Widget> _homeItems(BuildContext context) {
     return [
       const SectionTitle('Tela inicial'),
+      NotoTile(
+        icon: Icons.waving_hand_outlined,
+        title: 'Seu nome na saudação',
+        subtitle: store.userName.trim().isEmpty
+            ? 'Toque para o Noto te cumprimentar pelo nome'
+            : store.userName.trim(),
+        onTap: () => _editUserName(context),
+      ),
       NotoTile(
         icon: Icons.badge_outlined,
         title: 'Nome no topo da tela inicial',

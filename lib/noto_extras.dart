@@ -168,3 +168,154 @@ Future<void> shareNoteAsImage(
     ),
   );
 }
+
+const _emojiChoices = [
+  '📁', '⭐', '❤️', '🏠', '💼', '📚', '🎓', '✏️', '🛒', '🍳',
+  '💰', '💡', '🎯', '✅', '📅', '⏰', '🏋️', '🧘', '💊', '🩺',
+  '✈️', '🚗', '🎮', '🎵', '🎬', '📷', '🎨', '🐶', '🐱', '🌱',
+  '☕', '🍕', '🎁', '🎉', '🔒', '🔧', '💻', '📱', '🌙', '🔥',
+];
+
+/// Escolhe um emoji (para pastas). Devolve '' para tirar o emoji
+/// e null se cancelar.
+Future<String?> pickEmoji(
+  BuildContext context, {
+  required String title,
+  String? current,
+}) {
+  final typed = TextEditingController();
+  return showModalBottomSheet<String>(
+    context: context,
+    useSafeArea: true,
+    isScrollControlled: true,
+    showDragHandle: true,
+    builder: (ctx) {
+      final cs = Theme.of(ctx).colorScheme;
+      return SingleChildScrollView(
+        padding: EdgeInsets.fromLTRB(
+          16,
+          0,
+          16,
+          MediaQuery.viewInsetsOf(ctx).bottom +
+              MediaQuery.viewPaddingOf(ctx).bottom +
+              16,
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              title,
+              style: Theme.of(ctx).textTheme.titleLarge?.copyWith(
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+            const SizedBox(height: 12),
+            GridView.count(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              crossAxisCount: 8,
+              mainAxisSpacing: 6,
+              crossAxisSpacing: 6,
+              children: [
+                for (final emoji in _emojiChoices)
+                  Material(
+                    color: emoji == current
+                        ? cs.primaryContainer
+                        : cs.surfaceContainerHighest,
+                    borderRadius: BorderRadius.circular(12),
+                    child: InkWell(
+                      borderRadius: BorderRadius.circular(12),
+                      onTap: () => Navigator.pop(ctx, emoji),
+                      child: Center(
+                        child: Text(emoji, style: const TextStyle(fontSize: 20)),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: typed,
+              maxLength: 4,
+              decoration: const InputDecoration(
+                hintText: 'Ou digite qualquer emoji',
+                counterText: '',
+              ),
+              onSubmitted: (value) {
+                if (value.trim().isNotEmpty) Navigator.pop(ctx, value.trim());
+              },
+            ),
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                if (current != null && current.isNotEmpty)
+                  TextButton.icon(
+                    onPressed: () => Navigator.pop(ctx, ''),
+                    icon: const Icon(Icons.block_rounded),
+                    label: const Text('Tirar emoji'),
+                  ),
+                const Spacer(),
+                FilledButton(
+                  onPressed: () {
+                    final value = typed.text.trim();
+                    Navigator.pop(ctx, value.isEmpty ? null : value);
+                  },
+                  child: const Text('Usar'),
+                ),
+              ],
+            ),
+          ],
+        ),
+      );
+    },
+  ).whenComplete(() => Future<void>.delayed(
+        const Duration(milliseconds: 400),
+        typed.dispose,
+      ));
+}
+
+/// Tema pronto: muda várias opções de aparência de uma vez.
+class NotoPreset {
+  const NotoPreset({
+    required this.name,
+    required this.mode,
+    required this.accent,
+    required this.font,
+    this.pureBlack = false,
+    this.cardRadius = 16,
+  });
+
+  final String name;
+  final ThemeMode mode;
+  final int accent;
+  final int font;
+  final bool pureBlack;
+  final int cardRadius;
+}
+
+const notoPresets = <NotoPreset>[
+  NotoPreset(name: 'Noto', mode: ThemeMode.system, accent: 0, font: 0),
+  NotoPreset(
+    name: 'Meia-noite',
+    mode: ThemeMode.dark,
+    accent: 17,
+    font: 20,
+    pureBlack: true,
+    cardRadius: 10,
+  ),
+  NotoPreset(name: 'Papel', mode: ThemeMode.light, accent: 9, font: 13, cardRadius: 4),
+  NotoPreset(name: 'Oceano', mode: ThemeMode.light, accent: 2, font: 14, cardRadius: 26),
+  NotoPreset(name: 'Floresta', mode: ThemeMode.dark, accent: 5, font: 35),
+  NotoPreset(name: 'Chiclete', mode: ThemeMode.light, accent: 14, font: 25, cardRadius: 26),
+  NotoPreset(name: 'Pôr do sol', mode: ThemeMode.dark, accent: 11, font: 29),
+  NotoPreset(name: 'Código', mode: ThemeMode.dark, accent: 6, font: 22, pureBlack: true, cardRadius: 4),
+];
+
+/// "Bom dia", "Boa tarde" ou "Boa noite" pela hora certa do celular.
+String greetingFor(DateTime now) {
+  final hour = now.hour;
+  if (hour >= 5 && hour < 12) return 'Bom dia';
+  if (hour >= 12 && hour < 18) return 'Boa tarde';
+  return 'Boa noite';
+}

@@ -11,6 +11,7 @@ import 'package:intl/intl.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'noto_editor.dart';
+import 'noto_extras.dart';
 import 'noto_features.dart';
 import 'noto_models.dart';
 import 'noto_power_tools.dart';
@@ -1198,6 +1199,8 @@ class _HomeShellState extends State<HomeShell> {
       ..clear()
       ..addAll(renamed);
     if (folder != null) folder = swap(folder!);
+    final emoji = widget.store.folderEmojis.remove(old);
+    if (emoji != null) widget.store.folderEmojis[clean] = emoji;
     await _saveCollections();
     await widget.store.save();
     if (mounted) setState(() {});
@@ -1338,34 +1341,51 @@ class _HomeShellState extends State<HomeShell> {
                 ),
               for (final item in items)
                 ListTile(
-                  leading: Icon(
-                    folders ? Icons.folder_outlined : Icons.label_outline_rounded,
-                  ),
+                  leading: folders &&
+                          (widget.store.folderEmojis[item] ?? '').isNotEmpty
+                      ? SizedBox(
+                          width: 24,
+                          child: Text(
+                            widget.store.folderEmojis[item]!,
+                            textAlign: TextAlign.center,
+                            style: const TextStyle(fontSize: 20),
+                          ),
+                        )
+                      : Icon(
+                          folders
+                              ? Icons.folder_outlined
+                              : Icons.label_outline_rounded,
+                        ),
                   title: Text(folders ? item : '#$item'),
                   subtitle: Text(
                     count(item) == 1 ? '1 nota' : '${count(item)} notas',
                   ),
                   onTap: () => Navigator.pop(sheetContext, 'open:$item'),
-                  trailing: folders && item == 'Geral'
-                      ? null
-                      : PopupMenuButton<String>(
+                  trailing: PopupMenuButton<String>(
                           tooltip: 'Opções',
                           onSelected: (value) =>
                               Navigator.pop(sheetContext, '$value:$item'),
                           itemBuilder: (_) => [
-                            const PopupMenuItem(
-                              value: 'rename',
-                              child: Text('Renomear'),
-                            ),
+                            if (folders)
+                              const PopupMenuItem(
+                                value: 'emoji',
+                                child: Text('Escolher emoji'),
+                              ),
+                            if (!(folders && item == 'Geral'))
+                              const PopupMenuItem(
+                                value: 'rename',
+                                child: Text('Renomear'),
+                              ),
                             if (folders)
                               const PopupMenuItem(
                                 value: 'export',
                                 child: Text('Exportar a pasta'),
                               ),
-                            const PopupMenuItem(
-                              value: 'delete',
-                              child: Text('Apagar'),
-                            ),
+                            if (!(folders && item == 'Geral'))
+                              const PopupMenuItem(
+                                value: 'delete',
+                                child: Text('Apagar'),
+                              ),
                           ],
                         ),
                 ),
@@ -1388,6 +1408,21 @@ class _HomeShellState extends State<HomeShell> {
         folder = folders ? item : null;
         tag = folders ? null : item;
       });
+    } else if (kind == 'emoji') {
+      final emoji = await pickEmoji(
+        context,
+        title: 'Emoji da pasta $item',
+        current: widget.store.folderEmojis[item],
+      );
+      if (emoji == null || !mounted) return;
+      setState(() {
+        if (emoji.isEmpty) {
+          widget.store.folderEmojis.remove(item);
+        } else {
+          widget.store.folderEmojis[item] = emoji;
+        }
+      });
+      await widget.store.save();
     } else if (kind == 'rename') {
       await (folders ? _renameFolder(item) : _renameTag(item));
     } else if (kind == 'export') {
@@ -1871,6 +1906,7 @@ class _HomeShellState extends State<HomeShell> {
         showDate: widget.store.cardShowDate,
         showTags: widget.store.cardShowTags,
         highlight: foldForSearch(query.trim()),
+        folderLabel: widget.store.folderLabel(note.folder),
       ),
     );
   }
@@ -2033,7 +2069,7 @@ class _HomeShellState extends State<HomeShell> {
                   avatar: widget.store.pinnedFolders.contains(item)
                       ? const Icon(Icons.push_pin, size: 14)
                       : null,
-                  label: Text('$item  ${_active.where((n) => _inFolder(n.folder, item)).length}'),
+                  label: Text('${widget.store.folderLabel(item)}  ${_active.where((n) => _inFolder(n.folder, item)).length}'),
                   selected: folder == item,
                   onSelected: (_) => setState(
                     () => folder = folder == item ? null : item,
@@ -2206,6 +2242,10 @@ class _HomeShellState extends State<HomeShell> {
                   query.isEmpty &&
                   widget.store.recentSearches.isNotEmpty)
                 _recentSearches(),
+              if (widget.store.userName.trim().isNotEmpty &&
+                  !searching &&
+                  selectedIds.isEmpty)
+                _Greeting(name: widget.store.userName.trim()),
               if (widget.store.homeShowToday)
                 _TodayLine(snapshot: snapshot, onTasks: _openTasks),
               if (widget.store.showFolderChips &&
@@ -2356,6 +2396,44 @@ class _HomeShellState extends State<HomeShell> {
       );
     },
   );
+}
+
+/// "Boa noite, Ana" no topo da tela inicial, com a data de hoje.
+class _Greeting extends StatelessWidget {
+  const _Greeting({required this.name});
+
+  final String name;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final now = DateTime.now();
+    final date = DateFormat("EEEE, d 'de' MMMM", 'pt_BR').format(now);
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 2, 20, 10),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            '${greetingFor(now)}, $name',
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+              fontWeight: FontWeight.w900,
+              letterSpacing: -.5,
+            ),
+          ),
+          Text(
+            '${date[0].toUpperCase()}${date.substring(1)}',
+            style: TextStyle(
+              fontSize: 13,
+              color: cs.onSurface.withValues(alpha: .6),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 class _HubTile extends StatelessWidget {
@@ -2708,8 +2786,12 @@ class _NoteCard extends StatelessWidget {
     this.showDate = true,
     this.showTags = true,
     this.highlight = '',
+    this.folderLabel,
   });
   final VoidCallback? onLongPress;
+
+  /// Nome da pasta já com o emoji, se tiver.
+  final String? folderLabel;
   final bool selected;
   final double radius;
   final int previewLines;
@@ -3000,7 +3082,7 @@ class _NoteCard extends StatelessWidget {
                         const SizedBox(height: 4),
                         Text(
                           [
-                            if (showFolder) note.folder,
+                            if (showFolder) folderLabel ?? note.folder,
                             if (showTags && note.tags.isNotEmpty)
                               note.tags.take(2).map((t) => '#$t').join(' '),
                             if (showDate)
