@@ -2,6 +2,7 @@
 <appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
     android:description="@string/noto_summary_widget_description"
     android:initialLayout="@layout/noto_summary_widget"
+    android:previewLayout="@layout/noto_summary_widget"
     android:minWidth="110dp"
     android:minHeight="110dp"
     android:minResizeWidth="110dp"

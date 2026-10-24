@@ -43,6 +43,13 @@ O app funciona sem conta e sem internet. As notas e preferências ficam armazena
 - Apresentação inicial e tela Sobre
 - Salvamento local e funcionamento totalmente offline
 
+## Novidades da v3.3.0
+
+- Widgets refeitos: seguem a cor de destaque do app, cantos arredondados e textos que não se atropelam.
+- Widget "Resumo do dia" arrumado (lembrete numa linha só, botões menores).
+- Widget "Nota" agora cabe em 2x2.
+- 3 widgets 2x2 novos: **Hoje** (data grande e a nota do dia), **Tarefas** (as próximas que faltam) e **Atalhos** (nova nota, nova lista, ditar e buscar).
+
 ## Novidades da v3.2.0
 
 - Tela inicial mais bonita: cartão de saudação com avatar, frase ou data e o resumo do dia; atalhos de pasta em pílula com contagem; barra do topo transparente sobre o fundo; botão "Nova nota" com nome; card de nota vazia com aviso.

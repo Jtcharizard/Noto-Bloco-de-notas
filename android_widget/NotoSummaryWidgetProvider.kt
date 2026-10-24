@@ -18,9 +18,13 @@ class NotoSummaryWidgetProvider : HomeWidgetProvider() {
     ) {
         appWidgetIds.forEach { id ->
             val views = RemoteViews(context.packageName, R.layout.noto_summary_widget)
+            NotoWidgetStyle.background(views, widgetData, R.id.summary_bg)
+            NotoWidgetStyle.tag(views, widgetData, R.id.summary_tag)
+            NotoWidgetStyle.button(views, widgetData, R.id.summary_note_bg, R.id.summary_note_text)
+            NotoWidgetStyle.button(views, widgetData, R.id.summary_list_bg, R.id.summary_list_text, soft = true)
             views.setTextViewText(R.id.summary_count, widgetData.getString("summary_count", "0"))
             views.setTextViewText(R.id.summary_label, widgetData.getString("summary_label", "tarefas a fazer"))
-            views.setTextViewText(R.id.summary_next, widgetData.getString("summary_next", "Toque para abrir o Noto"))
+            views.setTextViewText(R.id.summary_next, widgetData.getString("summary_next", "Sem lembretes"))
             views.setOnClickPendingIntent(
                 R.id.summary_root,
                 HomeWidgetLaunchIntent.getActivity(context, MainActivity::class.java, Uri.parse("noto://tarefas")),

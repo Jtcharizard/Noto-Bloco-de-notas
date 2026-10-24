@@ -728,6 +728,20 @@ class _HomeShellState extends State<HomeShell> {
         _openTasks();
       case 'hoje':
         _openToday();
+      case 'ditar':
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => EditorPage(
+              store: widget.store,
+              note: _blankNote(),
+              isNew: true,
+              startDictation: true,
+            ),
+          ),
+        );
+      case 'buscar':
+        setState(() => searching = true);
     }
   }
 

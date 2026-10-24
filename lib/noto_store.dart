@@ -850,10 +850,77 @@ class AppStore extends ChangeNotifier {
       today.pendingTasks == 1 ? 'tarefa a fazer' : 'tarefas a fazer',
     );
     await HomeWidget.saveWidgetData<String>('summary_next', nextText);
-    await HomeWidget.updateWidget(
-      name: 'NotoSummaryWidgetProvider',
-      androidName: 'NotoSummaryWidgetProvider',
+
+    // Widget "Tarefas": as primeiras que faltam, das notas fixadas e com
+    // prazo mais perto primeiro.
+    final ordered = [...active]
+      ..sort((a, b) {
+        if (a.pinned != b.pinned) return a.pinned ? -1 : 1;
+        final ad = a.dueAt, bd = b.dueAt;
+        if (ad != null && bd != null) return ad.compareTo(bd);
+        if (ad != null) return -1;
+        if (bd != null) return 1;
+        return b.updatedAt.compareTo(a.updatedAt);
+      });
+    final pendingTasks = <String>[];
+    final taskLine = RegExp(r'^\s*(?:[-*]\s*)?\[ \]\s?(.+)$');
+    for (final note in ordered) {
+      for (final line in note.body.split('\n')) {
+        final m = taskLine.firstMatch(line);
+        if (m != null && m.group(1)!.trim().isNotEmpty) {
+          pendingTasks.add('○  ${m.group(1)!.trim()}');
+        }
+      }
+    }
+    await HomeWidget.saveWidgetData<String>(
+      'tasks_preview',
+      pendingTasks.isEmpty
+          ? 'Nada pendente.\nTudo feito! 🎉'
+          : pendingTasks.take(6).join('\n'),
     );
+    await HomeWidget.saveWidgetData<String>(
+      'tasks_count',
+      '${today.pendingTasks}',
+    );
+
+    // Widget "Hoje": avisa se a nota do dia já existe.
+    final todayKey = dayKey(DateTime.now());
+    await HomeWidget.saveWidgetData<String>(
+      'today_note_day',
+      notes.any((n) => n.deletedAt == null && n.editor['daily'] == todayKey)
+          ? todayKey
+          : '',
+    );
+
+    // Cores dos widgets seguem a cor de destaque do app.
+    final accentColor = NotoAppearance
+        .accents[accent.clamp(0, NotoAppearance.accents.length - 1).toInt()]
+        .color;
+    final widgetBg = Color.alphaBlend(
+      accentColor.withValues(alpha: .22),
+      const Color(0xFF141218),
+    ).withValues(alpha: .94);
+    String argb(Color c) => '${c.toARGB32()}';
+    await HomeWidget.saveWidgetData<String>('widget_bg', argb(widgetBg));
+    await HomeWidget.saveWidgetData<String>('widget_accent', argb(accentColor));
+    await HomeWidget.saveWidgetData<String>(
+      'widget_accent_soft',
+      argb(Color.lerp(accentColor, Colors.white, .45)!),
+    );
+    await HomeWidget.saveWidgetData<String>(
+      'widget_on_accent',
+      argb(accentColor.computeLuminance() > .5 ? Colors.black : Colors.white),
+    );
+
+    for (final name in const [
+      'NotoWidgetProvider',
+      'NotoSummaryWidgetProvider',
+      'NotoTodayWidgetProvider',
+      'NotoTasksWidgetProvider',
+      'NotoActionsWidgetProvider',
+    ]) {
+      await HomeWidget.updateWidget(name: name, androidName: name);
+    }
   }
 
   static int reminderId(Note note) => note.id.hashCode & 0x7fffffff;

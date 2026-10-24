@@ -127,7 +127,7 @@ if tap_text "Menu"; then
 fi
 
 # Os três widgets precisam estar registrados no Android.
-for widget in NotoWidgetProvider NotoQuickWidgetProvider NotoSummaryWidgetProvider; do
+for widget in NotoWidgetProvider NotoQuickWidgetProvider NotoSummaryWidgetProvider NotoTodayWidgetProvider NotoTasksWidgetProvider NotoActionsWidgetProvider; do
   if adb shell dumpsys appwidget | grep -q "$widget"; then
     echo "OK: widget $widget registrado"
   else

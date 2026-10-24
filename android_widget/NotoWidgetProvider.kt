@@ -12,6 +12,8 @@ class NotoWidgetProvider : HomeWidgetProvider() {
     override fun onUpdate(context: Context, appWidgetManager: AppWidgetManager, appWidgetIds: IntArray, widgetData: SharedPreferences) {
         appWidgetIds.forEach { id ->
             val views = RemoteViews(context.packageName, R.layout.noto_widget)
+            NotoWidgetStyle.background(views, widgetData, R.id.widget_bg)
+            NotoWidgetStyle.tag(views, widgetData, R.id.widget_tag)
             views.setTextViewText(R.id.widget_title, widgetData.getString("note_title", "Noto"))
             views.setTextViewText(R.id.widget_body, widgetData.getString("note_body", "Toque para abrir suas notas"))
             // Tocar no widget abre direto a nota mostrada nele.
