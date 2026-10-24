@@ -563,7 +563,7 @@ class _HomeShellState extends State<HomeShell> {
     savedFolders.add('Diário');
     await _saveCollections();
     if (!mounted) return;
-    final weekday = DateFormat('EEEE', 'pt_BR').format(now);
+    final weekday = longDatePt(now).split(',').first;
     final note = Note(
       id: now.microsecondsSinceEpoch.toString(),
       title: '${weekday[0].toUpperCase()}${weekday.substring(1)}, '
@@ -2442,7 +2442,7 @@ class _HomeHero extends StatelessWidget {
     final cs = Theme.of(context).colorScheme;
     final now = DateTime.now();
     final name = store.userName.trim();
-    final date = DateFormat("EEEE, d 'de' MMMM", 'pt_BR').format(now);
+    final date = longDatePt(now);
     final phrase = store.headerPhrase.trim();
     final subtitle = phrase.isNotEmpty
         ? phrase

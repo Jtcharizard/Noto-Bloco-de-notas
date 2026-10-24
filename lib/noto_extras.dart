@@ -327,3 +327,16 @@ String greetingFor(DateTime now) {
   if (hour >= 12 && hour < 18) return 'Boa tarde';
   return 'Boa noite';
 }
+
+const _weekdaysPt = [
+  'segunda-feira', 'terça-feira', 'quarta-feira', 'quinta-feira',
+  'sexta-feira', 'sábado', 'domingo',
+];
+const _monthsPt = [
+  'janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho', 'julho',
+  'agosto', 'setembro', 'outubro', 'novembro', 'dezembro',
+];
+
+/// "sábado, 24 de outubro", sem depender dos dados de idioma carregados.
+String longDatePt(DateTime day) =>
+    '${_weekdaysPt[day.weekday - 1]}, ${day.day} de ${_monthsPt[day.month - 1]}';
