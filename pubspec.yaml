@@ -1,15 +1,16 @@
 name: bloco_personalizavel
 description: Bloco de notas offline com temas e fontes personalizaveis.
 publish_to: none
-version: 1.5.0+7
+version: 3.3.0+26
 
 environment:
-  sdk: '>=3.3.0 <4.0.0'
+  sdk: '>=3.4.0 <4.0.0'
 
 dependencies:
   flutter:
     sdk: flutter
   shared_preferences: ^2.3.2
+  flutter_markdown_plus: ^1.0.12
   intl: ^0.19.0
   image_picker: ^1.1.2
   path_provider: ^2.1.5
@@ -18,18 +19,34 @@ dependencies:
   timezone: ^0.10.1
   home_widget: ^0.9.3
   file_picker: ^10.3.10
+  crypto: ^3.0.6
+  pdf: ^3.11.3
+  speech_to_text: ^7.0.0
+  url_launcher: ^6.3.1
+  quick_actions: ^1.1.0
+  markdown: ^7.2.2
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^4.0.0
   flutter_launcher_icons: ^0.14.4
+  path_provider_platform_interface: ^2.1.2
+  plugin_platform_interface: ^2.1.8
+
+# O pacote pdf ainda usa archive 3.x; versões novas do image exigem archive 4.
+dependency_overrides:
+  image: 4.3.0
+  # 2.5.0 passou a usar JNI e quebra no APK otimizado (o app travava ao abrir).
+  shared_preferences_android: 2.4.28
 
 flutter:
   uses-material-design: true
   assets:
     - assets/wallpapers/
     - assets/app_icon.png
+    - assets/noto_mark.png
+    - assets/onboarding/
   fonts:
     - family: Poppins
       fonts:
@@ -127,8 +144,39 @@ flutter:
       fonts:
         - asset: assets/fonts/LibreBaskerville-Regular.ttf
 
+    - family: RobotoSlab
+      fonts:
+        - asset: assets/fonts/RobotoSlab.ttf
+    - family: Merriweather
+      fonts:
+        - asset: assets/fonts/Merriweather.ttf
+    - family: Ubuntu
+      fonts:
+        - asset: assets/fonts/Ubuntu.ttf
+    - family: PTSans
+      fonts:
+        - asset: assets/fonts/PTSans.ttf
+    - family: Inconsolata
+      fonts:
+        - asset: assets/fonts/Inconsolata.ttf
+    - family: Dosis
+      fonts:
+        - asset: assets/fonts/Dosis.ttf
+    - family: Anton
+      fonts:
+        - asset: assets/fonts/Anton.ttf
+    - family: ShadowsIntoLight
+      fonts:
+        - asset: assets/fonts/ShadowsIntoLight.ttf
+    - family: AmaticSC
+      fonts:
+        - asset: assets/fonts/AmaticSC.ttf
+    - family: IndieFlower
+      fonts:
+        - asset: assets/fonts/IndieFlower.ttf
+
 flutter_launcher_icons:
   android: true
   image_path: assets/app_icon.png
-  adaptive_icon_background: "#381074"
+  adaptive_icon_background: "#9B93FF"
   adaptive_icon_foreground: assets/app_icon.png

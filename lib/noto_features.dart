@@ -5,83 +5,133 @@ class NoteRevision {
     required this.title,
     required this.body,
     required this.savedAt,
+    this.editor = const {},
   });
 
   final String title;
   final String body;
   final DateTime savedAt;
+  final Map<String, dynamic> editor;
 
   Map<String, dynamic> toJson() => {
-        'title': title,
-        'body': body,
-        'savedAt': savedAt.toIso8601String(),
-      };
+    'title': title,
+    'body': body,
+    'savedAt': savedAt.toIso8601String(),
+    'editor': editor,
+  };
 
   factory NoteRevision.fromJson(Map<String, dynamic> json) => NoteRevision(
-        title: json['title']?.toString() ?? '',
-        body: json['body']?.toString() ?? '',
-        savedAt: DateTime.tryParse(json['savedAt']?.toString() ?? '') ?? DateTime.now(),
-      );
-}
-
-enum PulseKind { checklist, stale, folder, links, momentum, reminder }
-
-class PulseInsight {
-  const PulseInsight({
-    required this.kind,
-    required this.title,
-    required this.detail,
-  });
-
-  final PulseKind kind;
-  final String title;
-  final String detail;
+    title: json['title']?.toString() ?? '',
+    body: json['body']?.toString() ?? '',
+    editor: Map<String, dynamic>.from(json['editor'] ?? const {}),
+    savedAt:
+        DateTime.tryParse(json['savedAt']?.toString() ?? '') ?? DateTime.now(),
+  );
 }
 
 class TodaySnapshot {
   const TodaySnapshot({
     required this.touched,
     required this.remindersToday,
-    required this.overdueReminders,
     required this.pendingTasks,
   });
 
   final int touched;
   final int remindersToday;
-  final int overdueReminders;
   final int pendingTasks;
 }
 
 bool _sameDay(DateTime a, DateTime b) =>
     a.year == b.year && a.month == b.month && a.day == b.day;
 
+/// Linha de tarefa nos dois formatos que o Noto já salvou: `[ ] item` e `- [ ] item`.
+final RegExp _taskLine = RegExp(r'^\s*(?:[-*]\s*)?\[([ xX])\]\s?(.*)$');
+
+bool hasTaskLines(String body) =>
+    body.split('\n').any((line) => _taskLine.hasMatch(line));
+
+int countPendingTasks(String body) => body
+    .split('\n')
+    .where((line) => _taskLine.firstMatch(line)?.group(1) == ' ')
+    .length;
+
+int countDoneTasks(String body) => body
+    .split('\n')
+    .where((line) {
+      final mark = _taskLine.firstMatch(line)?.group(1);
+      return mark == 'x' || mark == 'X';
+    })
+    .length;
+
+/// Texto corrido para cards, widget e notificações: troca marcações por símbolos.
+String readablePreview(String body) => body
+    .split('\n')
+    .map((line) {
+      final task = _taskLine.firstMatch(line);
+      if (task != null) {
+        final done = task.group(1)!.toLowerCase() == 'x';
+        return '${done ? '☑' : '☐'} ${task.group(2) ?? ''}'.trim();
+      }
+      return line
+          .replaceFirst(RegExp(r'^\s*#{1,6}\s+'), '')
+          .replaceFirst(RegExp(r'^\s*>\s?'), '')
+          .replaceFirst(RegExp(r'^\s*[-*]\s+'), '• ');
+    })
+    .join('\n')
+    .replaceAll('**', '')
+    .trim();
+
+/// Se o lembrete toca nesse dia (respeitando a repetição).
+bool reminderOccursOn(Note note, DateTime day) {
+  final at = note.reminderAt;
+  if (at == null) return false;
+  final date = DateTime(day.year, day.month, day.day);
+  final start = DateTime(at.year, at.month, at.day);
+  if (date.isBefore(start)) return false;
+  return switch (note.reminderRepeat) {
+    1 => true,
+    2 => day.weekday <= DateTime.friday,
+    3 => day.weekday == at.weekday,
+    // Todo mês: no mesmo dia; em meses mais curtos, no último dia do mês.
+    4 => day.day ==
+        (at.day <= DateTime(day.year, day.month + 1, 0).day
+            ? at.day
+            : DateTime(day.year, day.month + 1, 0).day),
+    _ => date == start,
+  };
+}
+
+/// Título para mostrar: o próprio título ou, se estiver vazio,
+/// a primeira linha do texto (como fazem outros apps de notas).
+String displayTitle(Note note) {
+  final title = note.title.trim();
+  if (title.isNotEmpty) return title;
+  for (final line in readablePreview(note.body).split('\n')) {
+    final clean = line.replaceFirst(RegExp(r'^[☐☑•]\s*'), '').trim();
+    if (clean.isEmpty) continue;
+    return clean.length <= 60 ? clean : '${clean.substring(0, 57)}…';
+  }
+  return 'Sem título';
+}
+
 TodaySnapshot buildTodaySnapshot(List<Note> allNotes, {DateTime? now}) {
   final today = now ?? DateTime.now();
-  final notes = allNotes.where((n) => n.deletedAt == null && !n.archived).toList();
+  final notes = allNotes
+      .where((n) => n.deletedAt == null && !n.archived && !n.locked)
+      .toList();
   var touched = 0;
   var remindersToday = 0;
-  var overdueReminders = 0;
   var pendingTasks = 0;
 
   for (final note in notes) {
     if (_sameDay(note.updatedAt, today)) touched++;
-    final reminder = note.reminderAt;
-    if (reminder != null) {
-      if (_sameDay(reminder, today)) remindersToday++;
-      if (reminder.isBefore(today) && !_sameDay(reminder, today)) overdueReminders++;
-    }
-    if (note.checklist) {
-      pendingTasks += note.body
-          .split('\n')
-          .where((line) => line.trim().startsWith('[ ]'))
-          .length;
-    }
+    if (reminderOccursOn(note, today)) remindersToday++;
+    pendingTasks += countPendingTasks(note.body);
   }
 
   return TodaySnapshot(
     touched: touched,
     remindersToday: remindersToday,
-    overdueReminders: overdueReminders,
     pendingTasks: pendingTasks,
   );
 }
@@ -115,103 +165,11 @@ List<Note> backlinksFor(Note target, List<Note> notes) {
   final result = <Note>[];
   for (final note in notes) {
     if (identical(note, target) || note.deletedAt != null) continue;
-    if (extractWikiLinks(note.body).any((link) => link.toLowerCase() == wanted)) {
+    if (extractWikiLinks(note.body)
+        .any((link) => link.toLowerCase() == wanted)) {
       result.add(note);
     }
   }
   result.sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
   return result;
-}
-
-List<PulseInsight> buildPulseInsights(List<Note> allNotes, {DateTime? now}) {
-  final today = now ?? DateTime.now();
-  final notes = allNotes.where((n) => n.deletedAt == null && !n.archived).toList();
-  if (notes.isEmpty) {
-    return const [
-      PulseInsight(
-        kind: PulseKind.momentum,
-        title: 'O Pulse acorda contigo',
-        detail: 'Cria algumas notas e eu começo a apontar padrões úteis por aqui.',
-      ),
-    ];
-  }
-
-  final insights = <PulseInsight>[];
-  final snapshot = buildTodaySnapshot(notes, now: today);
-
-  if (snapshot.overdueReminders > 0) {
-    insights.add(PulseInsight(
-      kind: PulseKind.reminder,
-      title: '${snapshot.overdueReminders} ${snapshot.overdueReminders == 1 ? 'lembrete atrasado' : 'lembretes atrasados'}',
-      detail: 'Tem coisa marcada que já passou da hora. Vale revisar antes de esquecer de vez.',
-    ));
-  }
-
-  var unfinishedLists = 0;
-  var pendingItems = 0;
-  for (final note in notes.where((n) => n.checklist)) {
-    final lines = note.body.split('\n').map((e) => e.trim());
-    final pending = lines.where((line) => line.startsWith('[ ]')).length;
-    if (pending > 0) {
-      unfinishedLists++;
-      pendingItems += pending;
-    }
-  }
-  if (unfinishedLists > 0) {
-    insights.add(PulseInsight(
-      kind: PulseKind.checklist,
-      title: '$pendingItems ${pendingItems == 1 ? 'tarefa pendente' : 'tarefas pendentes'}',
-      detail: 'Espalhadas em $unfinishedLists ${unfinishedLists == 1 ? 'checklist' : 'checklists'}.',
-    ));
-  }
-
-  final stale = notes.where((note) => today.difference(note.updatedAt).inDays >= 45).length;
-  if (stale > 0) {
-    insights.add(PulseInsight(
-      kind: PulseKind.stale,
-      title: '$stale ${stale == 1 ? 'nota esquecida' : 'notas esquecidas'}',
-      detail: 'Sem edição há pelo menos 45 dias. Talvez seja hora de arquivar ou revisitar.',
-    ));
-  }
-
-  final folderCounts = <String, int>{};
-  for (final note in notes) {
-    final value = note.folder.trim().isEmpty ? 'Geral' : note.folder.trim();
-    folderCounts[value] = (folderCounts[value] ?? 0) + 1;
-  }
-  final folders = folderCounts.entries.toList()..sort((a, b) => b.value.compareTo(a.value));
-  if (folders.isNotEmpty && folders.first.value >= 2) {
-    insights.add(PulseInsight(
-      kind: PulseKind.folder,
-      title: '${folders.first.key} domina teu Noto',
-      detail: '${folders.first.value} notas estão nessa pasta${folders.first.key.contains('/') ? ' ou subpasta' : ''}.',
-    ));
-  }
-
-  final linked = notes.where((note) => extractWikiLinks(note.body).isNotEmpty).length;
-  if (linked > 0) {
-    insights.add(PulseInsight(
-      kind: PulseKind.links,
-      title: '$linked ${linked == 1 ? 'nota conectada' : 'notas conectadas'}',
-      detail: 'Tu já está criando uma rede com links no formato [[Nome da nota]].',
-    ));
-  }
-
-  final recent = notes.where((note) => today.difference(note.updatedAt).inDays < 7).length;
-  if (recent >= 3) {
-    insights.add(PulseInsight(
-      kind: PulseKind.momentum,
-      title: 'Semana movimentada',
-      detail: '$recent notas receberam atenção nos últimos 7 dias.',
-    ));
-  }
-
-  if (insights.isEmpty) {
-    insights.add(PulseInsight(
-      kind: PulseKind.momentum,
-      title: 'Tudo sob controle',
-      detail: '${notes.length} ${notes.length == 1 ? 'nota ativa' : 'notas ativas'} e nenhum padrão chato forte por enquanto.',
-    ));
-  }
-  return insights.take(4).toList();
 }

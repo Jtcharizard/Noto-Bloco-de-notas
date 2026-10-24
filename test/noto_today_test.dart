@@ -9,7 +9,7 @@ void main() {
       Note(
         id: '1',
         title: 'Hoje',
-        body: '[ ] A\n[x] B\n[ ] C',
+        body: '- [ ] A\n- [x] B\n[ ] C',
         updatedAt: DateTime(2026, 9, 5, 12),
         checklist: true,
         reminderAt: DateTime(2026, 9, 5, 21),
@@ -35,6 +35,5 @@ void main() {
     expect(snapshot.touched, 1);
     expect(snapshot.pendingTasks, 2);
     expect(snapshot.remindersToday, 1);
-    expect(snapshot.overdueReminders, 1);
   });
 }
