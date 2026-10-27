@@ -927,7 +927,6 @@ Future<void> importTextFiles(BuildContext context, AppStore store) async {
         content: Text(
           count == 0
               ? 'Não consegui ler esses arquivos.'
-              : count == 1
               : keep == count
               ? (count == 1
                     ? '1 nota do Google Keep importada'
