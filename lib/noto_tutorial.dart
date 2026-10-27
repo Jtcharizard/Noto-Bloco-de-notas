@@ -31,7 +31,7 @@ const _steps = <_TutorialStep>[
       (Icons.keyboard_return_rounded, 'Enter cria a próxima tarefa e continua listas como "1-" ou "-".'),
       (Icons.space_bar_rounded, 'A barra embaixo da nota tem desfazer, negrito, lista, voz e inserir.'),
       (Icons.keyboard_command_key_rounded, 'Digite / numa linha vazia para pôr título, lista, tabela e mais.'),
-      (Icons.format_indent_increase_rounded, 'Nas listas, o ⋮ da tarefa cria subtarefas. Deslize para apagar.'),
+      (Icons.format_indent_increase_rounded, 'Nas listas, o ⋮ da tarefa cria subtarefas. O X ou deslizar apaga.'),
     ],
   ),
   _TutorialStep(

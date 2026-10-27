@@ -168,4 +168,23 @@ void main() {
       expect(template.emoji, isNotEmpty);
     }
   });
+
+  testWidgets('tarefa marcada tem X para apagar', (tester) async {
+    bigScreen(tester);
+    final controller = TextEditingController(
+      text: '- [x] Pão\n- [ ] Leite',
+    );
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: MixedContentEditor(controller: controller, onChanged: () {}),
+        ),
+      ),
+    );
+    expect(find.byTooltip('Apagar tarefa'), findsOneWidget);
+    await tester.tap(find.byTooltip('Apagar tarefa'));
+    await tester.pump();
+    expect(controller.text, '- [ ] Leite');
+    await tester.pumpWidget(const SizedBox());
+  });
 }

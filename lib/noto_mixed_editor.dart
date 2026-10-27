@@ -222,6 +222,20 @@ class _MixedContentEditorState extends State<MixedContentEditor> {
     }
   }
 
+  /// Apaga a linha. Se for a única, só esvazia (a nota não fica sem linha).
+  void _deleteLine(_MixedLine line) {
+    if (lines.length > 1) {
+      _removeLine(line);
+      return;
+    }
+    setState(() {
+      line.checked = false;
+      line.indent = 0;
+    });
+    line.controller.text = '';
+    _sync();
+  }
+
   /// Apaga a linha e oferece "Desfazer" por alguns segundos.
   void _removeLine(_MixedLine line) {
     if (lines.length <= 1) return;
@@ -383,6 +397,20 @@ class _MixedContentEditorState extends State<MixedContentEditor> {
                     onChanged: (value) => _lineChanged(line, value),
                   ),
                 ),
+                // X para apagar a tarefa: aparece na que está sendo
+                // editada e nas já marcadas (como no Keep).
+                ListenableBuilder(
+                  listenable: line.focus,
+                  builder: (_, __) => line.task &&
+                          (line.focus.hasFocus || line.checked)
+                      ? IconButton(
+                          tooltip: 'Apagar tarefa',
+                          visualDensity: VisualDensity.compact,
+                          icon: const Icon(Icons.close_rounded, size: 20),
+                          onPressed: () => _deleteLine(line),
+                        )
+                      : const SizedBox.shrink(),
+                ),
                 PopupMenuButton<String>(
                   tooltip: 'Opções da linha',
                   icon: const Icon(Icons.more_vert_rounded, size: 20),
@@ -400,7 +428,7 @@ class _MixedContentEditorState extends State<MixedContentEditor> {
                       setState(() => line.indent += value == 'indent' ? 1 : -1);
                       _sync();
                     } else if (value == 'remove') {
-                      _removeLine(line);
+                      _deleteLine(line);
                     }
                   },
                   itemBuilder: (_) => [
@@ -435,14 +463,13 @@ class _MixedContentEditorState extends State<MixedContentEditor> {
                         ),
                       ),
                     ),
-                    if (lines.length > 1)
-                      const PopupMenuItem(
-                        value: 'remove',
-                        child: ListTile(
-                          leading: Icon(Icons.delete_outline_rounded),
-                          title: Text('Apagar linha'),
-                        ),
+                    PopupMenuItem(
+                      value: 'remove',
+                      child: ListTile(
+                        leading: const Icon(Icons.delete_outline_rounded),
+                        title: Text(line.task ? 'Apagar tarefa' : 'Apagar linha'),
                       ),
+                    ),
                   ],
                 ),
                 ReorderableDragStartListener(

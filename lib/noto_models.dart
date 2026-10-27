@@ -360,6 +360,16 @@ class NotoAppearance {
     'assets/wallpapers/black_hole.png',
     'assets/wallpapers/neon_city.png',
     'assets/wallpapers/celestial_dragon.png',
+    'assets/wallpapers/por_do_sol.jpg',
+    'assets/wallpapers/synthwave.jpg',
+    'assets/wallpapers/noite_na_serra.jpg',
+    'assets/wallpapers/ondas.jpg',
+    'assets/wallpapers/bokeh.jpg',
+    'assets/wallpapers/dunas.jpg',
+    'assets/wallpapers/low_poly.jpg',
+    'assets/wallpapers/via_lactea.jpg',
+    'assets/wallpapers/fundo_do_mar.jpg',
+    'assets/wallpapers/algodao_doce.jpg',
   ];
 
   static const wallpaperNames = <String>[
@@ -384,6 +394,16 @@ class NotoAppearance {
     'Buraco negro',
     'Cidade neon',
     'Dragão celestial',
+    'Pôr do sol',
+    'Synthwave',
+    'Noite na serra',
+    'Ondas',
+    'Luzes',
+    'Dunas',
+    'Mosaico',
+    'Via Láctea',
+    'Fundo do mar',
+    'Algodão-doce',
   ];
 
   static int safeFontIndex(int index) =>
