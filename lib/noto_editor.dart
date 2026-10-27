@@ -184,10 +184,9 @@ class _EditorPageState extends State<EditorPage>
     if (!widget.store.takeTip('tasks-enter')) return;
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
-        duration: Duration(seconds: 6),
+        duration: Duration(seconds: 4),
         content: Text(
-          'Dica: Enter cria a próxima tarefa. Enter numa tarefa vazia volta '
-          'para texto. Tarefas marcadas descem para o fim.',
+          'Dica: Enter cria a próxima tarefa. Deslize uma tarefa para apagar.',
         ),
       ),
     );
@@ -1563,6 +1562,7 @@ class _EditorPageState extends State<EditorPage>
               const _MenuAction('uncheck-all', Icons.restart_alt_rounded, 'Desmarcar todas'),
               const _MenuAction('remove-done', Icons.playlist_remove_rounded, 'Apagar feitas'),
               const _MenuAction('sort-tasks', Icons.sort_by_alpha_rounded, 'Ordenar A-Z'),
+              const _MenuAction('fresh-copy', Icons.copy_all_outlined, 'Cópia desmarcada'),
               const _MenuAction(
                 'delete-list',
                 Icons.delete_sweep_outlined,
@@ -1706,6 +1706,32 @@ class _EditorPageState extends State<EditorPage>
         await _addManyTasks();
       case 'sort-tasks':
         _sortLines(tasksOnly: true);
+      case 'fresh-copy':
+        // Lista para usar de novo (compras da semana que vem, por exemplo).
+        final persisted = await _saveDraft();
+        if (!persisted || !mounted) return;
+        final copy = widget.store.duplicate(widget.note);
+        copy.body = uncheckAllTasks(copy.body);
+        await widget.store.save();
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text('Cópia criada com tudo desmarcado'),
+            action: SnackBarAction(
+              label: 'Abrir',
+              onPressed: () {
+                if (!mounted) return;
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) =>
+                        EditorPage(store: widget.store, note: copy, isNew: false),
+                  ),
+                );
+              },
+            ),
+          ),
+        );
       case 'delete-list':
         _deleteTaskList();
       case 'sections':

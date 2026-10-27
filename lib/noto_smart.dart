@@ -307,3 +307,15 @@ Note? noteFromKeepJson(
     font: font,
   );
 }
+
+/// Data curta para os cards: "14:30" hoje, "ontem", "27/10" ou "27/10/25".
+String shortWhen(DateTime when, DateTime now) {
+  String two(int v) => v.toString().padLeft(2, '0');
+  final a = DateTime.utc(when.year, when.month, when.day);
+  final b = DateTime.utc(now.year, now.month, now.day);
+  final days = b.difference(a).inDays;
+  if (days == 0) return '${two(when.hour)}:${two(when.minute)}';
+  if (days == 1) return 'ontem';
+  if (when.year == now.year) return '${two(when.day)}/${two(when.month)}';
+  return '${two(when.day)}/${two(when.month)}/${two(when.year % 100)}';
+}

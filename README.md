@@ -58,6 +58,8 @@ Refino geral, com ideias dos blocos de notas mais usados:
 - **Notas curtas com letra maior** nos cards (Keep).
 - **Nota que ficou vazia** vai para a lixeira ao sair, com Desfazer (Keep).
 - Abertura das notas com animação suave.
+- **Cópia desmarcada** da lista, para usar de novo (Tarefas no ⋮).
+- Cards de lista mostram um item por linha, e a data fica "14:30" para hoje e "ontem".
 
 ## Novidades da v3.3.0
 

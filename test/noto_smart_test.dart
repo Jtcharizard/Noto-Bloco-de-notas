@@ -102,4 +102,11 @@ void main() {
     );
     expect(removeTaskLines('- [ ] só tarefa'), '');
   });
+
+  test('data curta dos cards', () {
+    expect(shortWhen(DateTime(2026, 10, 21, 9, 5), now), '09:05');
+    expect(shortWhen(DateTime(2026, 10, 20, 23), now), 'ontem');
+    expect(shortWhen(DateTime(2026, 3, 2), now), '02/03');
+    expect(shortWhen(DateTime(2025, 12, 31), now), '31/12/25');
+  });
 }

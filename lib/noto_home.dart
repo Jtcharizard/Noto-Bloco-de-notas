@@ -3293,7 +3293,8 @@ class _NoteCard extends StatelessWidget {
     if (note.title.trim().isEmpty && bodyLines.isNotEmpty) {
       bodyLines = bodyLines.skip(1).toList();
     }
-    final preview = bodyLines.join('  ');
+    // Listas: um item por linha no card (como no Keep).
+    final preview = bodyLines.join(hasTaskLines(note.body) ? '\n' : '  ');
     final pending = countPendingTasks(note.body);
     final done = countDoneTasks(note.body);
     final total = pending + done;
@@ -3536,7 +3537,7 @@ class _NoteCard extends StatelessWidget {
                             if (showTags && note.tags.isNotEmpty)
                               note.tags.take(2).map((t) => '#$t').join(' '),
                             if (showDate)
-                              DateFormat('dd/MM').format(note.updatedAt),
+                              shortWhen(note.updatedAt, DateTime.now()),
                           ].join('  ·  '),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
