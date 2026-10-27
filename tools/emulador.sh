@@ -111,7 +111,7 @@ if tap_text "Criar primeira nota"; then
   sleep 2
   shot 10-tela-com-nota
   # Seleção: segurar o card e abrir "Mais".
-  if LONG=1 tap_text "Arroz"; then
+  if LONG=1 tap_text "Carne"; then
     shot 10b-selecao
     tap_text "Mais" && { shot 10c-selecao-mais; adb shell input keyevent 4; sleep 1; }
     tap_text "Cancelar seleção" || adb shell input keyevent 4
