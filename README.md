@@ -43,7 +43,7 @@ O app funciona sem conta e sem internet. As notas e preferências ficam armazena
 - Apresentação inicial e tela Sobre
 - Salvamento local e funcionamento totalmente offline
 
-## Novidades da v4.0.0
+## Novidades da v4.0 (4.0.0 e 4.0.1)
 
 Refino geral, com ideias dos blocos de notas mais usados:
 
