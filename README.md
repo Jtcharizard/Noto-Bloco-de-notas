@@ -48,6 +48,11 @@ O app funciona sem conta e sem internet. As notas e preferências ficam armazena
 - Apagar tarefas ficou fácil: um X aparece na tarefa que você está editando e nas já marcadas. O ⋮ da tarefa também tem "Apagar tarefa", até quando é a única.
 - 10 fundos novos: Pôr do sol, Synthwave, Noite na serra, Ondas, Luzes, Dunas, Mosaico, Via Láctea, Fundo do mar e Algodão-doce.
 
+## Novidades da v4.2.0
+
+- Corrigido: o X de apagar tarefa sumia no toque e não apagava. Agora fica sempre ao lado de cada tarefa.
+- 10 fundos com **fotos reais** em domínio público ou CC0 (Wikimedia Commons): Rio de Janeiro, Lago Moraine, Aurora no Alasca, Lago na montanha, Vale verde, Fonte termal, Lava, Bolha congelada, Arco do Triunfo e Tetons. Créditos em `assets/wallpapers/CREDITOS.txt`.
+
 ## Novidades da v4.0 (4.0.0 e 4.0.1)
 
 Refino geral, com ideias dos blocos de notas mais usados:

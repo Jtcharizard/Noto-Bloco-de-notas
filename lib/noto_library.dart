@@ -777,7 +777,7 @@ Future<void> importBackup(BuildContext context, AppStore store) async {
 void showAboutNoto(BuildContext context) => showAboutDialog(
   context: context,
   applicationName: 'Noto',
-  applicationVersion: '4.1',
+  applicationVersion: '4.2',
   applicationIcon: ClipRRect(
     borderRadius: BorderRadius.circular(18),
     child: Image.asset('assets/noto_mark.png', width: 68, height: 68),
@@ -786,7 +786,8 @@ void showAboutNoto(BuildContext context) => showAboutDialog(
     Text('Um bloco de notas simples, offline e do seu jeito.'),
     SizedBox(height: 12),
     Text(
-      'Ilustrações do tutorial: Fluent Emoji, da Microsoft, licença MIT.',
+      'Ilustrações do tutorial: Fluent Emoji, da Microsoft, licença MIT. '
+      'Fotos de fundo: Wikimedia Commons, em domínio público ou CC0.',
       style: TextStyle(fontSize: 12.5),
     ),
   ],

@@ -186,7 +186,7 @@ class _EditorPageState extends State<EditorPage>
       const SnackBar(
         duration: Duration(seconds: 4),
         content: Text(
-          'Dica: Enter cria a próxima tarefa. Toque no X ou deslize para apagar.',
+          'Dica: Enter cria a próxima tarefa. O X ao lado apaga a tarefa.',
         ),
       ),
     );

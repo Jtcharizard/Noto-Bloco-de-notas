@@ -397,20 +397,17 @@ class _MixedContentEditorState extends State<MixedContentEditor> {
                     onChanged: (value) => _lineChanged(line, value),
                   ),
                 ),
-                // X para apagar a tarefa: aparece na que está sendo
-                // editada e nas já marcadas (como no Keep).
-                ListenableBuilder(
-                  listenable: line.focus,
-                  builder: (_, __) => line.task &&
-                          (line.focus.hasFocus || line.checked)
-                      ? IconButton(
-                          tooltip: 'Apagar tarefa',
-                          visualDensity: VisualDensity.compact,
-                          icon: const Icon(Icons.close_rounded, size: 20),
-                          onPressed: () => _deleteLine(line),
-                        )
-                      : const SizedBox.shrink(),
-                ),
+                // X para apagar a tarefa, sempre à mão. (Antes só aparecia
+                // na tarefa em edição e sumia no toque, quando o campo
+                // perdia o foco, por isso não apagava.)
+                if (line.task)
+                  IconButton(
+                    tooltip: 'Apagar tarefa',
+                    visualDensity: VisualDensity.compact,
+                    color: cs.onSurface.withValues(alpha: .5),
+                    icon: const Icon(Icons.close_rounded, size: 20),
+                    onPressed: () => _deleteLine(line),
+                  ),
                 PopupMenuButton<String>(
                   tooltip: 'Opções da linha',
                   icon: const Icon(Icons.more_vert_rounded, size: 20),

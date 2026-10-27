@@ -181,9 +181,24 @@ void main() {
         ),
       ),
     );
-    expect(find.byTooltip('Apagar tarefa'), findsOneWidget);
-    await tester.tap(find.byTooltip('Apagar tarefa'));
+    expect(find.byTooltip('Apagar tarefa'), findsNWidgets(2));
+    await tester.tap(find.byTooltip('Apagar tarefa').first);
     await tester.pump();
+    expect(controller.text, '- [ ] Leite');
+    // Editando a tarefa e tocando no X: tem que apagar também.
+    controller.text = '- [ ] Leite\n- [ ] Ovos';
+    await tester.pumpWidget(const SizedBox());
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: MixedContentEditor(controller: controller, onChanged: () {}),
+        ),
+      ),
+    );
+    await tester.tap(find.text('Ovos'));
+    await tester.pump();
+    await tester.tap(find.byTooltip('Apagar tarefa').last);
+    await tester.pumpAndSettle();
     expect(controller.text, '- [ ] Leite');
     await tester.pumpWidget(const SizedBox());
   });

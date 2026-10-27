@@ -370,6 +370,17 @@ class NotoAppearance {
     'assets/wallpapers/via_lactea.jpg',
     'assets/wallpapers/fundo_do_mar.jpg',
     'assets/wallpapers/algodao_doce.jpg',
+    // Fotos reais em domínio público ou CC0 (créditos em CREDITOS.txt).
+    'assets/wallpapers/foto_rio_de_janeiro.jpg',
+    'assets/wallpapers/foto_lago_moraine.jpg',
+    'assets/wallpapers/foto_aurora_alasca.jpg',
+    'assets/wallpapers/foto_lago_montanha.jpg',
+    'assets/wallpapers/foto_natureza.jpg',
+    'assets/wallpapers/foto_fonte_termal.jpg',
+    'assets/wallpapers/foto_lava.jpg',
+    'assets/wallpapers/foto_bolha_gelo.jpg',
+    'assets/wallpapers/foto_arco_do_triunfo.jpg',
+    'assets/wallpapers/foto_tetons.jpg',
   ];
 
   static const wallpaperNames = <String>[
@@ -404,6 +415,16 @@ class NotoAppearance {
     'Via Láctea',
     'Fundo do mar',
     'Algodão-doce',
+    'Rio de Janeiro',
+    'Lago Moraine',
+    'Aurora no Alasca',
+    'Lago na montanha',
+    'Vale verde',
+    'Fonte termal',
+    'Lava',
+    'Bolha congelada',
+    'Arco do Triunfo',
+    'Tetons (P&B)',
   ];
 
   static int safeFontIndex(int index) =>

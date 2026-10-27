@@ -134,6 +134,17 @@ if tap_text "Menu"; then
     if tap_text "Mala de viagem"; then
       sleep 2
       shot 14-lista-subtarefas
+      # O X tem que apagar a tarefa, inclusive a que está em edição.
+      tap_text "Roupas" && sleep 1
+      if tap_text "Apagar tarefa"; then
+        sleep 1
+        shot 14b-depois-do-x
+        if screen_text | grep -qx "Documentos"; then
+          echo "::warning::O X não apagou a primeira tarefa"
+        else
+          echo "OK: o X apagou a tarefa"
+        fi
+      fi
       tap_text "Mais opções" && { shot 15-menu-da-lista; adb shell input keyevent 4; sleep 1; }
       tap_text "Voltar" || true
       sleep 2
