@@ -127,6 +127,23 @@ if tap_text "Menu"; then
 fi
 
 # Os três widgets precisam estar registrados no Android.
+# Modelos prontos: abre a mala de viagem (lista com subtarefas).
+if tap_text "Menu"; then
+  if tap_text "Modelos"; then
+    shot 13-modelos
+    if tap_text "Mala de viagem"; then
+      sleep 2
+      shot 14-lista-subtarefas
+      tap_text "Mais opções" && { shot 15-menu-da-lista; adb shell input keyevent 4; sleep 1; }
+      tap_text "Voltar" || true
+      sleep 2
+      shot 16-tela-final
+    fi
+  else
+    adb shell input keyevent 4; sleep 1
+  fi
+fi
+
 for widget in NotoWidgetProvider NotoQuickWidgetProvider NotoSummaryWidgetProvider NotoTodayWidgetProvider NotoTasksWidgetProvider NotoActionsWidgetProvider; do
   if adb shell dumpsys appwidget | grep -q "$widget"; then
     echo "OK: widget $widget registrado"
