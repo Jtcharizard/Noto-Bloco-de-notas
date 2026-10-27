@@ -377,3 +377,25 @@ class NotoSafeFrame extends StatelessWidget {
     ),
   );
 }
+
+
+/// Abertura suave das notas: aparece crescendo um pouco, sem o deslize lateral.
+Route<T> notoRoute<T>(Widget page) => PageRouteBuilder<T>(
+  transitionDuration: const Duration(milliseconds: 280),
+  reverseTransitionDuration: const Duration(milliseconds: 200),
+  pageBuilder: (_, __, ___) => page,
+  transitionsBuilder: (_, animation, __, child) {
+    final curved = CurvedAnimation(
+      parent: animation,
+      curve: Curves.easeOutCubic,
+      reverseCurve: Curves.easeInCubic,
+    );
+    return FadeTransition(
+      opacity: curved,
+      child: ScaleTransition(
+        scale: Tween<double>(begin: .94, end: 1).animate(curved),
+        child: child,
+      ),
+    );
+  },
+);

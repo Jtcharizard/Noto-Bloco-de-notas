@@ -1049,8 +1049,8 @@ class SettingsPage extends StatelessWidget {
       const SectionTitle('Importar e exportar'),
       NotoTile(
         icon: Icons.file_open_outlined,
-        title: 'Importar arquivos de texto',
-        subtitle: 'Vários .txt ou .md de uma vez, cada um vira uma nota',
+        title: 'Importar notas',
+        subtitle: 'Arquivos .txt e .md, ou os .json do Google Keep (Google Takeout)',
         onTap: () => importTextFiles(context, store),
       ),
       NotoTile(

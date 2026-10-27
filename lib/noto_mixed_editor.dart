@@ -38,14 +38,21 @@ class MixedContentEditor extends StatefulWidget {
 }
 
 class _MixedLine {
-  _MixedLine(String text, {this.task = false, this.checked = false})
-    : controller = TextEditingController(text: text);
+  _MixedLine(
+    String text, {
+    this.task = false,
+    this.checked = false,
+    this.indent = 0,
+  }) : controller = TextEditingController(text: text);
 
   final TextEditingController controller;
   final FocusNode focus = FocusNode();
   final Key key = UniqueKey();
   bool task;
   bool checked;
+
+  /// Recuo de subtarefa (0 = tarefa principal).
+  int indent;
 
   void dispose() {
     controller.dispose();
@@ -56,7 +63,9 @@ class _MixedLine {
 class _MixedContentEditorState extends State<MixedContentEditor> {
   final List<_MixedLine> lines = [];
 
-  static final RegExp _taskPattern = RegExp(r'^\s*(?:[-*]\s*)?\[([ xX])\]\s?(.*)$');
+  static final RegExp _taskPattern = RegExp(
+    r'^([ \t]*)(?:[-*]\s*)?\[([ xX])\]\s?(.*)$',
+  );
 
   @override
   void initState() {
@@ -76,10 +85,12 @@ class _MixedContentEditorState extends State<MixedContentEditor> {
   _MixedLine _parse(String raw) {
     final match = _taskPattern.firstMatch(raw);
     if (match == null) return _MixedLine(raw);
+    final spaces = match.group(1)!.replaceAll('\t', '  ').length;
     return _MixedLine(
-      match.group(2) ?? '',
+      match.group(3) ?? '',
       task: true,
-      checked: match.group(1)!.toLowerCase() == 'x',
+      checked: match.group(2)!.toLowerCase() == 'x',
+      indent: (spaces ~/ 2).clamp(0, 3).toInt(),
     );
   }
 
@@ -87,7 +98,8 @@ class _MixedContentEditorState extends State<MixedContentEditor> {
     widget.controller.text = lines
         .map((line) {
           if (!line.task) return line.controller.text;
-          return '- [${line.checked ? 'x' : ' '}] ${line.controller.text}';
+          return '${'  ' * line.indent}- [${line.checked ? 'x' : ' '}] '
+              '${line.controller.text}';
         })
         .join('\n');
     widget.onChanged();
@@ -123,6 +135,14 @@ class _MixedContentEditorState extends State<MixedContentEditor> {
         parts.length == 2 &&
         parts.first.trim().isEmpty &&
         parts.last.isEmpty) {
+      // Subtarefa vazia: Enter tira o recuo antes de virar texto.
+      if (line.indent > 0) {
+        setState(() => line.indent--);
+        line.controller.text = '';
+        _sync();
+        _focusLater(line);
+        return;
+      }
       setState(() => line.task = false);
       line.controller.text = '';
       _sync();
@@ -149,7 +169,8 @@ class _MixedContentEditorState extends State<MixedContentEditor> {
     }
     line.controller.text = parts.first;
     final added = [
-      for (final part in parts.skip(1)) _MixedLine(part, task: line.task),
+      for (final part in parts.skip(1))
+        _MixedLine(part, task: line.task, indent: line.task ? line.indent : 0),
     ];
     setState(() => lines.insertAll(index + 1, added));
     _sync();
@@ -162,6 +183,14 @@ class _MixedContentEditorState extends State<MixedContentEditor> {
     HapticFeedback.selectionClick();
     setState(() {
       line.checked = checked;
+      // Marcar uma tarefa marca as subtarefas dela também.
+      var child = lines.indexOf(line) + 1;
+      while (child < lines.length &&
+          lines[child].task &&
+          lines[child].indent > line.indent) {
+        lines[child].checked = checked;
+        child++;
+      }
       var start = lines.indexOf(line);
       var end = start;
       while (start > 0 && lines[start - 1].task) {
@@ -171,6 +200,8 @@ class _MixedContentEditorState extends State<MixedContentEditor> {
         end++;
       }
       final block = lines.sublist(start, end + 1);
+      // Com subtarefas, mantém a ordem para não separar dos pais.
+      if (block.any((item) => item.indent > 0)) return;
       final ordered = [
         ...block.where((item) => !item.checked),
         ...block.where((item) => item.checked),
@@ -291,10 +322,31 @@ class _MixedContentEditorState extends State<MixedContentEditor> {
           },
           itemBuilder: (context, index) {
             final line = visible[index];
-            return Row(
+            final position = lines.indexOf(line);
+            final canIndent = line.task &&
+                line.indent < 3 &&
+                position > 0 &&
+                lines[position - 1].task &&
+                lines[position - 1].indent >= line.indent;
+            return Dismissible(
               key: line.key,
+              direction: lines.length > 1
+                  ? DismissDirection.endToStart
+                  : DismissDirection.none,
+              background: Container(
+                alignment: Alignment.centerRight,
+                padding: const EdgeInsets.only(right: 18),
+                decoration: BoxDecoration(
+                  color: cs.errorContainer,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(Icons.delete_outline_rounded, color: cs.onErrorContainer),
+              ),
+              onDismissed: (_) => _removeLine(line),
+              child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                if (line.indent > 0) SizedBox(width: line.indent * 24.0),
                 if (line.task)
                   Checkbox(
                     value: line.checked,
@@ -338,14 +390,36 @@ class _MixedContentEditorState extends State<MixedContentEditor> {
                     if (value == 'convert') {
                       setState(() {
                         line.task = !line.task;
-                        if (!line.task) line.checked = false;
+                        if (!line.task) {
+                          line.checked = false;
+                          line.indent = 0;
+                        }
                       });
+                      _sync();
+                    } else if (value == 'indent' || value == 'outdent') {
+                      setState(() => line.indent += value == 'indent' ? 1 : -1);
                       _sync();
                     } else if (value == 'remove') {
                       _removeLine(line);
                     }
                   },
                   itemBuilder: (_) => [
+                    if (canIndent)
+                      const PopupMenuItem(
+                        value: 'indent',
+                        child: ListTile(
+                          leading: Icon(Icons.format_indent_increase_rounded),
+                          title: Text('Virar subtarefa'),
+                        ),
+                      ),
+                    if (line.indent > 0)
+                      const PopupMenuItem(
+                        value: 'outdent',
+                        child: ListTile(
+                          leading: Icon(Icons.format_indent_decrease_rounded),
+                          title: Text('Tirar recuo'),
+                        ),
+                      ),
                     PopupMenuItem(
                       value: 'convert',
                       child: ListTile(
@@ -379,6 +453,7 @@ class _MixedContentEditorState extends State<MixedContentEditor> {
                   ),
                 ),
               ],
+            ),
             );
           },
         ),

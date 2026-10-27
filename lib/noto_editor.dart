@@ -165,6 +165,8 @@ class _EditorPageState extends State<EditorPage>
     lastSnapshot = _snapshot();
     title.addListener(_editorChanged);
     body.addListener(_editorChanged);
+    _slashBase = body.text;
+    body.addListener(_watchSlash);
     _loadEditorPreferences();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _maybeShowTaskTip();
@@ -1200,6 +1202,74 @@ class _EditorPageState extends State<EditorPage>
     );
   }
 
+  String _slashBase = '';
+
+  /// "/" sozinho no começo de uma linha abre o menu de inserir (como no Notion).
+  void _watchSlash() {
+    final text = body.text;
+    final before = _slashBase;
+    _slashBase = text;
+    if (restoringEditor || widget.note.checklist || readOnly) return;
+    if (text.length != before.length + 1) return;
+    final selection = body.selection;
+    if (!selection.isValid || !selection.isCollapsed) return;
+    final at = selection.baseOffset;
+    if (at < 1 || at > text.length || text[at - 1] != '/') return;
+    if (at - 1 > 0 && text[at - 2] != '\n') return;
+    if (at < text.length && text[at] != '\n') return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _showSlashMenu(at - 1);
+    });
+  }
+
+  Future<void> _showSlashMenu(int at) async {
+    final value = await _gridSheet(
+      title: 'Inserir aqui',
+      subtitle: 'Dica: digite / numa linha vazia para abrir este menu',
+      sections: const [
+        (
+          'Texto',
+          [
+            _MenuAction('heading', Icons.title_rounded, 'Título'),
+            _MenuAction('subheading', Icons.text_fields_rounded, 'Subtítulo'),
+            _MenuAction('list', Icons.format_list_bulleted_rounded, 'Lista'),
+            _MenuAction('numbered', Icons.format_list_numbered_rounded, 'Lista numerada'),
+            _MenuAction('quote', Icons.format_quote_rounded, 'Citação'),
+          ],
+        ),
+        (
+          'Blocos',
+          [
+            _MenuAction('checklist', Icons.checklist_rounded, 'Tarefas'),
+            _MenuAction('table', Icons.table_chart_outlined, 'Tabela'),
+            _MenuAction('code', Icons.code_rounded, 'Código'),
+            _MenuAction('divider', Icons.horizontal_rule_rounded, 'Separador'),
+            _MenuAction('datetime', Icons.today_outlined, 'Data e hora'),
+          ],
+        ),
+      ],
+    );
+    if (value == null || !mounted) return;
+    // Tira a "/" que abriu o menu.
+    final text = body.text;
+    if (at < text.length && text[at] == '/') {
+      body.value = TextEditingValue(
+        text: text.replaceRange(at, at + 1, ''),
+        selection: TextSelection.collapsed(offset: at),
+      );
+    }
+    switch (value) {
+      case 'subheading':
+        body.value = formatSelection(body.value, prefix: '### ', eachLine: true);
+        bodyFocus.requestFocus();
+      case 'numbered':
+        body.value = formatSelection(body.value, prefix: '1. ', eachLine: true);
+        bodyFocus.requestFocus();
+      default:
+        _tool(value);
+    }
+  }
+
   /// Salva mudanças que não mexem no texto (proteção, rotina...).
   void _markMetaChanged() {
     dirty = true;
@@ -1950,9 +2020,16 @@ class _EditorPageState extends State<EditorPage>
   bool saved = false;
   bool focusMode = false;
 
+  // Tarefas vazias ("- [ ] " sozinho) não contam como conteúdo.
   bool get hasContent =>
       title.text.trim().isNotEmpty ||
-      body.text.trim().isNotEmpty ||
+      body.text
+          .replaceAll(
+            RegExp(r'^\s*(?:[-*]\s*)?\[[ xX]\]\s*$', multiLine: true),
+            '',
+          )
+          .trim()
+          .isNotEmpty ||
       tables.isNotEmpty ||
       codeBlocks.isNotEmpty;
 
@@ -1996,6 +2073,25 @@ class _EditorPageState extends State<EditorPage>
   Future<void> saveAndClose() async {
     if (saved) return;
     autosaveTimer?.cancel();
+    // Nota que ficou vazia vai para a lixeira ao sair (como no Keep).
+    if (!widget.isNew &&
+        !hasContent &&
+        widget.note.deletedAt == null &&
+        widget.store.notes.contains(widget.note)) {
+      saved = true;
+      _syncModel();
+      widget.store.cancelReminder(widget.note);
+      widget.note.deletedAt = DateTime.now();
+      await widget.store.save();
+      await editorPrefs?.remove('editor.draft.${widget.note.id}');
+      if (!mounted) return;
+      final messenger = ScaffoldMessenger.of(context);
+      Navigator.pop(context, true);
+      _offerUndo(messenger, 'Nota vazia descartada', () {
+        widget.note.deletedAt = null;
+      });
+      return;
+    }
     saved = true;
     try {
       final persisted = await _saveDraft();
@@ -3216,6 +3312,7 @@ class _EditorPageState extends State<EditorPage>
     autosaveTimer?.cancel();
     title.removeListener(_editorChanged);
     body.removeListener(_editorChanged);
+    body.removeListener(_watchSlash);
     editorScroll.dispose();
     title.dispose();
     body.dispose();

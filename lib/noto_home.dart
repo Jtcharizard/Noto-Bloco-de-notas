@@ -914,9 +914,8 @@ class _HomeShellState extends State<HomeShell> {
     if (query.trim().isNotEmpty) widget.store.rememberSearch(query);
     await Navigator.push<bool>(
       context,
-      MaterialPageRoute(
-        builder: (_) =>
-            EditorPage(store: widget.store, note: note, isNew: isNew),
+      notoRoute<bool>(
+        EditorPage(store: widget.store, note: note, isNew: isNew),
       ),
     );
   }
@@ -1063,8 +1062,8 @@ class _HomeShellState extends State<HomeShell> {
               ),
               if (widget.store.templates.isEmpty)
                 const Padding(
-                  padding: EdgeInsets.all(20),
-                  child: Text('Nenhum modelo salvo.'),
+                  padding: EdgeInsets.fromLTRB(16, 4, 16, 8),
+                  child: Text('Nenhum modelo seu ainda.'),
                 ),
               for (final template in widget.store.templates)
                 ListTile(
@@ -1087,13 +1086,33 @@ class _HomeShellState extends State<HomeShell> {
                   ),
                 ),
               const Padding(
-                padding: EdgeInsets.fromLTRB(16, 12, 16, 0),
+                padding: EdgeInsets.fromLTRB(16, 4, 16, 0),
                 child: Text(
-                  'Para criar um modelo, abra uma nota e use o menu ⋮ > '
+                  'Para criar um modelo seu, abra uma nota e use o menu ⋮ > '
                   'Salvar como modelo.',
                   style: TextStyle(fontSize: 12),
                 ),
               ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(8, 20, 8, 6),
+                child: Text(
+                  'Prontos para usar',
+                  style: Theme.of(context).textTheme.titleMedium
+                      ?.copyWith(fontWeight: FontWeight.w800),
+                ),
+              ),
+              for (final template in starterTemplates)
+                ListTile(
+                  leading: Text(
+                    template.emoji,
+                    style: const TextStyle(fontSize: 20),
+                  ),
+                  title: Text(template.name),
+                  subtitle: Text(
+                    template.checklist ? 'Lista de tarefas' : 'Nota com seções',
+                  ),
+                  onTap: () => Navigator.pop(sheetContext, template),
+                ),
             ],
           ),
         ),
@@ -1742,6 +1761,7 @@ class _HomeShellState extends State<HomeShell> {
                       archived > 0 ? '$archived' : null),
                   tile('trash', Icons.delete_outline_rounded, 'Lixeira',
                       trash > 0 ? '$trash' : null),
+                  tile('templates', Icons.dashboard_customize_outlined, 'Modelos'),
                   tile('backup', Icons.cloud_upload_outlined, 'Backup'),
                   tile('settings', Icons.settings_outlined, 'Ajustes'),
                 ],
@@ -1778,6 +1798,8 @@ class _HomeShellState extends State<HomeShell> {
         _openArchive();
       case 'trash':
         _openTrash();
+      case 'templates':
+        _pickTemplate();
       case 'backup':
         exportBackup(context, widget.store);
       case 'settings':
@@ -2387,19 +2409,90 @@ class _HomeShellState extends State<HomeShell> {
                           final columns =
                               widget.store.gridColumns +
                               (constraints.maxWidth >= 760 ? 1 : 0);
-                          return GridView.builder(
-                            controller: _scroll,
-                            padding: const EdgeInsets.fromLTRB(20, 0, 20, 110),
-                            gridDelegate:
-                                SliverGridDelegateWithFixedCrossAxisCount(
-                                  crossAxisCount: columns,
-                                  crossAxisSpacing: 12,
-                                  mainAxisSpacing: 12,
-                                  mainAxisExtent:
-                                      widget.store.compactCards ? 168 : 224,
+                          final gridDelegate =
+                              SliverGridDelegateWithFixedCrossAxisCount(
+                                crossAxisCount: columns,
+                                crossAxisSpacing: 12,
+                                mainAxisSpacing: 12,
+                                mainAxisExtent:
+                                    widget.store.compactCards ? 168 : 224,
+                              );
+                          // Fixadas e Outras em blocos separados (como no Keep).
+                          final pinnedNotes =
+                              notes.where((n) => n.pinned).toList();
+                          final otherNotes =
+                              notes.where((n) => !n.pinned).toList();
+                          if (pinnedNotes.isEmpty || otherNotes.isEmpty) {
+                            return GridView.builder(
+                              controller: _scroll,
+                              padding:
+                                  const EdgeInsets.fromLTRB(20, 0, 20, 110),
+                              gridDelegate: gridDelegate,
+                              itemCount: notes.length,
+                              itemBuilder: (_, index) =>
+                                  _noteTile(notes[index]),
+                            );
+                          }
+                          Widget header(String text, IconData icon) =>
+                              SliverToBoxAdapter(
+                                child: Padding(
+                                  padding:
+                                      const EdgeInsets.fromLTRB(22, 4, 20, 10),
+                                  child: Row(
+                                    children: [
+                                      Icon(
+                                        icon,
+                                        size: 14,
+                                        color: Theme.of(context)
+                                            .colorScheme
+                                            .primary,
+                                      ),
+                                      const SizedBox(width: 6),
+                                      Text(
+                                        text,
+                                        style: TextStyle(
+                                          fontSize: 11.5,
+                                          letterSpacing: .9,
+                                          fontWeight: FontWeight.w800,
+                                          color: Theme.of(context)
+                                              .colorScheme
+                                              .primary,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
                                 ),
-                            itemCount: notes.length,
-                            itemBuilder: (_, index) => _noteTile(notes[index]),
+                              );
+                          return CustomScrollView(
+                            controller: _scroll,
+                            slivers: [
+                              header('FIXADAS', Icons.push_pin),
+                              SliverPadding(
+                                padding:
+                                    const EdgeInsets.fromLTRB(20, 0, 20, 18),
+                                sliver: SliverGrid(
+                                  gridDelegate: gridDelegate,
+                                  delegate: SliverChildBuilderDelegate(
+                                    (_, index) =>
+                                        _noteTile(pinnedNotes[index]),
+                                    childCount: pinnedNotes.length,
+                                  ),
+                                ),
+                              ),
+                              header('OUTRAS', Icons.notes_rounded),
+                              SliverPadding(
+                                padding:
+                                    const EdgeInsets.fromLTRB(20, 0, 20, 110),
+                                sliver: SliverGrid(
+                                  gridDelegate: gridDelegate,
+                                  delegate: SliverChildBuilderDelegate(
+                                    (_, index) =>
+                                        _noteTile(otherNotes[index]),
+                                    childCount: otherNotes.length,
+                                  ),
+                                ),
+                              ),
+                            ],
                           );
                         },
                       ),

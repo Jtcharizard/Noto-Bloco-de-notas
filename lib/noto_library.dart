@@ -12,6 +12,7 @@ import 'noto_editor.dart';
 import 'noto_features.dart';
 import 'noto_models.dart';
 import 'noto_rich_editor.dart';
+import 'noto_smart.dart';
 import 'noto_store.dart';
 
 class FontPickerSheet extends StatefulWidget {
@@ -866,17 +867,33 @@ Future<void> exportAllNotes(AppStore store, {String? onlyFolder}) async {
 Future<void> importTextFiles(BuildContext context, AppStore store) async {
   final result = await FilePicker.platform.pickFiles(
     type: FileType.custom,
-    allowedExtensions: const ['txt', 'md', 'markdown'],
+    allowedExtensions: const ['txt', 'md', 'markdown', 'json'],
     allowMultiple: true,
     withData: true,
   );
   if (result == null || result.files.isEmpty) return;
   var count = 0;
+  var keep = 0;
   for (final file in result.files) {
     try {
       final content = file.bytes != null
           ? utf8.decode(file.bytes!, allowMalformed: true)
           : await File(file.path!).readAsString();
+      // Notas do Google Keep (Google Takeout): um .json por nota.
+      if (file.name.toLowerCase().endsWith('.json')) {
+        final data = jsonDecode(content);
+        if (data is! Map) continue;
+        final note = noteFromKeepJson(
+          Map<String, dynamic>.from(data),
+          id: '${DateTime.now().microsecondsSinceEpoch}$count',
+          font: store.font,
+        );
+        if (note == null) continue;
+        store.notes.add(note);
+        keep++;
+        count++;
+        continue;
+      }
       var title = file.name.replaceFirst(
         RegExp(r'\.(txt|md|markdown)$', caseSensitive: false),
         '',
@@ -911,8 +928,13 @@ Future<void> importTextFiles(BuildContext context, AppStore store) async {
           count == 0
               ? 'Não consegui ler esses arquivos.'
               : count == 1
-              ? '1 nota importada na pasta Importadas'
-              : '$count notas importadas na pasta Importadas',
+              : keep == count
+              ? (count == 1
+                    ? '1 nota do Google Keep importada'
+                    : '$count notas do Google Keep importadas')
+              : count == 1
+              ? '1 nota importada'
+              : '$count notas importadas',
         ),
       ),
     );

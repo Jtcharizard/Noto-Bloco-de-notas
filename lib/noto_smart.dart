@@ -249,3 +249,61 @@ String removeTaskLines(String body) => body
     .join('\n')
     .replaceAll(RegExp(r'\n{3,}'), '\n\n')
     .trim();
+
+/// Converte uma nota exportada do Google Keep (Google Takeout, arquivo .json).
+/// Devolve null para notas na lixeira ou arquivos que não são do Keep.
+Note? noteFromKeepJson(
+  Map<String, dynamic> json, {
+  required String id,
+  int font = 0,
+}) {
+  if (json['isTrashed'] == true) return null;
+  if (!json.containsKey('textContent') &&
+      !json.containsKey('listContent') &&
+      !json.containsKey('title')) {
+    return null;
+  }
+  final title = (json['title'] as String? ?? '').trim();
+  final lines = <String>[];
+  final text = (json['textContent'] as String? ?? '').trimRight();
+  if (text.isNotEmpty) lines.add(text);
+  var checklist = false;
+  final list = json['listContent'];
+  if (list is List) {
+    for (final item in list) {
+      if (item is! Map) continue;
+      final value = (item['text'] as String? ?? '').trim();
+      if (value.isEmpty) continue;
+      lines.add('- [${item['isChecked'] == true ? 'x' : ' '}] $value');
+      checklist = true;
+    }
+  }
+  final body = lines.join('\n');
+  if (title.isEmpty && body.isEmpty) return null;
+  DateTime time(String key) {
+    final value = json[key];
+    return value is num
+        ? DateTime.fromMicrosecondsSinceEpoch(value.toInt())
+        : DateTime.now();
+  }
+
+  final labels = <String>[
+    for (final label in (json['labels'] as List? ?? const []))
+      if (label is Map && label['name'] is String &&
+          (label['name'] as String).trim().isNotEmpty)
+        (label['name'] as String).trim(),
+  ];
+  return Note(
+    id: id,
+    title: title,
+    body: body,
+    updatedAt: time('userEditedTimestampUsec'),
+    createdAt: time('createdTimestampUsec'),
+    pinned: json['isPinned'] == true,
+    archived: json['isArchived'] == true,
+    tags: labels,
+    checklist: checklist,
+    folder: 'Google Keep',
+    font: font,
+  );
+}

@@ -6,6 +6,7 @@ import 'package:flutter/rendering.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 
+import 'noto_models.dart';
 import 'noto_theme.dart';
 
 /// Texto da nota preparado para ler ou desenhar: tira marcações de Markdown
@@ -340,3 +341,69 @@ const _monthsPt = [
 /// "sábado, 24 de outubro", sem depender dos dados de idioma carregados.
 String longDatePt(DateTime day) =>
     '${_weekdaysPt[day.weekday - 1]}, ${day.day} de ${_monthsPt[day.month - 1]}';
+
+/// Modelos que já vêm no Noto (como no Notion e no Evernote).
+final starterTemplates = <NotoTemplate>[
+  NotoTemplate(
+    id: 'pronto-compras',
+    name: 'Lista de compras',
+    emoji: '🛒',
+    title: 'Compras',
+    checklist: true,
+    body: '- [ ] Arroz\n- [ ] Feijão\n- [ ] Leite\n- [ ] Pão\n- [ ] Frutas\n- [ ] ',
+  ),
+  NotoTemplate(
+    id: 'pronto-reuniao',
+    name: 'Reunião',
+    emoji: '🗓️',
+    title: 'Reunião',
+    body: '## Pauta\n- \n\n## Decisões\n- \n\n## Próximos passos\n- ',
+  ),
+  NotoTemplate(
+    id: 'pronto-viagem',
+    name: 'Mala de viagem',
+    emoji: '✈️',
+    title: 'Viagem',
+    checklist: true,
+    body: '- [ ] Documentos\n  - [ ] RG ou passaporte\n  - [ ] Passagens\n'
+        '- [ ] Roupas\n- [ ] Carregador\n- [ ] Escova e pasta de dente\n'
+        '- [ ] Remédios\n- [ ] ',
+  ),
+  NotoTemplate(
+    id: 'pronto-diario',
+    name: 'Diário',
+    emoji: '📔',
+    title: 'Diário',
+    body: '## Como foi o dia\n\n\n## Sou grato por\n1. \n\n## Amanhã eu quero\n- ',
+  ),
+  NotoTemplate(
+    id: 'pronto-receita',
+    name: 'Receita',
+    emoji: '🍳',
+    title: 'Receita',
+    body: '## Ingredientes\n- \n\n## Modo de preparo\n1. \n\n## Rende\n',
+  ),
+  NotoTemplate(
+    id: 'pronto-metas',
+    name: 'Metas da semana',
+    emoji: '🎯',
+    title: 'Metas da semana',
+    checklist: true,
+    body: '- [ ] Saúde\n  - [ ] \n- [ ] Trabalho ou estudo\n  - [ ] \n'
+        '- [ ] Pessoal\n  - [ ] ',
+  ),
+  NotoTemplate(
+    id: 'pronto-estudos',
+    name: 'Resumo de estudo',
+    emoji: '📚',
+    title: 'Resumo',
+    body: '## Assunto\n\n\n## Pontos principais\n- \n\n## Dúvidas\n- ',
+  ),
+  NotoTemplate(
+    id: 'pronto-ideia',
+    name: 'Ideia ou projeto',
+    emoji: '💡',
+    title: 'Ideia',
+    body: '## A ideia\n\n\n## Por que vale a pena\n- \n\n## Primeiro passo\n- ',
+  ),
+];
