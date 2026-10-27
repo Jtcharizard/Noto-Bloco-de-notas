@@ -43,6 +43,22 @@ O app funciona sem conta e sem internet. As notas e preferências ficam armazena
 - Apresentação inicial e tela Sobre
 - Salvamento local e funcionamento totalmente offline
 
+## Novidades da v4.0.0
+
+Refino geral, com ideias dos blocos de notas mais usados:
+
+- **Subtarefas** (Keep, Apple Notes): o ⋮ da tarefa recua ela; marcar a principal marca as de dentro.
+- **Deslizar para apagar** uma linha da lista, com Desfazer.
+- **Comandos com /** (Notion): / numa linha vazia abre título, subtítulo, lista, lista numerada, citação, tarefas, tabela, código, separador e data.
+- **Modelos prontos** (Evernote, Notion): compras, reunião, mala de viagem, diário, receita, metas, estudo e ideia, em Menu > Modelos.
+- **Importar do Google Keep**: os .json do Google Takeout viram notas, com listas, fixadas, arquivadas e marcadores.
+- **Fixadas e Outras** separadas na grade (Keep).
+- **Continuar** no topo: um toque volta para a última nota mexida (Apple Notes).
+- **Mostrar no widget** direto pelo ⋮ da nota.
+- **Notas curtas com letra maior** nos cards (Keep).
+- **Nota que ficou vazia** vai para a lixeira ao sair, com Desfazer (Keep).
+- Abertura das notas com animação suave.
+
 ## Novidades da v3.3.0
 
 - Widgets refeitos: seguem a cor de destaque do app, cantos arredondados e textos que não se atropelam.

@@ -30,8 +30,8 @@ const _steps = <_TutorialStep>[
       (Icons.add_circle_outline_rounded, 'Segure o + para criar direto o outro tipo.'),
       (Icons.keyboard_return_rounded, 'Enter cria a próxima tarefa e continua listas como "1-" ou "-".'),
       (Icons.space_bar_rounded, 'A barra embaixo da nota tem desfazer, negrito, lista, voz e inserir.'),
-      (Icons.content_paste_rounded, 'Copiou um texto em outro app? No + aparece "Colar o que copiei".'),
-      (Icons.event_repeat_outlined, 'Lista de rotina? No ⋮, "Desmarcar todo dia" deixa ela zerada a cada dia.'),
+      (Icons.keyboard_command_key_rounded, 'Digite / numa linha vazia para pôr título, lista, tabela e mais.'),
+      (Icons.format_indent_increase_rounded, 'Nas listas, o ⋮ da tarefa cria subtarefas. Deslize para apagar.'),
     ],
   ),
   _TutorialStep(

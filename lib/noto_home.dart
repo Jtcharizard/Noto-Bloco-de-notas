@@ -535,6 +535,17 @@ class _HomeShellState extends State<HomeShell> {
     color: widget.store.newNoteColor,
   );
 
+  /// Última nota mexida nos últimos 3 dias, para o "Continuar" do topo.
+  Note? _recentForHero(List<Note> active) {
+    Note? best;
+    final limit = DateTime.now().subtract(const Duration(days: 3));
+    for (final note in active) {
+      if (note.locked || note.updatedAt.isBefore(limit)) continue;
+      if (best == null || note.updatedAt.isAfter(best.updatedAt)) best = note;
+    }
+    return best;
+  }
+
   Future<void> _pickAvatar() async {
     final emoji = await pickEmoji(
       context,
@@ -2301,6 +2312,8 @@ class _HomeShellState extends State<HomeShell> {
                   snapshot: snapshot,
                   onTasks: _openTasks,
                   onAvatar: _pickAvatar,
+                  recent: _recentForHero(active),
+                  onOpen: _openNote,
                 )
               else if (widget.store.homeShowToday)
                 _TodayLine(snapshot: snapshot, onTasks: _openTasks),
@@ -2537,12 +2550,18 @@ class _HomeHero extends StatelessWidget {
     required this.snapshot,
     required this.onTasks,
     required this.onAvatar,
+    this.recent,
+    this.onOpen,
   });
 
   final AppStore store;
   final TodaySnapshot snapshot;
   final VoidCallback onTasks;
   final VoidCallback onAvatar;
+
+  /// Nota para o atalho "Continuar" (como o "Recentes" do Apple Notes).
+  final Note? recent;
+  final Future<void> Function(Note note)? onOpen;
 
   @override
   Widget build(BuildContext context) {
@@ -2671,12 +2690,52 @@ class _HomeHero extends StatelessWidget {
                 ),
               ],
             ),
-            if (items.isNotEmpty) ...[
+            if (items.isNotEmpty || recent != null) ...[
               const SizedBox(height: 12),
               Wrap(
                 spacing: 6,
                 runSpacing: 6,
                 children: [
+                  if (recent != null && onOpen != null)
+                    Material(
+                      color: cs.primary.withValues(alpha: .16),
+                      borderRadius: BorderRadius.circular(20),
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(20),
+                        onTap: () => onOpen!(recent!),
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 6,
+                          ),
+                          child: ConstrainedBox(
+                            constraints: const BoxConstraints(maxWidth: 220),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  Icons.history_edu_rounded,
+                                  size: 15,
+                                  color: cs.primary,
+                                ),
+                                const SizedBox(width: 5),
+                                Flexible(
+                                  child: Text(
+                                    'Continuar: ${displayTitle(recent!)}',
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: const TextStyle(
+                                      fontSize: 12.5,
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
                   for (final item in items)
                     Material(
                       color: cs.surface.withValues(alpha: .55),
@@ -3377,10 +3436,14 @@ class _NoteCard extends StatelessWidget {
                                 ? (previewLines < 2 ? previewLines : 2)
                                 : previewLines,
                             overflow: TextOverflow.ellipsis,
+                            // Notas curtas aparecem com letra maior (como no Keep).
                             style: TextStyle(
                               color: contentSecondary,
                               fontFamily: bodyFont,
-                              fontSize: 13,
+                              fontSize: preview.length <= 40 &&
+                                      !hasTaskLines(note.body)
+                                  ? 17
+                                  : 13,
                               height: 1.35,
                             ),
                           ),

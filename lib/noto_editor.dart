@@ -1602,6 +1602,14 @@ class _EditorPageState extends State<EditorPage>
             const _MenuAction('duplicate', Icons.copy_outlined, 'Duplicar'),
             const _MenuAction('history', Icons.history_rounded, 'Versões antigas'),
             const _MenuAction('home-shortcut', Icons.add_to_home_screen_rounded, 'Atalho na tela inicial'),
+            if (!note.locked)
+              _MenuAction(
+                'widget-note',
+                Icons.widgets_outlined,
+                widget.store.widgetNoteId == note.id
+                    ? 'Já está no widget'
+                    : 'Mostrar no widget',
+              ),
             _MenuAction(
               'pin-notification',
               notified
@@ -1704,6 +1712,25 @@ class _EditorPageState extends State<EditorPage>
         await _showSections();
       case 'home-shortcut':
         await _pinToHomeScreen();
+      case 'widget-note':
+        final persisted = await _saveDraft();
+        if (!mounted) return;
+        if (!persisted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Escreva algo na nota primeiro.')),
+          );
+          return;
+        }
+        widget.store.widgetNoteId = widget.note.id;
+        await widget.store.save();
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Pronto! Esta nota aparece no widget "Noto · Nota" da tela inicial.',
+            ),
+          ),
+        );
       case 'check-all':
         _checkAllTasks();
       case 'copy-pending':
