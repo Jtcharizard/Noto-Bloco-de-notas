@@ -1,0 +1,15 @@
+Fotos reais usadas como fundo no Noto (Wikimedia Commons)
+Todas em domínio público ou CC0: podem ser usadas livremente, sem pedir licença.
+
+foto_rio_de_janeiro.jpg  - "Ipanema and Leblon as seen from Morro Dois Irmãos, with Lagoa and Cantagalo in the background, Rio de Janeiro, Brazil" - CC0
+foto_lago_moraine.jpg    - "Moraine Lake 17092005" (Gorgo) - domínio público
+foto_aurora_alasca.jpg   - "Aurora borealis over Eielson Air Force Base, Alaska" (Força Aérea dos EUA) - domínio público
+foto_lago_montanha.jpg   - "Lake-sherburne-964855" - domínio público
+foto_natureza.jpg        - "Alone in the unspoilt wilderness (Unsplash)" - CC0
+foto_fonte_termal.jpg    - "Grand prismatic spring" (Serviço de Parques dos EUA) - domínio público
+foto_lava.jpg            - "Pahoeoe fountain" (Serviço Geológico dos EUA) - domínio público
+foto_bolha_gelo.jpg      - "Frozen soap bubble behind fir twigs (Unsplash)" - CC0
+foto_arco_do_triunfo.jpg - "Arc de Triomphe de l'Étoile at night" - CC0
+foto_tetons.jpg          - "The Tetons and the Snake River" (Ansel Adams, Arquivo Nacional dos EUA) - domínio público
+
+Os outros fundos ilustrados novos (Pôr do sol, Synthwave etc.) foram desenhados por código para o próprio Noto.

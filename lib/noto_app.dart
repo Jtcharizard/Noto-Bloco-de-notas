@@ -1,8 +1,15 @@
-import 'package:flutter/material.dart';
+import 'dart:async';
 
-import 'noto_home_v4.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+
+import 'noto_home.dart';
 import 'noto_store.dart';
 import 'noto_theme.dart';
+import 'noto_tutorial.dart';
+import 'noto_vault.dart';
+
+final notoNavigatorKey = GlobalKey<NavigatorState>();
 
 class NotoApp extends StatefulWidget {
   const NotoApp({super.key});
@@ -11,117 +18,188 @@ class NotoApp extends StatefulWidget {
   State<NotoApp> createState() => _NotoAppState();
 }
 
-class _NotoAppState extends State<NotoApp> {
+class _NotoAppState extends State<NotoApp> with WidgetsBindingObserver {
   final store = AppStore();
+  DateTime? _leftAt;
+  Object? _loadError;
+  bool _slow = false;
+  Timer? _slowTimer;
 
   @override
   void initState() {
     super.initState();
-    store.load();
+    WidgetsBinding.instance.addObserver(this);
+    _load();
+  }
+
+  /// Lê as notas. Se der erro ou demorar demais, mostra uma tela clara
+  /// em vez de ficar carregando para sempre.
+  Future<void> _load() async {
+    setState(() {
+      _loadError = null;
+      _slow = false;
+    });
+    _slowTimer?.cancel();
+    _slowTimer = Timer(const Duration(seconds: 6), () {
+      if (mounted && !store.loaded && _loadError == null) {
+        setState(() => _slow = true);
+      }
+    });
+    try {
+      await store.load().timeout(const Duration(seconds: 25));
+    } catch (error) {
+      if (mounted) setState(() => _loadError = error);
+    } finally {
+      _slowTimer?.cancel();
+    }
+  }
+
+  @override
+  void dispose() {
+    _slowTimer?.cancel();
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  /// Com o cofre aberto, sair do app por mais de 30 segundos bloqueia de novo.
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.paused || state == AppLifecycleState.hidden) {
+      _leftAt ??= DateTime.now();
+    } else if (state == AppLifecycleState.resumed) {
+      store.runDailyResets();
+      final left = _leftAt;
+      _leftAt = null;
+      if (left != null &&
+          DateTime.now().difference(left).inSeconds >= store.vaultLockSeconds) {
+        store.requestVaultLock();
+      }
+    }
+  }
+
+  void _leaveVault() {
+    notoNavigatorKey.currentState?.popUntil((route) => route.isFirst);
+    store.releaseVaultLock();
   }
 
   @override
   Widget build(BuildContext context) => AnimatedBuilder(
-        animation: store,
-        builder: (_, __) => MaterialApp(
-          debugShowCheckedModeBanner: false,
-          title: 'Noto',
-          theme: notoTheme(store, Brightness.light),
-          darkTheme: notoTheme(store, Brightness.dark),
-          themeMode: store.mode,
-          home: !store.loaded
-              ? const Scaffold(body: Center(child: CircularProgressIndicator()))
-              : store.onboardingDone
-                  ? GlobalWallpaper(
-                      store: store,
-                      child: HomeShellV4(store: store),
-                    )
-                  : OnboardingPage(store: store),
-        ),
-      );
-}
-
-class OnboardingPage extends StatelessWidget {
-  const OnboardingPage({super.key, required this.store});
-
-  final AppStore store;
-
-  @override
-  Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    return Scaffold(
-      body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(28, 28, 28, 24),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const NotoMark(size: 58),
-              const Spacer(),
-              Text(
-                'Noto',
-                style: Theme.of(context).textTheme.displaySmall?.copyWith(
-                      fontWeight: FontWeight.w900,
-                      letterSpacing: -1.8,
-                    ),
+    animation: store,
+    builder: (_, __) => MaterialApp(
+      debugShowCheckedModeBanner: false,
+      title: 'Noto',
+      navigatorKey: notoNavigatorKey,
+      builder: (context, child) => Stack(
+        children: [
+          NotoSafeFrame(child: child ?? const SizedBox()),
+          if (store.vaultLockRequested && store.vaultScreensOpen > 0)
+            Positioned.fill(
+              // Overlay próprio: o campo de senha precisa de um para funcionar
+              // aqui, acima das telas do app.
+              child: Overlay(
+                initialEntries: [
+                  OverlayEntry(
+                    builder: (_) =>
+                        VaultLockScreen(store: store, onLeave: _leaveVault),
+                  ),
+                ],
               ),
-              const SizedBox(height: 10),
-              Text(
-                'Um lugar simples pra escrever, guardar e achar depois.',
-                style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      height: 1.35,
-                      color: cs.onSurface.withValues(alpha: .68),
-                    ),
-              ),
-              const SizedBox(height: 34),
-              const _IntroLine('Captura rápida quando tu só quer tirar algo da cabeça.'),
-              const _IntroLine('Pastas, tags e busca quando realmente precisar organizar.'),
-              const _IntroLine('Teus textos ficam no aparelho; o Pulse trabalha localmente.'),
-              const Spacer(),
-              SizedBox(
-                width: double.infinity,
-                child: FilledButton(
-                  onPressed: () {
-                    store.onboardingDone = true;
-                    store.save();
-                  },
-                  child: const Text('Começar'),
+            ),
+        ],
+      ),
+      theme: notoTheme(store, Brightness.light),
+      darkTheme: notoTheme(store, Brightness.dark),
+      themeMode: store.mode,
+      home: _loadError != null
+          ? _LoadProblem(error: _loadError!, onRetry: _load)
+          : !store.loaded
+          ? Scaffold(
+              body: Center(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const CircularProgressIndicator(),
+                    if (_slow) ...[
+                      const SizedBox(height: 18),
+                      const Text('Abrindo suas notas…'),
+                    ],
+                  ],
                 ),
               ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
+            )
+          : store.onboardingDone
+          ? GlobalWallpaper(
+              store: store,
+              child: HomeShell(store: store),
+            )
+          : TutorialPage(
+              onName: (value) => store.userName = value,
+              onDone: () {
+                store.onboardingDone = true;
+                store.save();
+              },
+            ),
+    ),
+  );
 }
 
-class _IntroLine extends StatelessWidget {
-  const _IntroLine(this.text);
-
-  final String text;
+class _LoadProblem extends StatelessWidget {
+  const _LoadProblem({required this.error, required this.onRetry});
+  final Object error;
+  final VoidCallback onRetry;
 
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 18),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            width: 16,
-            height: 2,
-            margin: const EdgeInsets.only(top: 9, right: 12),
-            color: cs.primary,
-          ),
-          Expanded(
-            child: Text(
-              text,
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(height: 1.45),
+    final details = error.toString();
+    return Scaffold(
+      body: SafeArea(
+        child: Center(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(28),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.error_outline_rounded, size: 52, color: cs.error),
+                const SizedBox(height: 14),
+                Text(
+                  'Não consegui abrir as notas',
+                  textAlign: TextAlign.center,
+                  style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                const Text(
+                  'Suas notas continuam guardadas no celular; nada foi apagado. '
+                  'Tente de novo. Se continuar, copie os detalhes e envie para quem '
+                  'cuida do app.',
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 18),
+                FilledButton(onPressed: onRetry, child: const Text('Tentar de novo')),
+                TextButton(
+                  onPressed: () {
+                    Clipboard.setData(ClipboardData(text: details));
+                    ScaffoldMessenger.maybeOf(context)?.showSnackBar(
+                      const SnackBar(content: Text('Detalhes copiados')),
+                    );
+                  },
+                  child: const Text('Copiar detalhes'),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  details.length > 400 ? '${details.substring(0, 400)}…' : details,
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: cs.onSurface.withValues(alpha: .55),
+                  ),
+                ),
+              ],
             ),
           ),
-        ],
+        ),
       ),
     );
   }

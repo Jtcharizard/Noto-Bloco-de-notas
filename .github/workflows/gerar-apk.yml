@@ -9,10 +9,13 @@ on:
 
 jobs:
   android:
-    runs-on: ubuntu-latest
+    # Versão fixa do sistema: evita que o build quebre quando o GitHub trocar o padrão.
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
     steps:
       - name: Baixar projeto
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Preparar Flutter
         uses: subosito/flutter-action@v2
@@ -21,76 +24,183 @@ jobs:
           cache: true
 
       - name: Instalar fontes do aplicativo
-        run: |
-          mkdir -p assets/fonts
-          curl -fL https://raw.githubusercontent.com/google/fonts/main/ofl/poppins/Poppins-Regular.ttf -o assets/fonts/Poppins-Regular.ttf
-          curl -fL https://raw.githubusercontent.com/google/fonts/main/ofl/poppins/Poppins-Bold.ttf -o assets/fonts/Poppins-Bold.ttf
-          curl -fL 'https://raw.githubusercontent.com/google/fonts/main/ofl/montserrat/Montserrat%5Bwght%5D.ttf' -o assets/fonts/Montserrat.ttf
-          curl -fL 'https://raw.githubusercontent.com/google/fonts/main/ofl/playfairdisplay/PlayfairDisplay%5Bwght%5D.ttf' -o assets/fonts/PlayfairDisplay.ttf
-          curl -fL https://raw.githubusercontent.com/google/fonts/main/ofl/bebasneue/BebasNeue-Regular.ttf -o assets/fonts/BebasNeue-Regular.ttf
-          curl -fL https://raw.githubusercontent.com/google/fonts/main/ofl/lobster/Lobster-Regular.ttf -o assets/fonts/Lobster-Regular.ttf
-          curl -fL https://raw.githubusercontent.com/google/fonts/main/ofl/pacifico/Pacifico-Regular.ttf -o assets/fonts/Pacifico-Regular.ttf
-          curl -fL 'https://raw.githubusercontent.com/google/fonts/main/ofl/caveat/Caveat%5Bwght%5D.ttf' -o assets/fonts/Caveat.ttf
-          curl -fL 'https://raw.githubusercontent.com/google/fonts/main/ofl/dancingscript/DancingScript%5Bwght%5D.ttf' -o assets/fonts/DancingScript.ttf
-          curl -fL 'https://raw.githubusercontent.com/google/fonts/main/ofl/oswald/Oswald%5Bwght%5D.ttf' -o assets/fonts/Oswald.ttf
-          curl -fL 'https://raw.githubusercontent.com/google/fonts/main/ofl/raleway/Raleway%5Bwght%5D.ttf' -o assets/fonts/Raleway.ttf
-          curl -fL 'https://raw.githubusercontent.com/google/fonts/main/ofl/lora/Lora%5Bwght%5D.ttf' -o assets/fonts/Lora.ttf
-          curl -fL 'https://raw.githubusercontent.com/google/fonts/main/ofl/nunito/Nunito%5Bwght%5D.ttf' -o assets/fonts/Nunito.ttf
-          curl -fL 'https://raw.githubusercontent.com/google/fonts/main/ofl/quicksand/Quicksand%5Bwght%5D.ttf' -o assets/fonts/Quicksand.ttf
-          curl -fL 'https://raw.githubusercontent.com/google/fonts/main/ofl/rubik/Rubik%5Bwght%5D.ttf' -o assets/fonts/Rubik.ttf
-          curl -fL 'https://raw.githubusercontent.com/google/fonts/main/ofl/cinzel/Cinzel%5Bwght%5D.ttf' -o assets/fonts/Cinzel.ttf
-          curl -fL https://raw.githubusercontent.com/google/fonts/main/ofl/bangers/Bangers-Regular.ttf -o assets/fonts/Bangers-Regular.ttf
-          curl -fL 'https://raw.githubusercontent.com/google/fonts/main/ofl/comfortaa/Comfortaa%5Bwght%5D.ttf' -o assets/fonts/Comfortaa.ttf
-          curl -fL 'https://raw.githubusercontent.com/google/fonts/main/ofl/inter/Inter%5Bopsz,wght%5D.ttf' -o assets/fonts/Inter.ttf
-          curl -fL https://raw.githubusercontent.com/google/fonts/main/ofl/firasans/FiraSans-Regular.ttf -o assets/fonts/FiraSans-Regular.ttf
-          curl -fL 'https://raw.githubusercontent.com/google/fonts/main/ofl/firacode/FiraCode%5Bwght%5D.ttf' -o assets/fonts/FiraCode.ttf
-          curl -fL 'https://raw.githubusercontent.com/google/fonts/main/ofl/josefinsans/JosefinSans%5Bwght%5D.ttf' -o assets/fonts/JosefinSans.ttf
-          curl -fL https://raw.githubusercontent.com/google/fonts/main/ofl/abrilfatface/AbrilFatface-Regular.ttf -o assets/fonts/AbrilFatface-Regular.ttf
-          curl -fL 'https://raw.githubusercontent.com/google/fonts/main/ofl/fredoka/Fredoka%5Bwdth,wght%5D.ttf' -o assets/fonts/Fredoka.ttf
-          curl -fL https://raw.githubusercontent.com/google/fonts/main/ofl/kalam/Kalam-Regular.ttf -o assets/fonts/Kalam-Regular.ttf
-          curl -fL https://raw.githubusercontent.com/google/fonts/main/apache/satisfy/Satisfy-Regular.ttf -o assets/fonts/Satisfy-Regular.ttf
-          curl -fL https://raw.githubusercontent.com/google/fonts/main/ofl/righteous/Righteous-Regular.ttf -o assets/fonts/Righteous-Regular.ttf
-          curl -fL 'https://raw.githubusercontent.com/google/fonts/main/ofl/spacegrotesk/SpaceGrotesk%5Bwght%5D.ttf' -o assets/fonts/SpaceGrotesk.ttf
-          curl -fL 'https://raw.githubusercontent.com/google/fonts/main/ofl/manrope/Manrope%5Bwght%5D.ttf' -o assets/fonts/Manrope.ttf
-          curl -fL 'https://raw.githubusercontent.com/google/fonts/main/ofl/urbanist/Urbanist%5Bwght%5D.ttf' -o assets/fonts/Urbanist.ttf
-          curl -fL https://raw.githubusercontent.com/google/fonts/main/ofl/dmserifdisplay/DMSerifDisplay-Regular.ttf -o assets/fonts/DMSerifDisplay-Regular.ttf
-          curl -fL 'https://raw.githubusercontent.com/google/fonts/main/ofl/librebaskerville/LibreBaskerville%5Bwght%5D.ttf' -o assets/fonts/LibreBaskerville-Regular.ttf
+        run: bash tools/baixar_fontes.sh --leve
 
       - name: Gerar estrutura Android
         run: |
-          flutter create --platforms=android .
+          trap 'echo "::error::Falhou: $BASH_COMMAND"; grep -n "buildTypes\|signingConfig\|release {" android/app/build.gradle.kts | head -10 | sed "s/^/::error::/"' ERR
+          flutter create --platforms=android --no-pub .
           sed -i 's/android:label="bloco_personalizavel"/android:label="Noto"/' android/app/src/main/AndroidManifest.xml
           sed -i '/<application/i\    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />' android/app/src/main/AndroidManifest.xml
-          sed -i '/<\/application>/i\        <receiver android:name=".NotoWidgetProvider" android:exported="true">\n            <intent-filter><action android:name="android.appwidget.action.APPWIDGET_UPDATE" /></intent-filter>\n            <meta-data android:name="android.appwidget.provider" android:resource="@xml/noto_widget_info" />\n        </receiver>\n        <receiver android:name=".NotoQuickWidgetProvider" android:exported="true">\n            <intent-filter><action android:name="android.appwidget.action.APPWIDGET_UPDATE" /></intent-filter>\n            <meta-data android:name="android.appwidget.provider" android:resource="@xml/noto_quick_widget_info" />\n        </receiver>' android/app/src/main/AndroidManifest.xml
+          sed -i '/<application/i\    <uses-permission android:name="android.permission.RECORD_AUDIO" />' android/app/src/main/AndroidManifest.xml
+          sed -i '/<\/manifest>/i\    <queries>\n        <intent><action android:name="android.speech.RecognitionService" /></intent>\n        <intent><action android:name="android.intent.action.VIEW" /><data android:scheme="https" /></intent>\n        <intent><action android:name="android.intent.action.VIEW" /><data android:scheme="http" /></intent>\n        <intent><action android:name="android.intent.action.DIAL" /><data android:scheme="tel" /></intent>\n        <intent><action android:name="android.intent.action.SENDTO" /><data android:scheme="mailto" /></intent>\n    </queries>' android/app/src/main/AndroidManifest.xml
+          sed -i '/<application/i\    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />\n    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />' android/app/src/main/AndroidManifest.xml
+          sed -i '/<\/application>/i\        <receiver android:exported="false" android:name="com.dexterous.flutterlocalnotifications.ScheduledNotificationReceiver" />\n        <receiver android:exported="false" android:name="com.dexterous.flutterlocalnotifications.ScheduledNotificationBootReceiver">\n            <intent-filter>\n                <action android:name="android.intent.action.BOOT_COMPLETED" />\n                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />\n                <action android:name="android.intent.action.QUICKBOOT_POWERON" />\n                <action android:name="com.htc.intent.action.QUICKBOOT_POWERON" />\n            </intent-filter>\n        </receiver>' android/app/src/main/AndroidManifest.xml
+          sed -i '0,/<\/activity>/s//    <intent-filter><action android:name="es.antonborri.home_widget.action.LAUNCH" \/><\/intent-filter>\n            <intent-filter><action android:name="android.intent.action.SEND" \/><category android:name="android.intent.category.DEFAULT" \/><data android:mimeType="text\/*" \/><\/intent-filter>\n        <\/activity>/' android/app/src/main/AndroidManifest.xml
+          sed -i '/<\/application>/i\        <receiver android:name=".NotoWidgetProvider" android:exported="true" android:label="Noto · Nota">\n            <intent-filter><action android:name="android.appwidget.action.APPWIDGET_UPDATE" /></intent-filter>\n            <meta-data android:name="android.appwidget.provider" android:resource="@xml/noto_widget_info" />\n        </receiver>\n        <receiver android:name=".NotoQuickWidgetProvider" android:exported="true" android:label="Noto · Nova nota">\n            <intent-filter><action android:name="android.appwidget.action.APPWIDGET_UPDATE" /></intent-filter>\n            <meta-data android:name="android.appwidget.provider" android:resource="@xml/noto_quick_widget_info" />\n        </receiver>\n        <receiver android:name=".NotoSummaryWidgetProvider" android:exported="true" android:label="Noto · Resumo do dia">\n            <intent-filter><action android:name="android.appwidget.action.APPWIDGET_UPDATE" /></intent-filter>\n            <meta-data android:name="android.appwidget.provider" android:resource="@xml/noto_summary_widget_info" />\n        </receiver>\n        <receiver android:name=".NotoTodayWidgetProvider" android:exported="true" android:label="Noto · Hoje">\n            <intent-filter><action android:name="android.appwidget.action.APPWIDGET_UPDATE" /></intent-filter>\n            <meta-data android:name="android.appwidget.provider" android:resource="@xml/noto_today_widget_info" />\n        </receiver>\n        <receiver android:name=".NotoTasksWidgetProvider" android:exported="true" android:label="Noto · Tarefas">\n            <intent-filter><action android:name="android.appwidget.action.APPWIDGET_UPDATE" /></intent-filter>\n            <meta-data android:name="android.appwidget.provider" android:resource="@xml/noto_tasks_widget_info" />\n        </receiver>\n        <receiver android:name=".NotoActionsWidgetProvider" android:exported="true" android:label="Noto · Atalhos">\n            <intent-filter><action android:name="android.appwidget.action.APPWIDGET_UPDATE" /></intent-filter>\n            <meta-data android:name="android.appwidget.provider" android:resource="@xml/noto_actions_widget_info" />\n        </receiver>' android/app/src/main/AndroidManifest.xml
           mkdir -p android/app/src/main/res/layout android/app/src/main/res/xml android/app/src/main/res/drawable
           cp android_widget/NotoWidgetProvider.kt android/app/src/main/kotlin/com/example/bloco_personalizavel/
           cp android_widget/NotoQuickWidgetProvider.kt android/app/src/main/kotlin/com/example/bloco_personalizavel/
+          cp android_widget/MainActivity.kt android/app/src/main/kotlin/com/example/bloco_personalizavel/MainActivity.kt
+          grep -q 'android.intent.action.SEND' android/app/src/main/AndroidManifest.xml
+          grep -q 'ScheduledNotificationBootReceiver' android/app/src/main/AndroidManifest.xml
+          cat android/app/src/main/AndroidManifest.xml
           cp android_widget/noto_widget.xml android/app/src/main/res/layout/
           cp android_widget/noto_quick_widget.xml android/app/src/main/res/layout/
           cp android_widget/noto_widget_bg.xml android/app/src/main/res/drawable/
           cp android_widget/noto_widget_info.xml android/app/src/main/res/xml/
           cp android_widget/noto_quick_widget_info.xml android/app/src/main/res/xml/
+          cp android_widget/NotoSummaryWidgetProvider.kt android/app/src/main/kotlin/com/example/bloco_personalizavel/
+          cp android_widget/noto_summary_widget.xml android/app/src/main/res/layout/
+          cp android_widget/noto_summary_widget_info.xml android/app/src/main/res/xml/
+          cp android_widget/noto_widget_button.xml android/app/src/main/res/drawable/
+          cp android_widget/NotoWidgets.kt android/app/src/main/kotlin/com/example/bloco_personalizavel/
+          cp android_widget/noto_widget_shape.xml android_widget/noto_widget_shape_small.xml android/app/src/main/res/drawable/
+          cp android_widget/noto_today_widget.xml android_widget/noto_tasks_widget.xml android_widget/noto_actions_widget.xml android/app/src/main/res/layout/
+          cp android_widget/noto_today_widget_info.xml android_widget/noto_tasks_widget_info.xml android_widget/noto_actions_widget_info.xml android/app/src/main/res/xml/
+          mkdir -p android/app/src/main/res/values
+          cp android_widget/noto_widget_strings.xml android/app/src/main/res/values/
+          grep -q 'NotoSummaryWidgetProvider' android/app/src/main/AndroidManifest.xml
+          grep -q 'NotoActionsWidgetProvider' android/app/src/main/AndroidManifest.xml
           sed -i '/compileOptions {/a\        isCoreLibraryDesugaringEnabled = true' android/app/build.gradle.kts
           printf '\ndependencies {\n    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")\n}\n' >> android/app/build.gradle.kts
+          # Assinatura fixa do Noto: o arquivo da chave vem do passo "Preparar chave fixa".
+          grep -q 'signingConfigs.getByName("debug")' android/app/build.gradle.kts
+          sed -i 's/signingConfigs.getByName("debug")/signingConfigs.getByName("noto")/' android/app/build.gradle.kts
+          sed -i '0,/    buildTypes {/s//    signingConfigs {\n        create("noto") {\n            storeFile = file(System.getenv("NOTO_KEYSTORE") ?: "noto-sem-chave.keystore")\n            storePassword = "android"\n            keyAlias = "androiddebugkey"\n            keyPassword = "android"\n        }\n    }\n\n    buildTypes {/' android/app/build.gradle.kts
+          grep -n -A8 'signingConfigs {' android/app/build.gradle.kts
+          # Regras para a otimização do APK não remover código que os plugins chamam
+          # por fora do Kotlin/Java (JNI, reflexão). O Flutter lê este arquivo sozinho.
+          cp android_widget/proguard-rules.pro android/app/proguard-rules.pro
 
       - name: Baixar dependencias
-        run: flutter pub get
+        run: |
+          set -o pipefail
+          flutter pub get 2>&1 | tee step.log || { grep -vE "^\s*$" step.log | tail -15 | sed 's/^/::error::/'; exit 1; }
+          grep -A3 'shared_preferences_android:' pubspec.lock | sed 's/^/::notice::/' | head -4
 
       - name: Aplicar icone do Noto
-        run: dart run flutter_launcher_icons
+        run: |
+          set -o pipefail
+          dart run flutter_launcher_icons 2>&1 | tee step.log || { grep -E "(error|warning) •|Error:|Expected:|Actual:|Because|EXCEPTION|Test failed|\[E\]|FAILURE|What went wrong|^e: |^> |Unresolved|Could not" step.log | tail -40 | sed 's/^/::error::/'; exit 1; }
 
       - name: Verificar codigo
-        run: flutter analyze --no-fatal-infos
+        run: |
+          set -o pipefail
+          flutter analyze --no-fatal-infos 2>&1 | tee step.log || { grep -E "(error|warning) •|Error:|Expected:|Actual:|Because|EXCEPTION|Test failed|\[E\]|FAILURE|What went wrong|^e: |^> |Unresolved|Could not" step.log | tail -40 | sed 's/^/::error::/'; exit 1; }
 
       - name: Rodar testes
-        run: flutter test
+        run: |
+          set -o pipefail
+          flutter test --reporter expanded 2>&1 | tee step.log || { grep -E "(error|warning) •|Error:|Expected:|Actual:|Because|EXCEPTION|Test failed|\[E\]|FAILURE|What went wrong|^e: |^> |Unresolved|Could not" step.log | tail -40 | sed 's/^/::error::/'; exit 1; }
+
+      - name: Preparar chave fixa de assinatura
+        env:
+          NOTO_KEY_PASSWORD: ${{ secrets.NOTO_KEY_PASSWORD }}
+        run: |
+          if [ -z "$NOTO_KEY_PASSWORD" ]; then
+            echo "::error::Falta o segredo NOTO_KEY_PASSWORD no repositório. Sem ele o APK não instala por cima da versão anterior."
+            exit 1
+          fi
+          openssl enc -d -aes-256-cbc -pbkdf2 -iter 200000 -in android_widget/noto.keystore.enc -out "$RUNNER_TEMP/noto.keystore" -pass env:NOTO_KEY_PASSWORD
+          echo "NOTO_KEYSTORE=$RUNNER_TEMP/noto.keystore" >> "$GITHUB_ENV"
 
       - name: Compilar APK
-        run: flutter build apk --release
+        run: |
+          set -o pipefail
+          flutter build apk --release --split-per-abi --obfuscate --split-debug-info=build/simbolos 2>&1 | tee step.log || { grep -E "(error|warning) •|Error:|Expected:|Actual:|Because|EXCEPTION|Test failed|\[E\]|FAILURE|What went wrong|^e: |^> |Unresolved|Could not" step.log | tail -40 | sed 's/^/::error::/'; exit 1; }
+
+      - name: Conferir a assinatura
+        run: python3 android_widget/check_signature.py build/app/outputs/flutter-apk/app-*-release.apk
 
       - name: Disponibilizar APK
         uses: actions/upload-artifact@v4
         with:
           name: Noto-APK
-          path: build/app/outputs/flutter-apk/app-release.apk
+          path: build/app/outputs/flutter-apk/app-*-release.apk
           retention-days: 30
+
+      - name: Guardar versões das dependências
+        uses: actions/upload-artifact@v4
+        with:
+          name: pubspec-lock
+          path: pubspec.lock
+
+  emulador:
+    # Abre o APK num Android virtual para achar travamentos que só aparecem no aparelho.
+    needs: android
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - name: Baixar projeto
+        uses: actions/checkout@v5
+
+      - name: Baixar APK do build
+        uses: actions/download-artifact@v4
+        with:
+          name: Noto-APK
+          path: apk
+
+      - name: Baixar versões das dependências
+        uses: actions/download-artifact@v4
+        with:
+          name: pubspec-lock
+          path: lock
+
+      - name: Liberar aceleração do emulador
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      - name: Rodar no Android virtual
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 34
+          arch: x86_64
+          target: google_apis
+          disable-animations: true
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -no-snapshot
+          script: bash tools/emulador.sh
+
+      - name: Publicar diagnóstico
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p diagnostico && cp lock/pubspec.lock diagnostico/ || true
+          ls -la diagnostico || exit 0
+          grep -E "E flutter|FATAL EXCEPTION|Unhandled Exception" diagnostico/logcat-noto.txt | head -8 | sed 's/^/::warning::/' || true
+          gh release delete diagnostico -y --cleanup-tag || true
+          gh release create diagnostico diagnostico/* --target "$GITHUB_SHA" --title "Diagnóstico (emulador)" --notes "Prints e log do teste no Android virtual." --prerelease
+
+  publicar:
+    # Só publica o APK depois que ele abriu de verdade no Android virtual.
+    needs: emulador
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - name: Baixar projeto
+        uses: actions/checkout@v5
+
+      - name: Baixar APK do build
+        uses: actions/download-artifact@v4
+        with:
+          name: Noto-APK
+          path: apk
+
+      - name: Publicar APK para download sem login
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          version=$(grep '^version:' pubspec.yaml | sed 's/version: //; s/+.*//')
+          cp apk/app-arm64-v8a-release.apk "Noto-$version.apk"
+          cp apk/app-armeabi-v7a-release.apk "Noto-$version-celulares-antigos.apk"
+          keytool -printcert -jarfile "Noto-$version.apk" | grep -m1 SHA256 | sed 's/^/::notice::Assinatura /'
+          gh release delete "v$version" -y --cleanup-tag || true
+          gh release create "v$version" "Noto-$version.apk" "Noto-$version-celulares-antigos.apk" --target "$GITHUB_SHA" --title "Noto $version" --notes "Baixe Noto-$version.apk e abra no celular. Se não instalar, seu aparelho é mais antigo: use o arquivo celulares-antigos." --prerelease
