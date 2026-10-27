@@ -1258,15 +1258,25 @@ class _EditorPageState extends State<EditorPage>
         selection: TextSelection.collapsed(offset: at),
       );
     }
-    switch (value) {
-      case 'subheading':
-        body.value = formatSelection(body.value, prefix: '### ', eachLine: true);
-        bodyFocus.requestFocus();
-      case 'numbered':
-        body.value = formatSelection(body.value, prefix: '1. ', eachLine: true);
-        bodyFocus.requestFocus();
-      default:
-        _tool(value);
+    // Linha vazia: só põe o começo da linha, sem texto de exemplo.
+    const starts = {
+      'heading': '## ',
+      'subheading': '### ',
+      'list': '- ',
+      'numbered': '1. ',
+      'quote': '> ',
+    };
+    final start = starts[value];
+    if (start != null) {
+      body.value = formatSelection(
+        body.value,
+        prefix: start,
+        placeholder: '',
+        eachLine: true,
+      );
+      bodyFocus.requestFocus();
+    } else {
+      _tool(value);
     }
   }
 
