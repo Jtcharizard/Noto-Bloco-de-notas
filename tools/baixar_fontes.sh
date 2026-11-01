@@ -45,6 +45,22 @@ curl -fL 'https://raw.githubusercontent.com/google/fonts/main/ofl/anton/Anton-Re
 curl -fL 'https://raw.githubusercontent.com/google/fonts/main/ofl/shadowsintolight/ShadowsIntoLight.ttf' -o assets/fonts/ShadowsIntoLight.ttf
 curl -fL 'https://raw.githubusercontent.com/google/fonts/main/ofl/amaticsc/AmaticSC-Regular.ttf' -o assets/fonts/AmaticSC.ttf
 curl -fL 'https://raw.githubusercontent.com/google/fonts/main/ofl/indieflower/IndieFlower-Regular.ttf' -o assets/fonts/IndieFlower.ttf
+# 4.3: mais 15 fontes
+curl -fL 'https://raw.githubusercontent.com/google/fonts/main/ofl/sora/Sora%5Bwght%5D.ttf' -o assets/fonts/Sora.ttf
+curl -fL 'https://raw.githubusercontent.com/google/fonts/main/ofl/outfit/Outfit%5Bwght%5D.ttf' -o assets/fonts/Outfit.ttf
+curl -fL 'https://raw.githubusercontent.com/google/fonts/main/ofl/lexend/Lexend%5Bwght%5D.ttf' -o assets/fonts/Lexend.ttf
+curl -fL 'https://raw.githubusercontent.com/google/fonts/main/ofl/plusjakartasans/PlusJakartaSans%5Bwght%5D.ttf' -o assets/fonts/PlusJakartaSans.ttf
+curl -fL 'https://raw.githubusercontent.com/google/fonts/main/ofl/lato/Lato-Regular.ttf' -o assets/fonts/Lato.ttf
+curl -fL 'https://raw.githubusercontent.com/google/fonts/main/ofl/opensans/OpenSans%5Bwdth,wght%5D.ttf' -o assets/fonts/OpenSans.ttf
+curl -fL 'https://raw.githubusercontent.com/google/fonts/main/ofl/sourceserif4/SourceSerif4%5Bopsz,wght%5D.ttf' -o assets/fonts/SourceSerif4.ttf
+curl -fL 'https://raw.githubusercontent.com/google/fonts/main/ofl/ebgaramond/EBGaramond%5Bwght%5D.ttf' -o assets/fonts/EBGaramond.ttf
+curl -fL 'https://raw.githubusercontent.com/google/fonts/main/ofl/patrickhand/PatrickHand-Regular.ttf' -o assets/fonts/PatrickHand.ttf
+curl -fL 'https://raw.githubusercontent.com/google/fonts/main/apache/permanentmarker/PermanentMarker-Regular.ttf' -o assets/fonts/PermanentMarker.ttf
+curl -fL 'https://raw.githubusercontent.com/google/fonts/main/ofl/pressstart2p/PressStart2P-Regular.ttf' -o assets/fonts/PressStart2P.ttf
+curl -fL 'https://raw.githubusercontent.com/google/fonts/main/ofl/orbitron/Orbitron%5Bwght%5D.ttf' -o assets/fonts/Orbitron.ttf
+curl -fL 'https://raw.githubusercontent.com/google/fonts/main/ofl/greatvibes/GreatVibes-Regular.ttf' -o assets/fonts/GreatVibes.ttf
+curl -fL 'https://raw.githubusercontent.com/google/fonts/main/ofl/jetbrainsmono/JetBrainsMono%5Bwght%5D.ttf' -o assets/fonts/JetBrainsMono.ttf
+curl -fL 'https://raw.githubusercontent.com/google/fonts/main/ofl/baloo2/Baloo2%5Bwght%5D.ttf' -o assets/fonts/Baloo2.ttf
 
 if [ "$1" = "--leve" ]; then
   pip install --quiet fonttools brotli >/dev/null 2>&1 || pip install --quiet --break-system-packages fonttools

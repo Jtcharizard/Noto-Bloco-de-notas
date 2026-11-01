@@ -93,6 +93,9 @@ void main() {
     await tester.tap(find.byType(Checkbox));
     await tester.pump();
     expect(controller.text, contains('- [x] Fazer teste'));
+    // As opções aparecem na linha em que a pessoa está mexendo.
+    await tester.tap(find.text('Introdução'));
+    await tester.pump();
     await tester.tap(find.byTooltip('Opções da linha').first);
     await tester.pumpAndSettle();
     await tester.tap(find.text('Transformar em tarefa'));

@@ -18,7 +18,11 @@ class MixedContentEditor extends StatefulWidget {
     this.hideDone = false,
     this.onShowDone,
     this.onAllDone,
+    this.roundChecks = false,
   });
+
+  /// Caixas de marcar redondas.
+  final bool roundChecks;
 
   final TextEditingController controller;
   final VoidCallback onChanged;
@@ -54,6 +58,9 @@ class _MixedLine {
   /// Recuo de subtarefa (0 = tarefa principal).
   int indent;
 
+  /// Já está avisando o editor quando ganha foco.
+  bool tracked = false;
+
   void dispose() {
     controller.dispose();
     focus.dispose();
@@ -62,6 +69,10 @@ class _MixedLine {
 
 class _MixedContentEditorState extends State<MixedContentEditor> {
   final List<_MixedLine> lines = [];
+
+  /// Linha em que a pessoa mexeu por último: só ela mostra X e ⋮
+  /// (como no Keep). Não depende do foco, para o X não sumir no toque.
+  _MixedLine? _active;
 
   static final RegExp _taskPattern = RegExp(
     r'^([ \t]*)(?:[-*]\s*)?\[([ xX])\]\s?(.*)$',
@@ -240,7 +251,10 @@ class _MixedContentEditorState extends State<MixedContentEditor> {
   void _removeLine(_MixedLine line) {
     if (lines.length <= 1) return;
     final index = lines.indexOf(line);
-    setState(() => lines.remove(line));
+    setState(() {
+      lines.remove(line);
+      if (identical(_active, line)) _active = null;
+    });
     _sync();
     var restored = false;
     final messenger = ScaffoldMessenger.maybeOf(context);
@@ -336,6 +350,15 @@ class _MixedContentEditorState extends State<MixedContentEditor> {
           },
           itemBuilder: (context, index) {
             final line = visible[index];
+            if (!line.tracked) {
+              line.tracked = true;
+              line.focus.addListener(() {
+                if (line.focus.hasFocus && !identical(_active, line) && mounted) {
+                  setState(() => _active = line);
+                }
+              });
+            }
+            final active = identical(_active, line);
             final position = lines.indexOf(line);
             final canIndent = line.task &&
                 line.indent < 3 &&
@@ -361,13 +384,25 @@ class _MixedContentEditorState extends State<MixedContentEditor> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 if (line.indent > 0) SizedBox(width: line.indent * 24.0),
+                ReorderableDragStartListener(
+                  index: index,
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(0, 14, 0, 12),
+                    child: Icon(
+                      Icons.drag_indicator_rounded,
+                      size: 18,
+                      color: cs.onSurface.withValues(alpha: .28),
+                    ),
+                  ),
+                ),
                 if (line.task)
                   Checkbox(
                     value: line.checked,
+                    shape: widget.roundChecks ? const CircleBorder() : null,
                     onChanged: (value) => _toggle(line, value ?? false),
                   )
                 else
-                  const SizedBox(width: 12),
+                  const SizedBox(width: 10),
                 Expanded(
                   child: TextField(
                     controller: line.controller,
@@ -397,20 +432,22 @@ class _MixedContentEditorState extends State<MixedContentEditor> {
                     onChanged: (value) => _lineChanged(line, value),
                   ),
                 ),
-                // X para apagar a tarefa, sempre à mão. (Antes só aparecia
-                // na tarefa em edição e sumia no toque, quando o campo
-                // perdia o foco, por isso não apagava.)
-                if (line.task)
+                if (active) ...[
                   IconButton(
-                    tooltip: 'Apagar tarefa',
+                    tooltip: line.task ? 'Apagar tarefa' : 'Apagar linha',
                     visualDensity: VisualDensity.compact,
-                    color: cs.onSurface.withValues(alpha: .5),
+                    color: cs.onSurface.withValues(alpha: .6),
                     icon: const Icon(Icons.close_rounded, size: 20),
                     onPressed: () => _deleteLine(line),
                   ),
                 PopupMenuButton<String>(
                   tooltip: 'Opções da linha',
-                  icon: const Icon(Icons.more_vert_rounded, size: 20),
+                  padding: EdgeInsets.zero,
+                  icon: Icon(
+                    Icons.more_vert_rounded,
+                    size: 20,
+                    color: cs.onSurface.withValues(alpha: .6),
+                  ),
                   onSelected: (value) {
                     if (value == 'convert') {
                       setState(() {
@@ -469,13 +506,7 @@ class _MixedContentEditorState extends State<MixedContentEditor> {
                     ),
                   ],
                 ),
-                ReorderableDragStartListener(
-                  index: index,
-                  child: const Padding(
-                    padding: EdgeInsets.fromLTRB(2, 12, 4, 12),
-                    child: Icon(Icons.drag_handle_rounded, size: 20),
-                  ),
-                ),
+                ],
               ],
             ),
             );

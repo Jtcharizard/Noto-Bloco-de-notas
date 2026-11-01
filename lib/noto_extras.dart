@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:math' as math;
 import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
@@ -407,3 +408,107 @@ final starterTemplates = <NotoTemplate>[
     body: '## A ideia\n\n\n## Por que vale a pena\n- \n\n## Primeiro passo\n- ',
   ),
 ];
+
+/// Confete rápido na tela (ao terminar uma lista). Não bloqueia toques.
+void showConfetti(BuildContext context) {
+  final overlay = Overlay.maybeOf(context, rootOverlay: true);
+  if (overlay == null) return;
+  final colors = [
+    Theme.of(context).colorScheme.primary,
+    Theme.of(context).colorScheme.tertiary,
+    const Color(0xFFFFC94D),
+    const Color(0xFFFF6B8B),
+    const Color(0xFF4DD4FF),
+    const Color(0xFF7CE38B),
+  ];
+  late OverlayEntry entry;
+  entry = OverlayEntry(
+    builder: (_) => IgnorePointer(
+      child: _ConfettiBurst(colors: colors, onDone: () => entry.remove()),
+    ),
+  );
+  overlay.insert(entry);
+}
+
+class _ConfettiBurst extends StatefulWidget {
+  const _ConfettiBurst({required this.colors, required this.onDone});
+  final List<Color> colors;
+  final VoidCallback onDone;
+
+  @override
+  State<_ConfettiBurst> createState() => _ConfettiBurstState();
+}
+
+class _ConfettiPiece {
+  _ConfettiPiece(math.Random r, this.color)
+    : x = .5 + (r.nextDouble() - .5) * .3,
+      vx = (r.nextDouble() - .5) * 1.4,
+      vy = -1.1 - r.nextDouble() * .9,
+      spin = (r.nextDouble() - .5) * 18,
+      size = 6 + r.nextDouble() * 7,
+      round = r.nextBool();
+  final double x, vx, vy, spin, size;
+  final bool round;
+  final Color color;
+}
+
+class _ConfettiBurstState extends State<_ConfettiBurst>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController controller = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 1700),
+  )..forward().whenComplete(widget.onDone);
+  late final List<_ConfettiPiece> pieces = () {
+    final r = math.Random();
+    return [
+      for (var i = 0; i < 90; i++)
+        _ConfettiPiece(r, widget.colors[i % widget.colors.length]),
+    ];
+  }();
+
+  @override
+  void dispose() {
+    controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => AnimatedBuilder(
+    animation: controller,
+    builder: (_, __) => CustomPaint(
+      size: Size.infinite,
+      painter: _ConfettiPainter(pieces, controller.value),
+    ),
+  );
+}
+
+class _ConfettiPainter extends CustomPainter {
+  _ConfettiPainter(this.pieces, this.t);
+  final List<_ConfettiPiece> pieces;
+  final double t;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final fade = t < .75 ? 1.0 : (1 - t) / .25;
+    for (final p in pieces) {
+      final dx = (p.x + p.vx * t * .6) * size.width;
+      final dy = size.height * (.62 + p.vy * t * .55 + 1.5 * t * t * .55);
+      final paint = Paint()..color = p.color.withValues(alpha: fade.clamp(0, 1));
+      canvas.save();
+      canvas.translate(dx, dy);
+      canvas.rotate(p.spin * t);
+      if (p.round) {
+        canvas.drawCircle(Offset.zero, p.size / 2.4, paint);
+      } else {
+        canvas.drawRect(
+          Rect.fromCenter(center: Offset.zero, width: p.size, height: p.size * .5),
+          paint,
+        );
+      }
+      canvas.restore();
+    }
+  }
+
+  @override
+  bool shouldRepaint(_ConfettiPainter old) => old.t != t;
+}

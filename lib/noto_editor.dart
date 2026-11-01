@@ -186,7 +186,7 @@ class _EditorPageState extends State<EditorPage>
       const SnackBar(
         duration: Duration(seconds: 4),
         content: Text(
-          'Dica: Enter cria a próxima tarefa. O X ao lado apaga a tarefa.',
+          'Dica: toque numa tarefa para ver o X de apagar. Enter cria a próxima.',
         ),
       ),
     );
@@ -1189,6 +1189,7 @@ class _EditorPageState extends State<EditorPage>
 
   /// Lista toda marcada: oferece arquivar (como no Keep e no Todoist).
   void _listFinished() {
+    if (widget.store.celebrate) showConfetti(context);
     final messenger = ScaffoldMessenger.of(context);
     messenger.hideCurrentSnackBar();
     messenger.showSnackBar(
@@ -3563,6 +3564,7 @@ class _EditorPageState extends State<EditorPage>
                                     hideDone: hideDone,
                                     onShowDone: () => _setHideDone(false),
                                     onAllDone: _listFinished,
+                                    roundChecks: widget.store.roundChecks,
                                     controller: body,
                                     family: bodyFamily,
                                     fontSize: widget.store.fontSize,

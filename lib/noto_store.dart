@@ -146,6 +146,15 @@ class AppStore extends ChangeNotifier {
   /// Cards translúcidos, deixando o fundo do app aparecer.
   bool glassCards = false;
 
+  /// Caixas de marcar redondas (como no Lembretes do iPhone).
+  bool roundChecks = false;
+
+  /// Estilo dos cards: 0 = borda, 1 = sombra, 2 = liso.
+  int cardStyle = 0;
+
+  /// Confete quando a última tarefa da lista é marcada.
+  bool celebrate = true;
+
   /// Emoji de cada pasta ("Mercado" -> "🛒").
   final Map<String, String> folderEmojis = {};
 
@@ -428,6 +437,9 @@ class AppStore extends ChangeNotifier {
     headerPhrase = prefs.getString('headerPhrase') ?? '';
     showGreeting = prefs.getBool('showGreeting') ?? true;
     glassCards = prefs.getBool('glassCards') ?? false;
+    roundChecks = prefs.getBool('roundChecks') ?? false;
+    cardStyle = (prefs.getInt('cardStyle') ?? 0).clamp(0, 2).toInt();
+    celebrate = prefs.getBool('celebrate') ?? true;
     folderEmojis.clear();
     try {
       final raw = prefs.getString('folderEmojis');
@@ -641,6 +653,9 @@ class AppStore extends ChangeNotifier {
     await prefs.setString('headerPhrase', headerPhrase);
     await prefs.setBool('showGreeting', showGreeting);
     await prefs.setBool('glassCards', glassCards);
+    await prefs.setBool('roundChecks', roundChecks);
+    await prefs.setInt('cardStyle', cardStyle);
+    await prefs.setBool('celebrate', celebrate);
     await prefs.setString('folderEmojis', jsonEncode(folderEmojis));
     await prefs.setInt('plusAction', plusAction);
     await prefs.setInt('swipeRight', swipeRight);
@@ -668,8 +683,15 @@ class AppStore extends ChangeNotifier {
       );
     }
 
-    await _syncWidget();
-    await _refreshPinnedNotification();
+    // Widget e notificação fixa nunca podem impedir a tela de atualizar.
+    try {
+      await _syncWidget();
+    } catch (_) {
+      /* Widget indisponível: as notas já foram gravadas. */
+    }
+    try {
+      await _refreshPinnedNotification();
+    } catch (_) {}
     notifyListeners();
   }
 

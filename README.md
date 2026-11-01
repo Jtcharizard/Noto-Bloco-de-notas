@@ -48,6 +48,14 @@ O app funciona sem conta e sem internet. As notas e preferências ficam armazena
 - Apagar tarefas ficou fácil: um X aparece na tarefa que você está editando e nas já marcadas. O ⋮ da tarefa também tem "Apagar tarefa", até quando é a única.
 - 10 fundos novos: Pôr do sol, Synthwave, Noite na serra, Ondas, Luzes, Dunas, Mosaico, Via Láctea, Fundo do mar e Algodão-doce.
 
+## Novidades da v4.3.0
+
+- Lista mais limpa (como no Keep): o X e o ⋮ só aparecem na tarefa em que você tocou; a alça de arrastar fica discreta à esquerda.
+- Apagar tarefa revisado de ponta a ponta, com teste de sair e voltar na nota. Na tela "Todas as tarefas" agora também dá para apagar (X ou deslizar).
+- A tela inicial sempre se atualiza depois de salvar, mesmo se o widget falhar.
+- 15 fontes novas: Sora, Outfit, Lexend, Plus Jakarta, Lato, Open Sans, Source Serif, EB Garamond, Patrick Hand, Permanent Marker, Press Start (pixel), Orbitron, Great Vibes, JetBrains Mono e Baloo.
+- Personalização: caixas de tarefa redondas, estilo dos cards (borda, sombra ou lisos) e confete ao terminar uma lista.
+
 ## Novidades da v4.2.0
 
 - Corrigido: o X de apagar tarefa sumia no toque e não apagava. Agora fica sempre ao lado de cada tarefa.

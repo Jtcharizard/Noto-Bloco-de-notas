@@ -171,12 +171,13 @@ if tap_text "Menu"; then
   if tap_text "Modelos" && tap_text "Lista de compras"; then
     sleep 2
     shot 20-compras
-    tap_row "Leite" "Apagar tarefa"; sleep 1; shot 21-x-leite; gone "Leite" "X sem foco"
+    tap_text "Leite"; sleep 1; shot 21a-leite-tocada
+    tap_row "Leite" "Apagar tarefa"; sleep 1; shot 21-x-leite; gone "Leite" "X da tarefa tocada"
     tap_text "Pão"; sleep 1
-    tap_row "Pão" "Apagar tarefa"; sleep 1; shot 22-x-pao; gone "Pão" "X com a tarefa em edição"
-    adb shell input keyevent 4; sleep 1
+    tap_row "Pão" "Apagar tarefa"; sleep 1; shot 22-x-pao; gone "Pão" "X com teclado aberto"
+    tap_text "Feijão"; sleep 1
     if tap_row "Feijão" "Opções da linha"; then
-      tap_text "Apagar tarefa"; sleep 1; shot 23-menu-feijao; gone "Feijão" "menu da linha"
+      sleep 1; tap_text "Apagar tarefa"; sleep 1; shot 23-menu-feijao; gone "Feijão" "menu da linha"
     fi
     tap_row "Arroz" "CHECKBOX"; sleep 1
     if tap_text "Mais opções"; then
@@ -202,17 +203,8 @@ if tap_text "Menu"; then
     if tap_text "Mala de viagem"; then
       sleep 2
       shot 14-lista-subtarefas
-      # O X tem que apagar a tarefa, inclusive a que está em edição.
       tap_text "Roupas" && sleep 1
-      if tap_text "Apagar tarefa"; then
-        sleep 1
-        shot 14b-depois-do-x
-        if screen_text | grep -qx "Documentos"; then
-          echo "::warning::O X não apagou a primeira tarefa"
-        else
-          echo "OK: o X apagou a tarefa"
-        fi
-      fi
+      shot 14b-tarefa-tocada
       tap_text "Mais opções" && { shot 15-menu-da-lista; adb shell input keyevent 4; sleep 1; }
       tap_text "Voltar" || true
       sleep 2

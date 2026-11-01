@@ -169,10 +169,10 @@ void main() {
     }
   });
 
-  testWidgets('tarefa marcada tem X para apagar', (tester) async {
+  testWidgets('X apaga a tarefa em que a pessoa está mexendo', (tester) async {
     bigScreen(tester);
     final controller = TextEditingController(
-      text: '- [x] Pão\n- [ ] Leite',
+      text: '- [x] Pão\n- [ ] Leite\n- [ ] Ovos',
     );
     await tester.pumpWidget(
       MaterialApp(
@@ -181,25 +181,73 @@ void main() {
         ),
       ),
     );
-    expect(find.byTooltip('Apagar tarefa'), findsNWidgets(2));
-    await tester.tap(find.byTooltip('Apagar tarefa').first);
-    await tester.pump();
-    expect(controller.text, '- [ ] Leite');
-    // Editando a tarefa e tocando no X: tem que apagar também.
-    controller.text = '- [ ] Leite\n- [ ] Ovos';
-    await tester.pumpWidget(const SizedBox());
-    await tester.pumpWidget(
-      MaterialApp(
-        home: Scaffold(
-          body: MixedContentEditor(controller: controller, onChanged: () {}),
-        ),
-      ),
-    );
+    // Lista limpa: sem X em nenhuma linha até tocar numa delas.
+    expect(find.byTooltip('Apagar tarefa'), findsNothing);
     await tester.tap(find.text('Ovos'));
     await tester.pump();
-    await tester.tap(find.byTooltip('Apagar tarefa').last);
+    expect(find.byTooltip('Apagar tarefa'), findsOneWidget);
+    await tester.tap(find.byTooltip('Apagar tarefa'));
+    await tester.pumpAndSettle();
+    expect(controller.text, '- [x] Pão\n- [ ] Leite');
+    await tester.tap(find.text('Pão'));
+    await tester.pump();
+    await tester.tap(find.byTooltip('Apagar tarefa'));
     await tester.pumpAndSettle();
     expect(controller.text, '- [ ] Leite');
+    await tester.pumpWidget(const SizedBox());
+  });
+
+  testWidgets('tarefa apagada continua apagada ao sair e voltar', (
+    tester,
+  ) async {
+    bigScreen(tester);
+    final store = AppStore()..loaded = true;
+    store.seenTips.add('tasks-enter');
+    final note = Note(
+      id: 'lista-x',
+      title: 'Mercado',
+      body: '- [ ] leite\n- [ ] pão',
+      updatedAt: DateTime(2026, 10, 1),
+      checklist: true,
+    );
+    store.notes.add(note);
+    Future<void> open() async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Builder(
+            builder: (context) => Scaffold(
+              body: Center(
+                child: TextButton(
+                  onPressed: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) =>
+                          EditorPage(store: store, note: note, isNew: false),
+                    ),
+                  ),
+                  child: const Text('abrir'),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.tap(find.text('abrir'));
+      await tester.pumpAndSettle();
+    }
+
+    await open();
+    await tester.tap(find.text('leite'));
+    await tester.pump();
+    await tester.tap(find.byTooltip('Apagar tarefa'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('Voltar'));
+    await tester.pumpAndSettle();
+    expect(note.body, '- [ ] pão');
+    await tester.pumpWidget(const SizedBox());
+    await open();
+    expect(find.text('leite'), findsNothing);
+    expect(find.text('pão'), findsOneWidget);
     await tester.pumpWidget(const SizedBox());
   });
 }

@@ -820,6 +820,23 @@ class SettingsPage extends StatelessWidget {
       ),
       const SizedBox(height: 24),
       const SectionTitle('Cards das notas'),
+      NotoTile(
+        icon: Icons.style_outlined,
+        title: 'Estilo dos cards',
+        subtitle: const ['Com borda', 'Com sombra', 'Lisos'][store.cardStyle],
+        onTap: () async {
+          final value = await _choose(
+            context,
+            'Estilo dos cards',
+            const [(0, 'Com borda'), (1, 'Com sombra'), (2, 'Lisos')],
+            store.cardStyle,
+          );
+          if (value != null) {
+            store.cardStyle = value;
+            await store.save();
+          }
+        },
+      ),
       SwitchListTile(
         contentPadding: EdgeInsets.zero,
         title: const Text('Cards de vidro'),
@@ -952,6 +969,28 @@ class SettingsPage extends StatelessWidget {
 
   List<Widget> _notesItems(BuildContext context) {
     return [
+      const SectionTitle('Listas de tarefas'),
+      SwitchListTile(
+        contentPadding: EdgeInsets.zero,
+        title: const Text('Caixas redondas'),
+        subtitle: const Text('Bolinhas no lugar dos quadrados, como no Lembretes do iPhone'),
+        value: store.roundChecks,
+        onChanged: (value) {
+          store.roundChecks = value;
+          store.save();
+        },
+      ),
+      SwitchListTile(
+        contentPadding: EdgeInsets.zero,
+        title: const Text('Comemorar ao terminar a lista'),
+        subtitle: const Text('Um confete quando a última tarefa é marcada'),
+        value: store.celebrate,
+        onChanged: (value) {
+          store.celebrate = value;
+          store.save();
+        },
+      ),
+      const SizedBox(height: 24),
       const SectionTitle('Notas novas'),
       NotoTile(
         icon: Icons.add_circle_outline_rounded,

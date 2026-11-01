@@ -309,6 +309,21 @@ class NotoAppearance {
     NotoFont('Shadows Into Light', 'ShadowsIntoLight'),
     NotoFont('Amatic SC', 'AmaticSC'),
     NotoFont('Indie Flower', 'IndieFlower'),
+    NotoFont('Sora', 'Sora'),
+    NotoFont('Outfit', 'Outfit'),
+    NotoFont('Lexend', 'Lexend'),
+    NotoFont('Plus Jakarta', 'PlusJakartaSans'),
+    NotoFont('Lato', 'Lato'),
+    NotoFont('Open Sans', 'OpenSans'),
+    NotoFont('Source Serif', 'SourceSerif4'),
+    NotoFont('EB Garamond', 'EBGaramond'),
+    NotoFont('Patrick Hand', 'PatrickHand'),
+    NotoFont('Permanent Marker', 'PermanentMarker'),
+    NotoFont('Press Start (pixel)', 'PressStart2P'),
+    NotoFont('Orbitron', 'Orbitron'),
+    NotoFont('Great Vibes', 'GreatVibes'),
+    NotoFont('JetBrains Mono', 'JetBrainsMono'),
+    NotoFont('Baloo', 'Baloo2'),
   ];
 
   static const noteColors = <Color>[

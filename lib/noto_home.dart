@@ -1966,6 +1966,7 @@ class _HomeShellState extends State<HomeShell> {
         highlight: foldForSearch(query.trim()),
         folderLabel: widget.store.folderLabel(note.folder),
         glass: widget.store.glassCards && _hasWallpaper,
+        style: widget.store.cardStyle,
       ),
     );
   }
@@ -3214,7 +3215,11 @@ class _NoteCard extends StatelessWidget {
     this.highlight = '',
     this.folderLabel,
     this.glass = false,
+    this.style = 0,
   });
+
+  /// 0 = borda, 1 = sombra, 2 = liso.
+  final int style;
 
   /// Card translúcido (opção "Cards de vidro").
   final bool glass;
@@ -3267,7 +3272,9 @@ class _NoteCard extends StatelessWidget {
     final hasWallpaper = wallpaper != null;
     final noteColor = NotoAppearance
         .noteColors[NotoAppearance.safeNoteColorIndex(note.color)];
-    final solid = note.color == 0 ? cs.surfaceContainerLow : noteColor;
+    final solid = note.color == 0
+        ? (style == 2 ? cs.surfaceContainerHigh : cs.surfaceContainerLow)
+        : noteColor;
     // Cards de vidro: o fundo do app aparece por trás.
     final background = glass && !hasWallpaper
         ? solid.withValues(alpha: .58)
@@ -3334,6 +3341,8 @@ class _NoteCard extends StatelessWidget {
               width: selected ? 2.5 : 1,
               color: selected
                   ? cs.primary
+                  : style != 0
+                  ? Colors.transparent
                   : hasWallpaper
                   ? Colors.white.withValues(alpha: .14)
                   : cs.outlineVariant.withValues(alpha: .6),
@@ -3564,7 +3573,22 @@ class _NoteCard extends StatelessWidget {
       child: Stack(
         fit: StackFit.passthrough,
         children: [
-          card,
+          if (style == 1)
+            DecoratedBox(
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(radius),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: .16),
+                    blurRadius: 14,
+                    offset: const Offset(0, 6),
+                  ),
+                ],
+              ),
+              child: card,
+            )
+          else
+            card,
           if (selected)
             Positioned.fill(
               child: IgnorePointer(
