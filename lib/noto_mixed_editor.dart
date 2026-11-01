@@ -526,6 +526,9 @@ class _MixedContentEditorState extends State<MixedContentEditor> {
             ),
           ),
         ),
+      // Com o teclado aberto, os botões somem para sobrar espaço para a
+      // lista (o Enter já cria a próxima tarefa).
+      if (MediaQuery.viewInsetsOf(context).bottom == 0)
       Row(
         children: [
           Expanded(

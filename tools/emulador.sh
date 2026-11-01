@@ -33,7 +33,7 @@ tap_text() {
   adb shell cat /sdcard/tela.xml > /tmp/tela.xml 2>/dev/null
   local xy
   xy=$(python3 - "$1" <<'PY'
-import re, sys, xml.etree.ElementTree as ET
+import os, re, sys, xml.etree.ElementTree as ET
 alvo = sys.argv[1].lower()
 try:
     root = ET.parse('/tmp/tela.xml').getroot()
@@ -41,6 +41,10 @@ except Exception:
     sys.exit(0)
 for node in root.iter('node'):
     label = (node.get('text') or '') + ' ' + (node.get('content-desc') or '')
+    if os.environ.get('ONLYTEXT'):
+        label = node.get('content-desc') or '' if not node.get('text') else node.get('text')
+        if (node.get('class') or '').endswith('Button') and not node.get('text'):
+            continue
     if alvo in label.lower():
         m = re.findall(r'\d+', node.get('bounds') or '')
         if len(m) == 4:
@@ -177,7 +181,7 @@ if tap_text "Menu"; then
     tap_row "Pão" "Apagar tarefa"; sleep 1; shot 22-x-pao; gone "Pão" "X com teclado aberto"
     tap_text "Feijão"; sleep 1
     if tap_row "Feijão" "Opções da linha"; then
-      sleep 1; tap_text "Apagar tarefa"; sleep 1; shot 23-menu-feijao; gone "Feijão" "menu da linha"
+      sleep 1; ONLYTEXT=1 tap_text "Apagar tarefa"; sleep 1; shot 23-menu-feijao; gone "Feijão" "menu da linha"
     fi
     tap_row "Arroz" "CHECKBOX"; sleep 1
     if tap_text "Mais opções"; then
