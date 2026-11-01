@@ -427,12 +427,9 @@ class _MixedContentEditorState extends State<MixedContentEditor> {
                   ),
                 ),
                 if (active) ...[
-                  IconButton(
-                    tooltip: line.task ? 'Apagar tarefa' : 'Apagar linha',
-                    visualDensity: VisualDensity.compact,
-                    color: cs.onSurface.withValues(alpha: .6),
-                    icon: const Icon(Icons.close_rounded, size: 20),
-                    onPressed: () => _deleteLine(line),
+                  _DeleteButton(
+                    label: line.task ? 'Apagar tarefa' : 'Apagar linha',
+                    onDelete: () => _deleteLine(line),
                   ),
                 PopupMenuButton<String>(
                   tooltip: 'Opções da linha',
@@ -534,6 +531,81 @@ class _MixedContentEditorState extends State<MixedContentEditor> {
         ],
       ),
     ],
+    );
+  }
+}
+
+
+/// Botão de apagar a linha. Usa o toque cru da tela (Listener), sem disputa
+/// com a rolagem ou com o campo de texto ao lado: em alguns celulares o
+/// IconButton comum não recebia o toque.
+class _DeleteButton extends StatefulWidget {
+  const _DeleteButton({required this.label, required this.onDelete});
+
+  final String label;
+  final VoidCallback onDelete;
+
+  @override
+  State<_DeleteButton> createState() => _DeleteButtonState();
+}
+
+class _DeleteButtonState extends State<_DeleteButton> {
+  Offset? _down;
+  bool _pressed = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    return Tooltip(
+      message: widget.label,
+      child: Semantics(
+        button: true,
+        label: widget.label,
+        onTap: widget.onDelete,
+        excludeSemantics: true,
+        child: Listener(
+          behavior: HitTestBehavior.opaque,
+          onPointerDown: (event) => setState(() {
+            _down = event.position;
+            _pressed = true;
+          }),
+          onPointerCancel: (_) => setState(() {
+            _down = null;
+            _pressed = false;
+          }),
+          onPointerUp: (event) {
+            final start = _down;
+            setState(() {
+              _down = null;
+              _pressed = false;
+            });
+            if (start != null && (event.position - start).distance < 40) {
+              HapticFeedback.lightImpact();
+              widget.onDelete();
+            }
+          },
+          child: SizedBox(
+            width: 44,
+            height: 48,
+            child: Center(
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 90),
+                width: _pressed ? 30 : 28,
+                height: _pressed ? 30 : 28,
+                decoration: BoxDecoration(
+                  color: _pressed ? cs.error : cs.errorContainer,
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(
+                  Icons.close_rounded,
+                  size: 18,
+                  color: _pressed ? cs.onError : cs.onErrorContainer,
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
     );
   }
 }
