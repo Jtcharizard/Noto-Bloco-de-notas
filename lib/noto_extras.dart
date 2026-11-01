@@ -512,3 +512,109 @@ class _ConfettiPainter extends CustomPainter {
   @override
   bool shouldRepaint(_ConfettiPainter old) => old.t != t;
 }
+
+/// Avatares prontos (ilustrações Fluent Emoji 3D, da Microsoft, licença MIT).
+const notoAvatars = <(String, String)>[
+  ('gato', 'Gato'),
+  ('cachorro', 'Cachorro'),
+  ('raposa', 'Raposa'),
+  ('panda', 'Panda'),
+  ('urso', 'Urso'),
+  ('coala', 'Coala'),
+  ('tigre', 'Tigre'),
+  ('leao', 'Leão'),
+  ('macaco', 'Macaco'),
+  ('sapo', 'Sapo'),
+  ('pinguim', 'Pinguim'),
+  ('coruja', 'Coruja'),
+  ('unicornio', 'Unicórnio'),
+  ('dragao', 'Dragão'),
+  ('robo', 'Robô'),
+  ('alien', 'Alien'),
+  ('fantasma', 'Fantasma'),
+  ('astronauta', 'Astronauta'),
+  ('ninja', 'Ninja'),
+  ('oculos', 'Estiloso'),
+];
+
+/// Caminho da imagem do avatar salvo ("av:gato"), ou null se não for um.
+String? avatarAsset(String value) {
+  if (!value.startsWith('av:')) return null;
+  final id = value.substring(3);
+  return notoAvatars.any((a) => a.$1 == id) ? 'assets/avatars/$id.png' : null;
+}
+
+/// Escolhe um avatar pronto. Devolve "av:<nome>", '' para tirar ou null.
+Future<String?> pickAvatar(BuildContext context, {String? current}) {
+  return showModalBottomSheet<String>(
+    context: context,
+    useSafeArea: true,
+    isScrollControlled: true,
+    showDragHandle: true,
+    builder: (ctx) {
+      final cs = Theme.of(ctx).colorScheme;
+      return SingleChildScrollView(
+        padding: EdgeInsets.fromLTRB(
+          16,
+          0,
+          16,
+          MediaQuery.viewPaddingOf(ctx).bottom + 16,
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Seu avatar',
+              style: Theme.of(ctx).textTheme.titleLarge?.copyWith(
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+            const SizedBox(height: 14),
+            GridView.count(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              crossAxisCount: 4,
+              mainAxisSpacing: 10,
+              crossAxisSpacing: 10,
+              children: [
+                for (final avatar in notoAvatars)
+                  Tooltip(
+                    message: avatar.$2,
+                    child: Material(
+                      color: current == 'av:${avatar.$1}'
+                          ? cs.primaryContainer
+                          : cs.surfaceContainerHighest,
+                      shape: CircleBorder(
+                        side: BorderSide(
+                          color: current == 'av:${avatar.$1}'
+                              ? cs.primary
+                              : Colors.transparent,
+                          width: 3,
+                        ),
+                      ),
+                      child: InkWell(
+                        customBorder: const CircleBorder(),
+                        onTap: () => Navigator.pop(ctx, 'av:${avatar.$1}'),
+                        child: Padding(
+                          padding: const EdgeInsets.all(10),
+                          child: Image.asset('assets/avatars/${avatar.$1}.png'),
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            if (current != null && current.isNotEmpty)
+              TextButton.icon(
+                onPressed: () => Navigator.pop(ctx, ''),
+                icon: const Icon(Icons.block_rounded),
+                label: const Text('Sem avatar (usa a inicial do nome)'),
+              ),
+          ],
+        ),
+      );
+    },
+  );
+}

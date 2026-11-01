@@ -748,17 +748,17 @@ class SettingsPage extends StatelessWidget {
       NotoTile(
         icon: Icons.face_rounded,
         title: 'Seu avatar',
-        subtitle: store.userAvatar.trim().isEmpty
-            ? 'Inicial do nome · toque para escolher um emoji'
+        subtitle: avatarAsset(store.userAvatar) != null
+            ? notoAvatars
+                  .firstWhere((a) => 'av:${a.$1}' == store.userAvatar)
+                  .$2
+            : store.userAvatar.trim().isEmpty
+            ? 'Inicial do nome · toque para escolher'
             : store.userAvatar.trim(),
         onTap: () async {
-          final emoji = await pickEmoji(
-            context,
-            title: 'Seu avatar',
-            current: store.userAvatar,
-          );
-          if (emoji == null) return;
-          store.userAvatar = emoji;
+          final picked = await pickAvatar(context, current: store.userAvatar);
+          if (picked == null) return;
+          store.userAvatar = picked;
           await store.save();
         },
       ),

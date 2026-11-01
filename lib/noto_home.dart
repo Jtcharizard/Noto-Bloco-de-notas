@@ -547,13 +547,12 @@ class _HomeShellState extends State<HomeShell> {
   }
 
   Future<void> _pickAvatar() async {
-    final emoji = await pickEmoji(
+    final picked = await pickAvatar(
       context,
-      title: 'Seu avatar',
       current: widget.store.userAvatar,
     );
-    if (emoji == null || !mounted) return;
-    setState(() => widget.store.userAvatar = emoji);
+    if (picked == null || !mounted) return;
+    setState(() => widget.store.userAvatar = picked);
     await widget.store.save();
   }
 
@@ -2644,7 +2643,12 @@ class _HomeHero extends StatelessWidget {
                           ],
                         ),
                       ),
-                      child: avatar.isNotEmpty
+                      child: avatarAsset(avatar) != null
+                          ? Padding(
+                              padding: const EdgeInsets.all(6),
+                              child: Image.asset(avatarAsset(avatar)!),
+                            )
+                          : avatar.isNotEmpty
                           ? Text(avatar, style: const TextStyle(fontSize: 26))
                           : name.isNotEmpty
                           ? Text(

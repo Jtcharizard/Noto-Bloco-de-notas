@@ -180,9 +180,7 @@ if tap_text "Menu"; then
     tap_text "Pão"; sleep 1
     tap_row "Pão" "Apagar tarefa"; sleep 1; shot 22-x-pao; gone "Pão" "X com teclado aberto"
     tap_text "Feijão"; sleep 1
-    if tap_row "Feijão" "Opções da linha"; then
-      sleep 1; ONLYTEXT=1 tap_text "Apagar tarefa"; sleep 1; shot 23-menu-feijao; gone "Feijão" "menu da linha"
-    fi
+    tap_row "Feijão" "Apagar tarefa"; sleep 1; shot 23-x-feijao; gone "Feijão" "X de novo na mesma lista"
     tap_row "Arroz" "CHECKBOX"; sleep 1
     if tap_text "Mais opções"; then
       adb shell input swipe $((W/2)) $((H*80/100)) $((W/2)) $((H*35/100)) 300; sleep 1
@@ -198,6 +196,12 @@ if tap_text "Menu"; then
       sleep 1
     fi
   fi
+fi
+
+# Avatares prontos no cartão de saudação.
+if tap_text "Trocar avatar"; then
+  shot 27-avatares
+  tap_text "Raposa" && { sleep 1; shot 28-com-avatar; }
 fi
 
 # Modelos prontos: abre a mala de viagem (lista com subtarefas).

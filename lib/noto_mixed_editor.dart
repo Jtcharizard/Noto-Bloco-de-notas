@@ -239,6 +239,9 @@ class _MixedContentEditorState extends State<MixedContentEditor> {
 
   /// Apaga a linha. Se for a única, só esvazia (a nota não fica sem linha).
   void _deleteLine(_MixedLine line) {
+    // Fecha o teclado antes: o campo some sem o teclado mandar texto
+    // atrasado para ele.
+    FocusManager.instance.primaryFocus?.unfocus();
     if (lines.length > 1) {
       _removeLine(line);
       return;
@@ -369,21 +372,8 @@ class _MixedContentEditorState extends State<MixedContentEditor> {
                 position > 0 &&
                 lines[position - 1].task &&
                 lines[position - 1].indent >= line.indent;
-            return Dismissible(
+            return KeyedSubtree(
               key: line.key,
-              direction: lines.length > 1
-                  ? DismissDirection.endToStart
-                  : DismissDirection.none,
-              background: Container(
-                alignment: Alignment.centerRight,
-                padding: const EdgeInsets.only(right: 18),
-                decoration: BoxDecoration(
-                  color: cs.errorContainer,
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Icon(Icons.delete_outline_rounded, color: cs.onErrorContainer),
-              ),
-              onDismissed: (_) => _removeLine(line),
               child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -465,8 +455,6 @@ class _MixedContentEditorState extends State<MixedContentEditor> {
                     } else if (value == 'indent' || value == 'outdent') {
                       setState(() => line.indent += value == 'indent' ? 1 : -1);
                       _sync();
-                    } else if (value == 'remove') {
-                      _deleteLine(line);
                     }
                   },
                   itemBuilder: (_) => [
@@ -499,13 +487,6 @@ class _MixedContentEditorState extends State<MixedContentEditor> {
                               ? 'Transformar em texto'
                               : 'Transformar em tarefa',
                         ),
-                      ),
-                    ),
-                    PopupMenuItem(
-                      value: 'remove',
-                      child: ListTile(
-                        leading: const Icon(Icons.delete_outline_rounded),
-                        title: Text(line.task ? 'Apagar tarefa' : 'Apagar linha'),
                       ),
                     ),
                   ],

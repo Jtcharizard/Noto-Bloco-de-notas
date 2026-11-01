@@ -89,33 +89,6 @@ class _AllTasksPageState extends State<AllTasksPage> {
     );
   }
 
-  /// Apaga a tarefa da nota dela, com Desfazer.
-  void _delete(_TaskItem item) {
-    final lines = item.note.body.split('\n');
-    if (item.line >= lines.length) return;
-    final removed = lines.removeAt(item.line);
-    HapticFeedback.selectionClick();
-    item.note
-      ..body = lines.join('\n')
-      ..updatedAt = DateTime.now();
-    widget.store.save();
-    ScaffoldMessenger.of(context).hideCurrentSnackBar();
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Apagada: ${item.text}'),
-        action: SnackBarAction(
-          label: 'Desfazer',
-          onPressed: () {
-            final again = item.note.body.split('\n');
-            again.insert(item.line.clamp(0, again.length).toInt(), removed);
-            item.note.body = again.join('\n');
-            widget.store.save();
-          },
-        ),
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) => AnimatedBuilder(
     animation: widget.store,
@@ -148,30 +121,12 @@ class _AllTasksPageState extends State<AllTasksPage> {
           );
         }
         rows.add(
-          Dismissible(
+          KeyedSubtree(
             key: ValueKey('${item.note.id}-${item.line}-${item.text}'),
-            direction: DismissDirection.endToStart,
-            background: Container(
-              alignment: Alignment.centerRight,
-              padding: const EdgeInsets.only(right: 20),
-              color: cs.errorContainer,
-              child: Icon(Icons.delete_outline_rounded, color: cs.onErrorContainer),
-            ),
-            onDismissed: (_) => _delete(item),
             child: CheckboxListTile(
             dense: true,
             controlAffinity: ListTileControlAffinity.leading,
             value: item.done,
-            secondary: IconButton(
-              tooltip: 'Apagar tarefa',
-              visualDensity: VisualDensity.compact,
-              icon: Icon(
-                Icons.close_rounded,
-                size: 18,
-                color: cs.onSurface.withValues(alpha: .45),
-              ),
-              onPressed: () => _delete(item),
-            ),
             onChanged: (_) => _toggle(item),
             title: Text(
               item.text,
