@@ -57,6 +57,44 @@ PY
   fi
   sleep 1.5
 }
+# Toca num botão da mesma linha de um texto: tap_row "Leite" "Apagar tarefa"
+# (use CHECKBOX para a caixa de marcar).
+tap_row() {
+  adb shell uiautomator dump /sdcard/tela.xml >/dev/null 2>&1
+  adb shell cat /sdcard/tela.xml > /tmp/tela.xml 2>/dev/null
+  local xy
+  xy=$(python3 - "$1" "$2" <<'PY'
+import re, sys, xml.etree.ElementTree as ET
+texto, alvo = sys.argv[1], sys.argv[2].lower()
+try:
+    root = ET.parse('/tmp/tela.xml').getroot()
+except Exception:
+    sys.exit(0)
+def box(n):
+    m = re.findall(r'\d+', n.get('bounds') or '')
+    return tuple(map(int, m)) if len(m) == 4 else None
+linha = None
+for n in root.iter('node'):
+    if (n.get('text') or '').strip() == texto:
+        linha = box(n)
+        break
+if not linha:
+    sys.exit(0)
+y = (linha[1] + linha[3]) // 2
+for n in root.iter('node'):
+    b = box(n)
+    if not b or not (b[1] <= y <= b[3]) or b[2] - b[0] > 300:
+        continue
+    label = ((n.get('text') or '') + ' ' + (n.get('content-desc') or '')).lower()
+    if (alvo == 'checkbox' and 'checkbox' in (n.get('class') or '').lower()) or (alvo != 'checkbox' and alvo in label):
+        print((b[0] + b[2]) // 2, (b[1] + b[3]) // 2)
+        break
+PY
+)
+  if [ -z "$xy" ]; then echo "::warning::Não achei '$2' na linha '$1'"; return 1; fi
+  adb shell input tap $xy
+  sleep 1.5
+}
 launch() { adb shell monkey -p $PKG -c android.intent.category.LAUNCHER 1 >/dev/null; }
 
 W=$(adb shell wm size | grep -o '[0-9]*x[0-9]*' | tail -1 | cut -dx -f1)
@@ -127,6 +165,36 @@ if tap_text "Menu"; then
 fi
 
 # Os três widgets precisam estar registrados no Android.
+# Apagar tarefas de todos os jeitos numa lista de compras.
+gone() { if screen_text | grep -qx "$1"; then echo "FALHOU: '$1' continua na tela ($2)"; else echo "OK: '$1' apagada ($2)"; fi; }
+if tap_text "Menu"; then
+  if tap_text "Modelos" && tap_text "Lista de compras"; then
+    sleep 2
+    shot 20-compras
+    tap_row "Leite" "Apagar tarefa"; sleep 1; shot 21-x-leite; gone "Leite" "X sem foco"
+    tap_text "Pão"; sleep 1
+    tap_row "Pão" "Apagar tarefa"; sleep 1; shot 22-x-pao; gone "Pão" "X com a tarefa em edição"
+    adb shell input keyevent 4; sleep 1
+    if tap_row "Feijão" "Opções da linha"; then
+      tap_text "Apagar tarefa"; sleep 1; shot 23-menu-feijao; gone "Feijão" "menu da linha"
+    fi
+    tap_row "Arroz" "CHECKBOX"; sleep 1
+    if tap_text "Mais opções"; then
+      adb shell input swipe $((W/2)) $((H*80/100)) $((W/2)) $((H*35/100)) 300; sleep 1
+      tap_text "Apagar feitas"; sleep 1; shot 24-apagar-feitas; gone "Arroz" "apagar feitas"
+    fi
+    tap_text "Voltar" || adb shell input keyevent 4
+    sleep 2
+    shot 25-home-depois
+    if tap_text "Compras"; then
+      sleep 2; shot 26-reaberta
+      for t in Leite Pão Feijão Arroz; do gone "$t" "depois de reabrir"; done
+      tap_text "Voltar" || adb shell input keyevent 4
+      sleep 1
+    fi
+  fi
+fi
+
 # Modelos prontos: abre a mala de viagem (lista com subtarefas).
 if tap_text "Menu"; then
   if tap_text "Modelos"; then
