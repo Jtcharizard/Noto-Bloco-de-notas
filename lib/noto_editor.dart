@@ -3565,6 +3565,11 @@ class _EditorPageState extends State<EditorPage>
                                     onShowDone: () => _setHideDone(false),
                                     onAllDone: _listFinished,
                                     roundChecks: widget.store.roundChecks,
+                                    // Aqui o teclado ainda aparece no MediaQuery
+                                    // (dentro do Scaffold ele já foi descontado).
+                                    showAddButtons:
+                                        MediaQuery.viewInsetsOf(context).bottom ==
+                                        0,
                                     controller: body,
                                     family: bodyFamily,
                                     fontSize: widget.store.fontSize,

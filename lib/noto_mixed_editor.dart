@@ -19,7 +19,11 @@ class MixedContentEditor extends StatefulWidget {
     this.onShowDone,
     this.onAllDone,
     this.roundChecks = false,
+    this.showAddButtons = true,
   });
+
+  /// Botões "Texto" e "Tarefa" embaixo (somem com o teclado aberto).
+  final bool showAddButtons;
 
   /// Caixas de marcar redondas.
   final bool roundChecks;
@@ -528,7 +532,7 @@ class _MixedContentEditorState extends State<MixedContentEditor> {
         ),
       // Com o teclado aberto, os botões somem para sobrar espaço para a
       // lista (o Enter já cria a próxima tarefa).
-      if (MediaQuery.viewInsetsOf(context).bottom == 0)
+      if (widget.showAddButtons)
       Row(
         children: [
           Expanded(
