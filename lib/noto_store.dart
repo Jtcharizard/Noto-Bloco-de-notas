@@ -233,6 +233,9 @@ class AppStore extends ChangeNotifier {
   int focusMinutes = 25;
   DateTime? focusEndsAt;
 
+  /// Segundos que faltavam quando o timer de foco foi pausado.
+  int? focusPausedSeconds;
+
   /// Últimas buscas feitas (mais recente primeiro).
   final List<String> recentSearches = [];
 
@@ -528,6 +531,7 @@ class AppStore extends ChangeNotifier {
     carryTasksToToday = prefs.getBool('carryTasksToToday') ?? true;
     focusMinutes = (prefs.getInt('focusMinutes') ?? 25).clamp(1, 180).toInt();
     focusEndsAt = DateTime.tryParse(prefs.getString('focusEndsAt') ?? '');
+    focusPausedSeconds = prefs.getInt('focusPausedSeconds');
     pinnedNotificationNoteId = prefs.getString('pinnedNotificationNoteId');
     await prefs.remove('homeShowPulse');
     await prefs.remove('editor.focus');
@@ -746,6 +750,11 @@ class AppStore extends ChangeNotifier {
       await prefs.remove('focusEndsAt');
     } else {
       await prefs.setString('focusEndsAt', focusEndsAt!.toIso8601String());
+    }
+    if (focusPausedSeconds == null) {
+      await prefs.remove('focusPausedSeconds');
+    } else {
+      await prefs.setInt('focusPausedSeconds', focusPausedSeconds!);
     }
     if (pinnedNotificationNoteId == null) {
       await prefs.remove('pinnedNotificationNoteId');
@@ -1236,6 +1245,30 @@ class AppStore extends ChangeNotifier {
       );
     } catch (_) {
       /* Sem notificações (ex.: testes): o timer funciona com o app aberto. */
+    }
+  }
+
+  /// Mostra já o aviso de fim do Timer de foco (o app estava em segundo plano
+  /// quando o tempo acabou). Usa o mesmo número: nunca aparecem dois avisos.
+  Future<void> showFocusDoneNow() async {
+    try {
+      await notifications.cancel(focusNotificationId);
+      await notifications.show(
+        focusNotificationId,
+        'Tempo de foco terminou!',
+        'Hora de uma pausa.',
+        const NotificationDetails(
+          android: AndroidNotificationDetails(
+            'noto_reminders',
+            'Lembretes do Noto',
+            channelDescription: 'Lembretes marcados nas notas',
+            importance: Importance.high,
+            priority: Priority.high,
+          ),
+        ),
+      );
+    } catch (_) {
+      /* Sem notificações nesta plataforma. */
     }
   }
 

@@ -40,6 +40,14 @@ class MainActivity : FlutterActivity() {
                         window.clearFlags(WindowManager.LayoutParams.FLAG_SECURE)
                     }
                     result.success(null)
+                } else if (call.method == "keepScreenOn") {
+                    // Ler rolando: a tela não apaga enquanto a nota rola sozinha.
+                    if (call.arguments == true) {
+                        window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+                    } else {
+                        window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+                    }
+                    result.success(null)
                 } else if (call.method == "pinShortcut") {
                     result.success(
                         Build.VERSION.SDK_INT >= 26 &&

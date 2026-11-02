@@ -2858,6 +2858,7 @@ class _Pill extends StatelessWidget {
         ),
         child: InkWell(
           customBorder: const StadiumBorder(),
+          enableFeedback: NotoHaptics.enabled,
           onTap: onTap,
           onLongPress: onLongPress,
           child: Padding(
@@ -3475,6 +3476,8 @@ class _NoteCard extends StatelessWidget {
                 : null,
           ),
           child: InkWell(
+            // Segurar para selecionar só vibra se "Vibrar ao tocar" estiver ligado.
+            enableFeedback: NotoHaptics.enabled,
             onTap: onTap,
             onLongPress: onLongPress,
             child: Column(

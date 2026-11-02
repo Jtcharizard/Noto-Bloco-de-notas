@@ -857,6 +857,8 @@ class _EditorPageState extends State<EditorPage>
     setState(() {
       wordGoal = picked <= 0 ? null : picked;
       _goalReached = wordGoal != null && words >= wordGoal!;
+      // Meta nova: avisa de novo quando ela for alcançada.
+      _goalCelebrated = _goalReached;
     });
     _markMetaChanged();
     ScaffoldMessenger.of(context).showSnackBar(
@@ -892,7 +894,8 @@ class _EditorPageState extends State<EditorPage>
               ? NotoAppearance.noteColors[colorIndex]
               : null,
           gradient: gradient,
-          textColor: editorTextColor,
+          // Com wallpaper o leitor usa fundo preto: o texto fica branco.
+          textColor: wallpaper != null ? Colors.white : editorTextColor,
         ),
       ),
     );
@@ -3972,12 +3975,12 @@ class _EditorPageState extends State<EditorPage>
       onPopInvoked: (didPop) {
         if (!didPop) saveAndClose();
       },
-      child: gradient == null
-          ? scaffold
-          : DecoratedBox(
-              decoration: BoxDecoration(gradient: gradient),
-              child: scaffold,
-            ),
+      // Sempre o mesmo formato de árvore: trocar o degradê não pode
+      // recriar o editor (a rolagem e o "Desfazer" se perderiam).
+      child: DecoratedBox(
+        decoration: BoxDecoration(gradient: gradient),
+        child: scaffold,
+      ),
     );
   }
 

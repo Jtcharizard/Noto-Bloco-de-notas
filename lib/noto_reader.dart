@@ -173,14 +173,25 @@ class _ReaderPageState extends State<ReaderPage>
       _lineHeight *
       MediaQuery.textScalerOf(context).scale(1);
 
+  /// Canal do Android que deixa a tela acesa enquanto a nota rola.
+  static const _screen = MethodChannel('noto/share');
+
+  void _keepScreenOn(bool on) {
+    _screen.invokeMethod<void>('keepScreenOn', on).catchError((Object _) {
+      /* Sem Android (ex.: testes): nada a fazer. */
+    });
+  }
+
   @override
   void initState() {
     super.initState();
+    _keepScreenOn(true);
     _ticker.start();
   }
 
   @override
   void dispose() {
+    _keepScreenOn(false);
     _ticker.dispose();
     _scroll.dispose();
     super.dispose();

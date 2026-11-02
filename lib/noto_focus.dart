@@ -42,7 +42,14 @@ class _FocusTimerPageState extends State<FocusTimerPage> {
   Timer? _ticker;
 
   /// Tempo que faltava quando pausou (null = não está pausado).
-  Duration? _paused;
+  /// Tempo que falta num timer pausado. Fica guardado no app, então sair da
+  /// tela (ou fechar o app) não perde a pausa.
+  Duration? get _paused {
+    final seconds = store.focusPausedSeconds;
+    return seconds == null ? null : Duration(seconds: seconds);
+  }
+
+  set _paused(Duration? value) => store.focusPausedSeconds = value?.inSeconds;
 
   AppStore get store => widget.store;
 
@@ -142,9 +149,15 @@ class _FocusTimerPageState extends State<FocusTimerPage> {
       store.focusEndsAt = null;
     });
     store.save();
-    // O app está aberto e já avisou aqui: tira o aviso agendado (no modo sem
-    // horário exato ele poderia chegar atrasado).
-    store.cancelFocusDone();
+    if (WidgetsBinding.instance.lifecycleState == AppLifecycleState.resumed) {
+      // O app está aberto e já avisa aqui: tira o aviso agendado (no modo sem
+      // horário exato ele poderia chegar atrasado).
+      store.cancelFocusDone();
+    } else {
+      // App em segundo plano ou tela bloqueada: o aviso do sistema é o único
+      // que a pessoa vê, então ele sai agora (nunca é cancelado aqui).
+      store.showFocusDoneNow();
+    }
     await showDialog<void>(
       context: context,
       builder: (dialogContext) => AlertDialog(

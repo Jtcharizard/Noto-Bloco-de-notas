@@ -278,7 +278,14 @@ class _MixedContentEditorState extends State<MixedContentEditor> {
     // Fecha o teclado antes: o campo some sem o teclado mandar texto
     // atrasado para ele.
     FocusManager.instance.primaryFocus?.unfocus();
-    if (lines.length > 1) {
+    // Se depois dela só sobram linhas de texto vazias, é como apagar a última:
+    // a nota volta em branco (e não uma lista vazia).
+    final onlyBlankLeft = lines.every(
+      (other) =>
+          identical(other, line) ||
+          (!other.task && other.controller.text.trim().isEmpty),
+    );
+    if (lines.length > 1 && !(onlyBlankLeft && widget.onEmptied != null)) {
       _removeLine(line);
       return;
     }
@@ -374,6 +381,9 @@ class _MixedContentEditorState extends State<MixedContentEditor> {
     final total = lines.where((line) => line.task).length;
     final done = lines.where((line) => line.task && line.checked).length;
     final cs = Theme.of(context).colorScheme;
+    final paperColor =
+        widget.paperColor ??
+        (widget.textColor ?? cs.onSurface).withValues(alpha: .14);
     // Sobre degradê, os ícones seguem a cor do texto.
     final iconBase = widget.iconColor ?? cs.onSurface;
     return Column(
@@ -407,11 +417,11 @@ class _MixedContentEditorState extends State<MixedContentEditor> {
         ),
       Expanded(
         child: NotePaper(
-          paper: widget.paper,
-          step: widget.paper > 0 ? _rowStep(context) : 0,
-          color:
-              widget.paperColor ??
-              (widget.textColor ?? cs.onSurface).withValues(alpha: .14),
+          // O pautado é desenhado em cada tarefa (logo abaixo); aqui só o
+          // quadriculado e o pontilhado.
+          paper: widget.paper == 1 ? 0 : widget.paper,
+          step: widget.paper > 1 ? _rowStep(context) : 0,
+          color: paperColor,
           bleed: widget.paperBleed,
           child: ReorderableListView.builder(
           padding: const EdgeInsets.only(bottom: 12),
@@ -453,6 +463,14 @@ class _MixedContentEditorState extends State<MixedContentEditor> {
                 lines[position - 1].indent >= line.indent;
             return KeyedSubtree(
               key: line.key,
+              child: DecoratedBox(
+              // Papel pautado: a linha fica embaixo de cada tarefa, mesmo
+              // quando ela ocupa duas linhas ou mais.
+              decoration: BoxDecoration(
+                border: widget.paper == 1
+                    ? Border(bottom: BorderSide(color: paperColor))
+                    : null,
+              ),
               child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -577,6 +595,7 @@ class _MixedContentEditorState extends State<MixedContentEditor> {
                 ],
               ],
             ),
+            ),
             );
           },
         ),
@@ -586,6 +605,10 @@ class _MixedContentEditorState extends State<MixedContentEditor> {
         Align(
           alignment: Alignment.centerLeft,
           child: TextButton.icon(
+            // Sobre um degradê, segue a cor do texto para continuar legível.
+            style: widget.iconColor == null
+                ? null
+                : TextButton.styleFrom(foregroundColor: widget.iconColor),
             onPressed: widget.onShowDone,
             icon: const Icon(Icons.visibility_outlined, size: 18),
             label: Text(
@@ -602,6 +625,14 @@ class _MixedContentEditorState extends State<MixedContentEditor> {
         children: [
           Expanded(
             child: OutlinedButton.icon(
+              style: widget.iconColor == null
+                  ? null
+                  : OutlinedButton.styleFrom(
+                      foregroundColor: widget.iconColor,
+                      side: BorderSide(
+                        color: widget.iconColor!.withValues(alpha: .6),
+                      ),
+                    ),
               onPressed: () => _add(task: false),
               icon: const Icon(Icons.notes_rounded),
               label: const Text('Texto'),

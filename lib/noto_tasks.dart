@@ -26,21 +26,22 @@ List<String> pendingTaskLines(String body) {
 }
 
 /// Tarefas que faltaram na última nota do dia antes de [todayKey]
-/// (chave de [dayKey]). Só copia: a nota antiga não muda. Notas apagadas e
-/// do cofre não entram. Sem nota do dia anterior, devolve uma lista vazia.
+/// (chave de [dayKey]). Só copia: a nota antiga não muda. Se a última nota
+/// do dia está na lixeira ou no cofre, nada vem (e nunca de um dia mais
+/// antigo, que traria tarefas já resolvidas). Sem nota anterior, lista vazia.
 List<String> missedTasksForToday(Iterable<Note> notes, String todayKey) {
   Note? last;
   String? lastKey;
   for (final note in notes) {
     final key = note.editor['daily'];
-    if (key is! String || note.deletedAt != null || note.locked) continue;
+    if (key is! String) continue;
     if (key.compareTo(todayKey) >= 0) continue;
     if (lastKey == null || key.compareTo(lastKey) > 0) {
       last = note;
       lastKey = key;
     }
   }
-  if (last == null) return const [];
+  if (last == null || last.deletedAt != null || last.locked) return const [];
   return pendingTaskLines(last.body);
 }
 

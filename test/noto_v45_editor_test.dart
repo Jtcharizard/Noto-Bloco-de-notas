@@ -367,15 +367,20 @@ void main() {
         ),
       );
       await tester.pumpAndSettle();
-      final painter = paperPainter(tester)!;
-      expect(painter.paper, 1);
-      final first = tester.getRect(
-        find.ancestor(of: lineField('leite'), matching: find.byType(Row)).first,
-      );
-      final second = tester.getRect(
-        find.ancestor(of: lineField('pão'), matching: find.byType(Row)).first,
-      );
-      expect(second.top - first.top, closeTo(painter.step, .6));
+      // Na lista, o pautado é uma linha embaixo de cada tarefa (assim ele
+      // acompanha tarefas de duas linhas); o pintor não desenha o pautado.
+      expect(paperPainter(tester)?.paper ?? 0, isNot(1));
+      for (final text in ['leite', 'pão']) {
+        final row = find
+            .ancestor(of: lineField(text), matching: find.byType(DecoratedBox))
+            .first;
+        final box = tester.widget<DecoratedBox>(row).decoration as BoxDecoration;
+        expect((box.border! as Border).bottom.style, BorderStyle.solid);
+        final rowRect = tester.getRect(
+          find.ancestor(of: lineField(text), matching: find.byType(Row)).first,
+        );
+        expect(tester.getRect(row).bottom, closeTo(rowRect.bottom, .6));
+      }
       await tester.pumpWidget(const SizedBox());
     });
 
