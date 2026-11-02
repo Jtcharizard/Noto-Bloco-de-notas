@@ -31,6 +31,10 @@ jobs:
           trap 'echo "::error::Falhou: $BASH_COMMAND"; grep -n "buildTypes\|signingConfig\|release {" android/app/build.gradle.kts | head -10 | sed "s/^/::error::/"' ERR
           flutter create --platforms=android --no-pub .
           sed -i 's/android:label="bloco_personalizavel"/android:label="Noto"/' android/app/src/main/AndroidManifest.xml
+          # Sem backup automático: o Android não copia as notas sozinho para a nuvem.
+          sed -i 's|<manifest xmlns:android="http://schemas.android.com/apk/res/android"|& xmlns:tools="http://schemas.android.com/tools"|' android/app/src/main/AndroidManifest.xml
+          sed -i '0,/<application/s//<application android:allowBackup="false" tools:replace="android:allowBackup"/' android/app/src/main/AndroidManifest.xml
+          grep -q 'android:allowBackup="false"' android/app/src/main/AndroidManifest.xml
           sed -i '/<application/i\    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />' android/app/src/main/AndroidManifest.xml
           sed -i '/<application/i\    <uses-permission android:name="android.permission.RECORD_AUDIO" />' android/app/src/main/AndroidManifest.xml
           sed -i '/<\/manifest>/i\    <queries>\n        <intent><action android:name="android.speech.RecognitionService" /></intent>\n        <intent><action android:name="android.intent.action.VIEW" /><data android:scheme="https" /></intent>\n        <intent><action android:name="android.intent.action.VIEW" /><data android:scheme="http" /></intent>\n        <intent><action android:name="android.intent.action.DIAL" /><data android:scheme="tel" /></intent>\n        <intent><action android:name="android.intent.action.SENDTO" /><data android:scheme="mailto" /></intent>\n    </queries>' android/app/src/main/AndroidManifest.xml

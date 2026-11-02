@@ -170,7 +170,16 @@ fi
 
 # Os três widgets precisam estar registrados no Android.
 # Apagar tarefas de todos os jeitos numa lista de compras.
-gone() { if screen_text | grep -qx "$1"; then echo "FALHOU: '$1' continua na tela ($2)"; else echo "OK: '$1' apagada ($2)"; fi; }
+# A tarefa tem que sumir da tela; se continuar, o teste reprova o build.
+gone() {
+  sleep 1
+  if screen_text | grep -qx "$1"; then
+    echo "::error::'$1' continua na tela ($2)"
+    FAIL=1
+  else
+    echo "OK: '$1' apagada ($2)"
+  fi
+}
 if tap_text "Menu"; then
   if tap_text "Modelos" && tap_text "Lista de compras"; then
     sleep 2
@@ -181,10 +190,18 @@ if tap_text "Menu"; then
     tap_row "Pão" "Apagar tarefa"; sleep 1; shot 22-x-pao; gone "Pão" "X com teclado aberto"
     tap_text "Feijão"; sleep 1
     tap_row "Feijão" "Apagar tarefa"; sleep 1; shot 23-x-feijao; gone "Feijão" "X de novo na mesma lista"
+    # Tarefa marcada também só sai pelo X da linha tocada.
     tap_row "Arroz" "CHECKBOX"; sleep 1
+    tap_text "Arroz"; sleep 1
+    tap_row "Arroz" "Apagar tarefa"; sleep 1; shot 24-x-arroz-marcada; gone "Arroz" "X numa tarefa marcada"
+    # O menu da lista não tem outro jeito de apagar tarefa.
     if tap_text "Mais opções"; then
       adb shell input swipe $((W/2)) $((H*80/100)) $((W/2)) $((H*35/100)) 300; sleep 1
-      tap_text "Apagar feitas"; sleep 1; shot 24-apagar-feitas; gone "Arroz" "apagar feitas"
+      shot 24b-menu-sem-apagar
+      for proibido in "Apagar feitas" "Excluir lista"; do
+        if screen_text | grep -qx "$proibido"; then echo "::error::O menu da lista ainda tem '$proibido'"; FAIL=1; fi
+      done
+      adb shell input keyevent 4; sleep 1
     fi
     tap_text "Voltar" || adb shell input keyevent 4
     sleep 2
@@ -195,6 +212,75 @@ if tap_text "Menu"; then
       tap_text "Voltar" || adb shell input keyevent 4
       sleep 1
     fi
+  fi
+fi
+
+# Toca no campo da primeira tarefa (à direita da primeira caixa de marcar).
+tap_first_task() {
+  adb shell uiautomator dump /sdcard/tela.xml >/dev/null 2>&1
+  adb shell cat /sdcard/tela.xml > /tmp/tela.xml 2>/dev/null
+  local xy
+  xy=$(python3 - <<'PY'
+import re, xml.etree.ElementTree as ET
+try:
+    root = ET.parse('/tmp/tela.xml').getroot()
+except Exception:
+    raise SystemExit(0)
+for n in root.iter('node'):
+    if 'checkbox' in (n.get('class') or '').lower():
+        m = re.findall(r'\d+', n.get('bounds') or '')
+        if len(m) == 4:
+            x1, y1, x2, y2 = map(int, m)
+            print(x2 + 160, (y1 + y2) // 2)
+            break
+PY
+)
+  if [ -z "$xy" ]; then echo "::warning::Não achei a caixa da primeira tarefa"; return 1; fi
+  adb shell input tap $xy
+  sleep 1.5
+}
+count_checkboxes() {
+  adb shell uiautomator dump /sdcard/tela.xml >/dev/null 2>&1
+  adb shell cat /sdcard/tela.xml 2>/dev/null | grep -o 'class="[^"]*CheckBox"' | wc -l
+}
+
+# Menu de criar: só "Em branco" e "Lista de tarefas" (não há modelo salvo).
+# Depois, uma lista com UMA tarefa só: o X apaga e a nota volta em branco.
+if tap_text "Nova nota"; then
+  sleep 1
+  shot 29-menu-criar
+  expect_text "Em branco" "menu de criar"
+  expect_text "Lista de tarefas" "menu de criar"
+  for proibido in "Colar o que copiei" "Usar um modelo"; do
+    if screen_text | grep -qx "$proibido"; then echo "::error::O menu de criar tem '$proibido'"; FAIL=1; fi
+  done
+  if tap_text "Lista de tarefas"; then
+    sleep 2
+    tap_first_task
+    adb shell input text "Pilhas"
+    sleep 1
+    shot 30-uma-tarefa
+    if screen_text | grep -qx "Pilhas"; then
+      tap_text "Pilhas"; sleep 1
+      tap_row "Pilhas" "Apagar tarefa"; sleep 1
+      shot 31-uma-tarefa-apagada
+      gone "Pilhas" "a única tarefa da nota"
+      left=$(count_checkboxes)
+      if [ "$left" != "0" ]; then
+        echo "::error::Depois de apagar a única tarefa sobrou $left caixa(s) de marcar"
+        FAIL=1
+      else
+        echo "OK: nota com uma tarefa só voltou em branco"
+      fi
+    else
+      echo "::error::Não consegui escrever a tarefa única"
+      screen_text | head -20 | sed 's/^/  tela: /'
+      FAIL=1
+    fi
+    tap_text "Voltar" || adb shell input keyevent 4
+    sleep 2
+  else
+    adb shell input keyevent 4; sleep 1
   fi
 fi
 
@@ -221,6 +307,14 @@ if tap_text "Menu"; then
   else
     adb shell input keyevent 4; sleep 1
   fi
+fi
+
+# Sem backup automático: o Android não pode copiar as notas sozinho.
+if adb shell dumpsys package $PKG | grep -m1 "pkgFlags" | grep -q "ALLOW_BACKUP"; then
+  echo "::error::O backup automático do Android está ligado no APK"
+  FAIL=1
+else
+  echo "OK: backup automático do Android desligado"
 fi
 
 for widget in NotoWidgetProvider NotoQuickWidgetProvider NotoSummaryWidgetProvider NotoTodayWidgetProvider NotoTasksWidgetProvider NotoActionsWidgetProvider; do
