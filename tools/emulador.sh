@@ -309,6 +309,63 @@ if tap_text "Menu"; then
   fi
 fi
 
+# Passeio pelas novidades da 4.5. Só tira prints; se algo travar, o log do
+# Flutter no fim reprova o build.
+swipe_up() { adb shell input swipe $((W/2)) $((H*80/100)) $((W/2)) $((H*30/100)) 300; sleep 1; }
+if tap_text "Menu"; then
+  if tap_text "Foco"; then
+    sleep 1; shot 40-timer-de-foco
+    if tap_text "Começar"; then sleep 3; shot 41-timer-rodando; tap_text "Parar" || true; fi
+    tap_text "Voltar" || adb shell input keyevent 4
+    sleep 1
+  else
+    adb shell input keyevent 4; sleep 1
+  fi
+fi
+if tap_text "Carne"; then
+  sleep 2
+  if tap_text "Mais opções"; then
+    swipe_up
+    if tap_text "Ler rolando"; then
+      sleep 4; shot 42-ler-rolando
+      tap_text "Voltar" || adb shell input keyevent 4
+      sleep 1
+    else
+      adb shell input keyevent 4; sleep 1
+    fi
+  fi
+  if tap_text "Mais opções"; then
+    swipe_up
+    if tap_text "Meta de palavras"; then
+      sleep 1; shot 43-meta-de-palavras
+      tap_text "250" || tap_text "Salvar" || adb shell input keyevent 4
+      sleep 2; shot 43b-meta-na-nota
+    else
+      adb shell input keyevent 4; sleep 1
+    fi
+  fi
+  if tap_text "Estilo da nota"; then
+    swipe_up
+    tap_text "Pautado" || true
+    tap_text "Pêssego" || true
+    sleep 1; shot 44-estilo-papel-degrade
+    adb shell input keyevent 4; sleep 1
+    shot 45-nota-pautada-degrade
+  fi
+  tap_text "Voltar" || adb shell input keyevent 4
+  sleep 2
+  shot 46-card-com-degrade
+fi
+if tap_text "Menu"; then
+  if tap_text "Ajustes"; then
+    if tap_text "Notas, gestos"; then shot 47-ajustes-notas; swipe_up; shot 47b-ajustes-notas; adb shell input keyevent 4; sleep 1; fi
+    if tap_text "Aparência"; then swipe_up; shot 48-ajustes-aparencia; adb shell input keyevent 4; sleep 1; fi
+    adb shell input keyevent 4; sleep 1
+  else
+    adb shell input keyevent 4; sleep 1
+  fi
+fi
+
 # Sem backup automático: o Android não pode copiar as notas sozinho.
 if adb shell dumpsys package $PKG | grep -m1 "pkgFlags" | grep -q "ALLOW_BACKUP"; then
   echo "::error::O backup automático do Android está ligado no APK"
