@@ -10,7 +10,7 @@
   [![Flutter](https://img.shields.io/badge/Flutter-3.x-02569B?logo=flutter&logoColor=white)](https://flutter.dev/)
   [![Dart](https://img.shields.io/badge/Dart-3.x-0175C2?logo=dart&logoColor=white)](https://dart.dev/)
   [![Android](https://img.shields.io/badge/Android-APK-3DDC84?logo=android&logoColor=white)](https://github.com/Jtcharizard/Noto-Bloco-de-notas/actions/workflows/gerar-apk.yml)
-  [![Versão](https://img.shields.io/badge/versão-2.7.0-8B5CF6)](https://github.com/Jtcharizard/Noto-Bloco-de-notas)
+  [![Versão](https://img.shields.io/badge/versão-4.5.0-8B5CF6)](https://github.com/Jtcharizard/Noto-Bloco-de-notas)
   [![Build APK](https://github.com/Jtcharizard/Noto-Bloco-de-notas/actions/workflows/gerar-apk.yml/badge.svg)](https://github.com/Jtcharizard/Noto-Bloco-de-notas/actions/workflows/gerar-apk.yml)
 </div>
 
@@ -42,6 +42,34 @@ O app funciona sem conta e sem internet. As notas e preferências ficam armazena
 - Compartilhamento e exportação em TXT
 - Apresentação inicial e tela Sobre
 - Salvamento local e funcionamento totalmente offline
+
+## Novidades da v4.5.0
+
+**5 funções novas**
+- **Timer de foco**: Menu > Foco (ou ⋮ da nota > Timer de foco). 15, 25, 45 ou 60 minutos, com aviso no fim mesmo com o app fechado.
+- **Meta de palavras**: ⋮ da nota > Meta de palavras. Mostra "120 de 500 palavras" embaixo do título.
+- **Tarefas que faltaram vão para Hoje**: ao abrir a nota de hoje, as tarefas não feitas da última nota do dia vêm junto (cópia; a nota antiga fica igual).
+- **Filtrar por cor** na busca avançada.
+- **Ler rolando**: ⋮ da nota > Ler rolando. A nota rola sozinha, com velocidade ajustável.
+
+**10 personalizações** (em Ajustes)
+- Cantos do app · Tamanho das letras do app · Tamanho do título da nota · Margens do editor
+- Data nos cards (relativa ou completa)
+- Tarefas feitas (riscadas, só apagadas ou só riscadas) · Feitas descem para o fim
+- Vibrar ao tocar · Semana começa no domingo ou na segunda
+- Esvaziar a lixeira depois de 7, 15, 30 ou 60 dias
+
+**3 estilos novos**
+- **Papel da nota**: liso, pautado, quadriculado ou pontilhado (Estilo da nota).
+- **Fundo degradê**: 10 degradês para a nota, que aparecem também no card.
+- **Tamanho do trecho**: Formatar texto > Tamanho (pequeno, normal, grande, enorme).
+
+**Regras conferidas**
+- Menu de criar só com "Em branco" e "Lista de tarefas" ("Usar um modelo" só com modelo salvo). Saiu "Colar o que copiei".
+- Tarefa só se apaga pelo X da linha tocada: saíram "Apagar feitas" e "Excluir lista" do menu da lista.
+- Nota do cofre não pode virar modelo (o texto sairia do cofre sem senha).
+- O Android não faz mais backup automático das notas.
+- "Buscar e trocar" em listas agora guarda a troca.
 
 ## Novidades da v4.1.0
 
