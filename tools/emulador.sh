@@ -199,7 +199,7 @@ if tap_text "Menu"; then
       adb shell input swipe $((W/2)) $((H*80/100)) $((W/2)) $((H*35/100)) 300; sleep 1
       shot 24b-menu-sem-apagar
       for proibido in "Apagar feitas" "Excluir lista"; do
-        if screen_text | grep -qx "$proibido"; then echo "::error::O menu da lista ainda tem '$proibido'"; FAIL=1; fi
+        if screen_text | grep -qiF "$proibido"; then echo "::error::O menu da lista ainda tem '$proibido'"; FAIL=1; fi
       done
       adb shell input keyevent 4; sleep 1
     fi
@@ -252,7 +252,7 @@ if tap_text "Nova nota"; then
   expect_text "Em branco" "menu de criar"
   expect_text "Lista de tarefas" "menu de criar"
   for proibido in "Colar o que copiei" "Usar um modelo"; do
-    if screen_text | grep -qx "$proibido"; then echo "::error::O menu de criar tem '$proibido'"; FAIL=1; fi
+    if screen_text | grep -qiF "$proibido"; then echo "::error::O menu de criar tem '$proibido'"; FAIL=1; fi
   done
   if tap_text "Lista de tarefas"; then
     sleep 2
