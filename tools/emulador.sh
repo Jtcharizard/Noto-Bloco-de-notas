@@ -45,7 +45,11 @@ for node in root.iter('node'):
         label = node.get('content-desc') or '' if not node.get('text') else node.get('text')
         if (node.get('class') or '').endswith('Button') and not node.get('text'):
             continue
-    if alvo in label.lower():
+    if os.environ.get('EXACT'):
+        found = label.strip().lower() == alvo
+    else:
+        found = alvo in label.lower()
+    if found:
         m = re.findall(r'\d+', node.get('bounds') or '')
         if len(m) == 4:
             x1, y1, x2, y2 = map(int, m)
@@ -53,7 +57,11 @@ for node in root.iter('node'):
             break
 PY
 )
-  if [ -z "$xy" ]; then echo "::warning::Não achei '$1' para tocar"; return 1; fi
+  if [ -z "$xy" ]; then
+    echo "::warning::Não achei '$1' para tocar"
+    grep -o 'text="[^"]*"\|content-desc="[^"]*"' /tmp/tela.xml 2>/dev/null | sed 's/^[^"]*"//; s/"$//' | grep -v '^$' | head -12 | sed 's/^/  tela: /'
+    return 1
+  fi
   if [ -n "$LONG" ]; then
     adb shell input swipe $xy $xy 900
   else
@@ -323,7 +331,7 @@ swipe_up() { adb shell input swipe $((W/2)) $((H*80/100)) $((W/2)) $((H*30/100))
 if tap_text "Menu"; then
   if tap_text "Foco"; then
     sleep 1; shot 40-timer-de-foco
-    if tap_text "Começar"; then sleep 3; shot 41-timer-rodando; tap_text "Parar" || true; fi
+    if EXACT=1 tap_text "Começar"; then sleep 3; shot 41-timer-rodando; EXACT=1 tap_text "Parar" || true; fi
     tap_text "Voltar" || adb shell input keyevent 4
     sleep 1
   else
