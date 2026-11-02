@@ -16,6 +16,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 
 import 'noto_features.dart';
+import 'noto_mixed_editor.dart' show NotePaperPainter;
 import 'noto_models.dart';
 import 'noto_library.dart';
 import 'noto_store.dart';
@@ -376,9 +377,13 @@ class _CalendarPageState extends State<CalendarPage> {
   Widget build(BuildContext context) {
     final first = DateTime(month.year, month.month, 1);
     final days = DateTime(month.year, month.month + 1, 0).day;
-    final startOffset = (first.weekday + 6) % 7;
+    // Semana começando no domingo (opção dos Ajustes) ou na segunda.
+    final sundayFirst = widget.store.weekStartsSunday;
+    final startOffset = sundayFirst ? first.weekday % 7 : (first.weekday + 6) % 7;
     final total = ((startOffset + days + 6) ~/ 7) * 7;
-    const weekdays = ['S', 'T', 'Q', 'Q', 'S', 'S', 'D'];
+    final weekdays = sundayFirst
+        ? const ['D', 'S', 'T', 'Q', 'Q', 'S', 'S']
+        : const ['S', 'T', 'Q', 'Q', 'S', 'S', 'D'];
 
     return Scaffold(
       appBar: AppBar(
@@ -782,6 +787,56 @@ class _PowerNoteStyleSheetState extends State<PowerNoteStyleSheet> {
             ),
             const SizedBox(height: 18),
             const Text(
+              'DEGRADÊ',
+              style: TextStyle(fontSize: 11, fontWeight: FontWeight.w900),
+            ),
+            const SizedBox(height: 9),
+            Wrap(
+              spacing: 9,
+              runSpacing: 9,
+              children: List.generate(NotoAppearance.gradients.length, (
+                index,
+              ) {
+                final gradient = NotoAppearance.gradientAt(index);
+                return Tooltip(
+                  message: NotoAppearance.gradients[index].name,
+                  child: InkWell(
+                    customBorder: const CircleBorder(),
+                    onTap: () => _save(() => note.gradient = index),
+                    child: Container(
+                      width: 38,
+                      height: 38,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        gradient: gradient,
+                        color: gradient == null
+                            ? Theme.of(context).colorScheme.surfaceContainerHighest
+                            : null,
+                      ),
+                      child: NotoAppearance.safeGradientIndex(note.gradient) ==
+                              index
+                          ? Icon(
+                              Icons.check_rounded,
+                              color: NotoAppearance.gradientTextColor(index),
+                            )
+                          : gradient == null
+                          ? const Icon(Icons.block_rounded, size: 18)
+                          : null,
+                    ),
+                  ),
+                );
+              }),
+            ),
+            if (note.gradient > 0 && noteWallpaper(note) != null)
+              Padding(
+                padding: const EdgeInsets.only(top: 6),
+                child: Text(
+                  'Com wallpaper, o degradê fica escondido atrás da imagem.',
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
+              ),
+            const SizedBox(height: 18),
+            const Text(
               'COR DO TEXTO',
               style: TextStyle(fontSize: 11, fontWeight: FontWeight.w900),
             ),
@@ -804,6 +859,65 @@ class _PowerNoteStyleSheetState extends State<PowerNoteStyleSheet> {
                     child: note.textColor == index
                         ? const Icon(Icons.check_rounded)
                         : null,
+                  ),
+                );
+              }),
+            ),
+            const SizedBox(height: 18),
+            const Text(
+              'PAPEL',
+              style: TextStyle(fontSize: 11, fontWeight: FontWeight.w900),
+            ),
+            const SizedBox(height: 9),
+            Wrap(
+              spacing: 9,
+              runSpacing: 9,
+              children: List.generate(NotoAppearance.papers.length, (index) {
+                final cs = Theme.of(context).colorScheme;
+                final selected =
+                    NotoAppearance.safePaperIndex(note.paper) == index;
+                return InkWell(
+                  borderRadius: BorderRadius.circular(12),
+                  onTap: () => _save(() => note.paper = index),
+                  child: Container(
+                    width: 74,
+                    padding: const EdgeInsets.fromLTRB(6, 6, 6, 5),
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: selected ? cs.primary : cs.outlineVariant,
+                        width: selected ? 2 : 1,
+                      ),
+                    ),
+                    child: Column(
+                      children: [
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(6),
+                          child: SizedBox(
+                            height: 34,
+                            width: double.infinity,
+                            child: CustomPaint(
+                              painter: NotePaperPainter(
+                                paper: index,
+                                step: 8,
+                                color: cs.onSurface.withValues(alpha: .35),
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          NotoAppearance.papers[index],
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontSize: 11.5,
+                            fontWeight:
+                                selected ? FontWeight.w800 : FontWeight.w600,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 );
               }),
