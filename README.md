@@ -48,6 +48,10 @@ O app funciona sem conta e sem internet. As notas e preferências ficam armazena
 - Apagar tarefas ficou fácil: um X aparece na tarefa que você está editando e nas já marcadas. O ⋮ da tarefa também tem "Apagar tarefa", até quando é a única.
 - 10 fundos novos: Pôr do sol, Synthwave, Noite na serra, Ondas, Luzes, Dunas, Mosaico, Via Láctea, Fundo do mar e Algodão-doce.
 
+## Novidades da v4.4.2
+
+- Corrigido: apagar a única tarefa da lista não fazia nada (ela só ficava vazia). Agora a nota volta em branco, com Desfazer.
+
 ## Novidades da v4.4.1
 
 - O X de apagar tarefa virou um botão vermelho maior que reage direto ao toque na tela (sem depender de gesto), com vibraçãozinha ao apagar.

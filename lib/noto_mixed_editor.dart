@@ -20,7 +20,11 @@ class MixedContentEditor extends StatefulWidget {
     this.onAllDone,
     this.roundChecks = false,
     this.showAddButtons = true,
+    this.onEmptied,
   });
+
+  /// Chamado ao apagar a última linha que sobrou.
+  final VoidCallback? onEmptied;
 
   /// Botões "Texto" e "Tarefa" embaixo (somem com o teclado aberto).
   final bool showAddButtons;
@@ -244,6 +248,11 @@ class _MixedContentEditorState extends State<MixedContentEditor> {
     FocusManager.instance.primaryFocus?.unfocus();
     if (lines.length > 1) {
       _removeLine(line);
+      return;
+    }
+    // Era a única linha: a nota fica em branco (quem cuida é o editor).
+    if (widget.onEmptied != null) {
+      widget.onEmptied!();
       return;
     }
     setState(() {

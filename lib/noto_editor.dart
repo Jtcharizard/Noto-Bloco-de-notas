@@ -981,6 +981,25 @@ class _EditorPageState extends State<EditorPage>
     );
   }
 
+  /// Apagou a única tarefa: a nota volta a ficar em branco.
+  void _lastLineDeleted() {
+    widget.note.checklist = false;
+    body.text = '';
+    tableEpoch++;
+    _editorChanged();
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          content: const Text('Tarefa apagada'),
+          action: SnackBarAction(
+            label: 'Desfazer',
+            onPressed: () => _historyEdit(false),
+          ),
+        ),
+      );
+  }
+
   /// Tira a lista de tarefas da nota e deixa só o texto. Dá para desfazer.
   void _deleteTaskList() {
     if (!hasTaskLines(body.text)) {
@@ -3565,6 +3584,7 @@ class _EditorPageState extends State<EditorPage>
                                     onShowDone: () => _setHideDone(false),
                                     onAllDone: _listFinished,
                                     roundChecks: widget.store.roundChecks,
+                                    onEmptied: _lastLineDeleted,
                                     // Aqui o teclado ainda aparece no MediaQuery
                                     // (dentro do Scaffold ele já foi descontado).
                                     showAddButtons:

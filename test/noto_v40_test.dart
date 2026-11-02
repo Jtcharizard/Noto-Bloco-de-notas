@@ -250,4 +250,32 @@ void main() {
     expect(find.text('pão'), findsOneWidget);
     await tester.pumpWidget(const SizedBox());
   });
+
+  testWidgets('apagar a única tarefa deixa a nota em branco', (tester) async {
+    bigScreen(tester);
+    final store = AppStore()..loaded = true;
+    store.seenTips.add('tasks-enter');
+    final note = Note(
+      id: 'uma',
+      title: 'Uma só',
+      body: '- [ ] única',
+      updatedAt: DateTime(2026, 10, 1),
+      checklist: true,
+    );
+    store.notes.add(note);
+    await tester.pumpWidget(
+      MaterialApp(home: EditorPage(store: store, note: note, isNew: false)),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('única'));
+    await tester.pump();
+    await tester.tap(find.byTooltip('Apagar tarefa'));
+    await tester.pumpAndSettle();
+    expect(find.text('única'), findsNothing);
+    await tester.pump(const Duration(seconds: 1));
+    await tester.pumpAndSettle();
+    expect(note.body, '');
+    expect(note.checklist, isFalse);
+    await tester.pumpWidget(const SizedBox());
+  });
 }
