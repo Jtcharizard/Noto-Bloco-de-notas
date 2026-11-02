@@ -1,7 +1,11 @@
+import 'dart:math' as math;
+import 'dart:ui' show PointMode;
+
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 
 import 'noto_formatting.dart';
+import 'noto_models.dart';
 
 /// Editor de linhas que mistura texto comum e tarefas com caixa de marcar.
 ///
@@ -21,7 +25,33 @@ class MixedContentEditor extends StatefulWidget {
     this.roundChecks = false,
     this.showAddButtons = true,
     this.onEmptied,
+    this.doneStyle = 0,
+    this.doneToBottom = true,
+    this.paper = 0,
+    this.paperColor,
+    this.paperBleed = 0,
+    this.iconColor,
   });
+
+  /// Cor dos ícones, da borda das caixas e das dicas (sobre degradê).
+  /// Sem ela, ficam as cores do tema, como sempre.
+  final Color? iconColor;
+
+  /// Aparência das tarefas feitas: 0 riscadas e apagadas, 1 só apagadas,
+  /// 2 só riscadas.
+  final int doneStyle;
+
+  /// Tarefa marcada desce para o fim do seu grupo.
+  final bool doneToBottom;
+
+  /// Papel da nota (índice em [NotoAppearance.papers]); 0 = liso.
+  final int paper;
+
+  /// Cor das linhas do papel (bem fraca).
+  final Color? paperColor;
+
+  /// Quanto o papel passa das bordas do texto, dos dois lados.
+  final double paperBleed;
 
   /// Chamado ao apagar a última linha que sobrou.
   final VoidCallback? onEmptied;
@@ -199,7 +229,7 @@ class _MixedContentEditorState extends State<MixedContentEditor> {
   /// Tarefa marcada desce para o fim do seu grupo de tarefas;
   /// desmarcada volta para junto das que faltam fazer.
   void _toggle(_MixedLine line, bool checked) {
-    HapticFeedback.selectionClick();
+    NotoHaptics.selection();
     setState(() {
       line.checked = checked;
       // Marcar uma tarefa marca as subtarefas dela também.
@@ -218,6 +248,8 @@ class _MixedContentEditorState extends State<MixedContentEditor> {
       while (end < lines.length - 1 && lines[end + 1].task) {
         end++;
       }
+      // Opção dos Ajustes: feitas ficam onde estão.
+      if (!widget.doneToBottom) return;
       final block = lines.sublist(start, end + 1);
       // Com subtarefas, mantém a ordem para não separar dos pais.
       if (block.any((item) => item.indent > 0)) return;
@@ -230,7 +262,7 @@ class _MixedContentEditorState extends State<MixedContentEditor> {
     _sync();
     final tasks = lines.where((item) => item.task).toList();
     if (checked && tasks.length >= 2 && tasks.every((item) => item.checked)) {
-      HapticFeedback.mediumImpact();
+      NotoHaptics.medium();
       if (widget.onAllDone != null) {
         widget.onAllDone!();
       } else {
@@ -306,6 +338,35 @@ class _MixedContentEditorState extends State<MixedContentEditor> {
       ? lines.where((line) => !(line.task && line.checked)).toList()
       : lines;
 
+  /// Estilo do texto de uma linha (tarefa feita fica apagada e/ou riscada,
+  /// conforme a opção "Tarefas feitas" dos Ajustes).
+  TextStyle _lineStyle(BuildContext context, bool checked) {
+    final faded = checked && widget.doneStyle != 2;
+    final struck = checked && widget.doneStyle != 1;
+    return TextStyle(
+      fontFamily: widget.family,
+      fontSize: widget.fontSize,
+      color: faded
+          ? (widget.textColor ?? Theme.of(context).colorScheme.onSurface)
+                .withValues(alpha: .55)
+          : widget.textColor,
+      decoration: struck ? TextDecoration.lineThrough : null,
+    );
+  }
+
+  /// Altura de uma linha de uma só linha de texto: o passo do papel, para as
+  /// linhas do pautado caírem entre as tarefas.
+  double _rowStep(BuildContext context) {
+    final theme = Theme.of(context);
+    final lineHeight = textFieldLineHeight(context, _lineStyle(context, false));
+    final padding = const InputDecoration()
+        .applyDefaults(theme.inputDecorationTheme)
+        .contentPadding
+        ?.resolve(TextDirection.ltr);
+    final vertical = padding?.vertical ?? (theme.useMaterial3 ? 16.0 : 24.0);
+    return math.max(kMinInteractiveDimension, lineHeight + vertical);
+  }
+
   @override
   Widget build(BuildContext context) {
     final visible = _visible;
@@ -313,6 +374,8 @@ class _MixedContentEditorState extends State<MixedContentEditor> {
     final total = lines.where((line) => line.task).length;
     final done = lines.where((line) => line.task && line.checked).length;
     final cs = Theme.of(context).colorScheme;
+    // Sobre degradê, os ícones seguem a cor do texto.
+    final iconBase = widget.iconColor ?? cs.onSurface;
     return Column(
     children: [
       if (total > 0)
@@ -343,7 +406,14 @@ class _MixedContentEditorState extends State<MixedContentEditor> {
           ),
         ),
       Expanded(
-        child: ReorderableListView.builder(
+        child: NotePaper(
+          paper: widget.paper,
+          step: widget.paper > 0 ? _rowStep(context) : 0,
+          color:
+              widget.paperColor ??
+              (widget.textColor ?? cs.onSurface).withValues(alpha: .14),
+          bleed: widget.paperBleed,
+          child: ReorderableListView.builder(
           padding: const EdgeInsets.only(bottom: 12),
           buildDefaultDragHandles: false,
           itemCount: visible.length,
@@ -394,7 +464,7 @@ class _MixedContentEditorState extends State<MixedContentEditor> {
                     child: Icon(
                       Icons.drag_indicator_rounded,
                       size: 18,
-                      color: cs.onSurface.withValues(alpha: .28),
+                      color: iconBase.withValues(alpha: .28),
                     ),
                   ),
                 ),
@@ -402,6 +472,19 @@ class _MixedContentEditorState extends State<MixedContentEditor> {
                   Checkbox(
                     value: line.checked,
                     shape: widget.roundChecks ? const CircleBorder() : null,
+                    // Borda visível sobre o degradê.
+                    side: widget.iconColor == null
+                        ? null
+                        : WidgetStateBorderSide.resolveWith(
+                            (states) => states.contains(WidgetState.selected)
+                                ? null
+                                : BorderSide(
+                                    color: widget.iconColor!.withValues(
+                                      alpha: .7,
+                                    ),
+                                    width: 2,
+                                  ),
+                          ),
                     onChanged: (value) => _toggle(line, value ?? false),
                   )
                 else
@@ -415,23 +498,17 @@ class _MixedContentEditorState extends State<MixedContentEditor> {
                     textCapitalization: TextCapitalization.sentences,
                     decoration: InputDecoration(
                       hintText: line.task ? 'Tarefa' : 'Escreva aqui',
+                      hintStyle: widget.iconColor == null
+                          ? null
+                          : TextStyle(
+                              color: widget.iconColor!.withValues(alpha: .5),
+                            ),
                       filled: false,
                       border: InputBorder.none,
                       enabledBorder: InputBorder.none,
                       focusedBorder: InputBorder.none,
                     ),
-                    style: TextStyle(
-                      fontFamily: widget.family,
-                      fontSize: widget.fontSize,
-                      color: line.checked
-                          ? (widget.textColor ??
-                                    Theme.of(context).colorScheme.onSurface)
-                                .withValues(alpha: .55)
-                          : widget.textColor,
-                      decoration: line.checked
-                          ? TextDecoration.lineThrough
-                          : null,
-                    ),
+                    style: _lineStyle(context, line.checked),
                     onChanged: (value) => _lineChanged(line, value),
                   ),
                 ),
@@ -446,7 +523,7 @@ class _MixedContentEditorState extends State<MixedContentEditor> {
                   icon: Icon(
                     Icons.more_vert_rounded,
                     size: 20,
-                    color: cs.onSurface.withValues(alpha: .6),
+                    color: iconBase.withValues(alpha: .6),
                   ),
                   onSelected: (value) {
                     if (value == 'convert') {
@@ -502,6 +579,7 @@ class _MixedContentEditorState extends State<MixedContentEditor> {
             ),
             );
           },
+        ),
         ),
       ),
       if (hidden > 0)
@@ -589,7 +667,7 @@ class _DeleteButtonState extends State<_DeleteButton> {
               _pressed = false;
             });
             if (start != null && (event.position - start).distance < 40) {
-              HapticFeedback.lightImpact();
+              NotoHaptics.light();
               widget.onDelete();
             }
           },
@@ -617,4 +695,169 @@ class _DeleteButtonState extends State<_DeleteButton> {
       ),
     );
   }
+}
+
+/// Altura real de uma linha de texto num TextField com esse [style]
+/// (o mesmo cálculo do campo: tema + estilo + tamanho das letras do celular).
+double textFieldLineHeight(BuildContext context, TextStyle style) {
+  final theme = Theme.of(context);
+  final base = theme.useMaterial3
+      ? theme.textTheme.bodyLarge
+      : theme.textTheme.titleMedium;
+  final painter = TextPainter(
+    text: TextSpan(text: ' ', style: (base ?? const TextStyle()).merge(style)),
+    textDirection: TextDirection.ltr,
+    textScaler: MediaQuery.textScalerOf(context),
+  )..layout();
+  final height = painter.preferredLineHeight;
+  painter.dispose();
+  return height;
+}
+
+/// Papel da nota atrás de uma área que rola (texto ou lista de tarefas).
+///
+/// As linhas acompanham a rolagem do [child] (lê a rolagem dele, sem trocar
+/// o controle de rolagem). Com o papel liso ([paper] 0), não desenha nada.
+class NotePaper extends StatefulWidget {
+  const NotePaper({
+    super.key,
+    required this.paper,
+    required this.step,
+    required this.color,
+    this.bleed = 0,
+    required this.child,
+  });
+
+  /// Índice em [NotoAppearance.papers].
+  final int paper;
+
+  /// Distância entre as linhas (a altura de uma linha de texto).
+  final double step;
+  final Color color;
+
+  /// Quanto o desenho passa das bordas do [child], dos dois lados.
+  final double bleed;
+  final Widget child;
+
+  @override
+  State<NotePaper> createState() => _NotePaperState();
+}
+
+class _NotePaperState extends State<NotePaper> {
+  final ValueNotifier<double> _offset = ValueNotifier(0);
+
+  @override
+  void dispose() {
+    _offset.dispose();
+    super.dispose();
+  }
+
+  bool _onNotification(Notification notification) {
+    // Só a rolagem da própria lista (não a de campos de texto dentro dela).
+    if (notification is ScrollNotification &&
+        notification.depth == 0 &&
+        notification.metrics.axis == Axis.vertical) {
+      _offset.value = notification.metrics.pixels;
+    } else if (notification is ScrollMetricsNotification &&
+        notification.depth == 0 &&
+        notification.metrics.axis == Axis.vertical) {
+      _offset.value = notification.metrics.pixels;
+    }
+    return false;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final paper = NotoAppearance.safePaperIndex(widget.paper);
+    // A estrutura fica igual com ou sem papel, para a lista não perder
+    // o estado ao trocar de papel.
+    return NotificationListener<Notification>(
+      onNotification: _onNotification,
+      child: CustomPaint(
+        painter: paper == 0 || widget.step < 4
+            ? null
+            : NotePaperPainter(
+                paper: paper,
+                step: widget.step,
+                color: widget.color,
+                bleed: widget.bleed,
+                scroll: _offset,
+              ),
+        child: widget.child,
+      ),
+    );
+  }
+}
+
+/// Desenha o papel: pautado (linhas), quadriculado (grade) ou pontilhado
+/// (pontos nos cruzamentos da grade). Não é imagem, são traços finos.
+class NotePaperPainter extends CustomPainter {
+  NotePaperPainter({
+    required this.paper,
+    required this.step,
+    required this.color,
+    this.bleed = 0,
+    this.scroll,
+  }) : super(repaint: scroll);
+
+  final int paper;
+  final double step;
+  final Color color;
+  final double bleed;
+
+  /// Quanto o conteúdo já rolou (o papel sobe junto).
+  final ValueListenable<double>? scroll;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (paper <= 0 || step < 4 || size.isEmpty) return;
+    final offset = scroll?.value ?? 0;
+    final left = -bleed;
+    final right = size.width + bleed;
+    final paint = Paint()
+      ..color = color
+      ..strokeWidth = 1;
+    // Linhas horizontais: embaixo de cada linha de texto (y = k * passo).
+    final rows = <double>[];
+    for (var k = math.max(0, (offset / step).floor());; k++) {
+      final y = k * step - offset;
+      if (y > size.height) break;
+      if (y < 0 || (paper == 1 && k == 0)) continue;
+      rows.add(y);
+    }
+    // Colunas: a partir do começo do texto (x = 0), para os dois lados.
+    final columns = <double>[
+      for (var j = (left / step).ceil(); j * step <= right; j++) j * step,
+    ];
+    switch (paper) {
+      case 1:
+        for (final y in rows) {
+          canvas.drawLine(Offset(left, y), Offset(right, y), paint);
+        }
+      case 2:
+        for (final y in rows) {
+          canvas.drawLine(Offset(left, y), Offset(right, y), paint);
+        }
+        for (final x in columns) {
+          canvas.drawLine(Offset(x, 0), Offset(x, size.height), paint);
+        }
+      case 3:
+        final dot = Paint()
+          ..color = color.withValues(alpha: math.min(1, color.a * 2.2))
+          ..strokeWidth = math.max(2, step / 9)
+          ..strokeCap = StrokeCap.round;
+        canvas.drawPoints(PointMode.points, [
+          for (final y in rows)
+            for (final x in columns) Offset(x, y),
+        ], dot);
+    }
+  }
+
+  @override
+  bool shouldRepaint(NotePaperPainter old) =>
+      old.paper != paper ||
+      old.step != step ||
+      old.color != color ||
+      old.bleed != bleed ||
+      old.scroll != scroll;
 }

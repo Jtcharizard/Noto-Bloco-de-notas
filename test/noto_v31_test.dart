@@ -40,33 +40,19 @@ void main() {
     return (store, note);
   }
 
-  testWidgets('excluir lista pelo menu deixa a nota vazia', (tester) async {
+  testWidgets('menu da lista não tem mais "Excluir lista" nem "Apagar feitas"', (
+    tester,
+  ) async {
+    // Regra do dono: tarefa só se apaga pelo X da linha tocada.
     final (_, note) = await openList(tester, '- [ ] leite\n- [x] pão');
-    expect(find.text('leite'), findsOneWidget);
     await tester.tap(find.byTooltip('Mais opções'));
     await tester.pumpAndSettle();
-    await tester.ensureVisible(find.text('Excluir lista'));
-    await tester.tap(find.text('Excluir lista'));
+    expect(find.text('Desmarcar todas'), findsOneWidget);
+    expect(find.text('Excluir lista'), findsNothing);
+    expect(find.text('Apagar feitas'), findsNothing);
+    await tester.tapAt(const Offset(10, 10));
     await tester.pumpAndSettle();
-    await tester.pump(const Duration(seconds: 1));
-    await tester.pumpAndSettle();
-    expect(find.text('leite'), findsNothing);
-    expect(find.text('pão'), findsNothing);
-    expect(note.body, '');
-    expect(note.checklist, isFalse);
-    await tester.pumpWidget(const SizedBox());
-  });
-
-  testWidgets('excluir lista mantém o texto que não é tarefa', (tester) async {
-    final (_, note) = await openList(tester, 'Para sábado\n- [ ] leite');
-    await tester.tap(find.byTooltip('Mais opções'));
-    await tester.pumpAndSettle();
-    await tester.ensureVisible(find.text('Excluir lista'));
-    await tester.tap(find.text('Excluir lista'));
-    await tester.pumpAndSettle();
-    await tester.pump(const Duration(seconds: 1));
-    await tester.pumpAndSettle();
-    expect(note.body, 'Para sábado');
+    expect(note.body, '- [ ] leite\n- [x] pão');
     await tester.pumpWidget(const SizedBox());
   });
 

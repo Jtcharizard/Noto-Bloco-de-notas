@@ -27,6 +27,8 @@ import 'noto_dictation.dart';
 import 'noto_vault.dart';
 import 'noto_extras.dart';
 import 'noto_smart.dart';
+import 'noto_focus.dart';
+import 'noto_reader.dart';
 
 class EditorPage extends StatefulWidget {
   const EditorPage({
@@ -78,6 +80,15 @@ class _EditorPageState extends State<EditorPage>
 
   /// Lista que volta desmarcada todo dia (rotina, remédios, academia).
   bool resetDaily = false;
+
+  /// Meta de palavras desta nota (null = sem meta). Fica em editor['wordGoal'].
+  int? wordGoal;
+
+  /// A meta já estava batida (para avisar só quando passar dela).
+  bool _goalReached = false;
+
+  /// Já avisou "Meta alcançada" nesta abertura da nota.
+  bool _goalCelebrated = false;
   Timer? autosaveTimer;
   SharedPreferences? editorPrefs;
   String saveLabel = 'Salvo';
@@ -99,6 +110,8 @@ class _EditorPageState extends State<EditorPage>
     protectedNote = metadata['protected'] == true;
     readOnly = protectedNote;
     resetDaily = metadata['resetDaily'] == true;
+    final goal = (metadata['wordGoal'] as num?)?.toInt();
+    wordGoal = goal != null && goal > 0 ? goal : null;
     codeBlocks.addAll(
       ((metadata['code'] as List?) ?? []).map(
         (e) => Map<String, dynamic>.from(e as Map),
@@ -162,6 +175,7 @@ class _EditorPageState extends State<EditorPage>
     body.selection = TextSelection.collapsed(
       offset: ((metadata['cursor'] as int?) ?? 0).clamp(0, body.text.length),
     );
+    _goalReached = wordGoal != null && words >= wordGoal!;
     lastSnapshot = _snapshot();
     title.addListener(_editorChanged);
     body.addListener(_editorChanged);
@@ -203,6 +217,7 @@ class _EditorPageState extends State<EditorPage>
     if (resetDaily) 'resetDaily': true,
     if (resetDaily) 'lastReset': widget.note.editor['lastReset'] ?? dayKey(DateTime.now()),
     if (widget.note.editor['daily'] != null) 'daily': widget.note.editor['daily'],
+    if (wordGoal != null) 'wordGoal': wordGoal,
     'cursor': body.selection.isValid ? body.selection.extentOffset : 0,
     'scroll': editorScroll.hasClients ? editorScroll.offset : 0,
   };
@@ -251,8 +266,25 @@ class _EditorPageState extends State<EditorPage>
       autosaveTimer?.cancel();
       _writeDraft();
       autosaveTimer = Timer(const Duration(milliseconds: 700), _autosave);
+      _checkWordGoal();
     }
     setState(() {});
+  }
+
+  /// Avisa uma vez quando a meta de palavras é alcançada.
+  void _checkWordGoal() {
+    final goal = wordGoal;
+    if (goal == null || widget.note.checklist) return;
+    final reached = words >= goal;
+    if (reached && !_goalReached && !_goalCelebrated) {
+      _goalCelebrated = true;
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          const SnackBar(content: Text('Meta de palavras alcançada! 🎉')),
+        );
+    }
+    _goalReached = reached;
   }
 
   Future<void> _writeDraft() async {
@@ -358,6 +390,37 @@ class _EditorPageState extends State<EditorPage>
           .showSnackBar(const SnackBar(content: Text('Nota copiada')));
   }
 
+  /// Trechos do texto que "Buscar e trocar" pode mudar. Numa lista de
+  /// tarefas, o começo "- [ ] " de cada tarefa fica de fora: trocar texto
+  /// nunca apaga nem desfaz uma tarefa.
+  List<(int, int)> _replaceableRanges() {
+    final text = body.text;
+    if (!widget.note.checklist) return [(0, text.length)];
+    final marker = RegExp(r'^\s*(?:[-*]\s*)?\[[ xX]\]\s?');
+    final ranges = <(int, int)>[];
+    var start = 0;
+    for (final line in text.split('\n')) {
+      final skip = marker.firstMatch(line)?.end ?? 0;
+      ranges.add((start + skip, start + line.length));
+      start += line.length + 1;
+    }
+    return ranges;
+  }
+
+  /// Onde [needle] aparece (só nos trechos que podem mudar).
+  List<int> _matchesOf(String needle) {
+    final text = body.text;
+    final found = <int>[];
+    for (final (from, to) in _replaceableRanges()) {
+      var at = text.indexOf(needle, from);
+      while (at >= 0 && at + needle.length <= to) {
+        found.add(at);
+        at = text.indexOf(needle, at + needle.length);
+      }
+    }
+    return found;
+  }
+
   Future<void> _findReplace() async {
     final find = TextEditingController(), replace = TextEditingController();
     var result = '';
@@ -374,10 +437,9 @@ class _EditorPageState extends State<EditorPage>
             if (all) {
               var count = 0;
               restoringEditor = true;
-              var offset = 0;
-              while (true) {
-                final at = body.text.indexOf(needle, offset);
-                if (at < 0) break;
+              var moved = 0;
+              for (final match in _matchesOf(needle)) {
+                final at = match + moved;
                 body.value = TextEditingValue(
                   text: body.text.replaceRange(
                     at,
@@ -388,9 +450,12 @@ class _EditorPageState extends State<EditorPage>
                     offset: at + replace.text.length,
                   ),
                 );
-                offset = at + replace.text.length;
+                moved += replace.text.length - needle.length;
                 count++;
               }
+              // A lista de tarefas lê o texto de novo (senão a troca se
+              // perdia na próxima tecla).
+              if (count > 0 && widget.note.checklist) tableEpoch++;
               for (final table in tables) {
                 for (final row in table.cells) {
                   for (var c = 0; c < row.length; c++) {
@@ -412,7 +477,9 @@ class _EditorPageState extends State<EditorPage>
             final selection = body.selection;
             if (replaceOne &&
                 selection.isValid &&
-                selection.textInside(body.text) == needle) {
+                selection.textInside(body.text) == needle &&
+                _matchesOf(needle).contains(selection.start)) {
+              if (widget.note.checklist) tableEpoch++;
               body.value = TextEditingValue(
                 text: body.text.replaceRange(
                   selection.start,
@@ -425,8 +492,9 @@ class _EditorPageState extends State<EditorPage>
               );
             }
             final from = body.selection.isValid ? body.selection.end : 0;
-            var at = body.text.indexOf(needle, from);
-            if (at < 0) at = body.text.indexOf(needle);
+            final matches = _matchesOf(needle);
+            var at = matches.firstWhere((m) => m >= from, orElse: () => -1);
+            if (at < 0 && matches.isNotEmpty) at = matches.first;
             if (at >= 0)
               body.selection = TextSelection(
                 baseOffset: at,
@@ -438,7 +506,9 @@ class _EditorPageState extends State<EditorPage>
             );
             update(
               () => result = at >= 0
-                  ? 'Encontrado e selecionado no texto'
+                  ? (widget.note.checklist
+                        ? 'Encontrado na lista. Toque em "Substituir" para trocar.'
+                        : 'Encontrado e selecionado no texto')
                   : inTables > 0
                   ? 'Encontrado só nas tabelas. Use "Substituir tudo".'
                   : 'Nada encontrado',
@@ -615,6 +685,9 @@ class _EditorPageState extends State<EditorPage>
       case 'align':
         _pickAlignment();
         break;
+      case 'size':
+        _pickSize();
+        break;
       default:
         _format(key);
     }
@@ -652,6 +725,179 @@ class _EditorPageState extends State<EditorPage>
     _editorChanged();
   }
 
+  /// Tamanhos do trecho, em relação à letra da nota (null = normal).
+  static const _sizes = <(double?, String)>[
+    (.8, 'Pequeno'),
+    (null, 'Normal'),
+    (1.35, 'Grande'),
+    (1.75, 'Enorme'),
+  ];
+
+  /// Formatar texto > Tamanho: muda o tamanho do trecho selecionado
+  /// (ou do que for escrito a seguir).
+  Future<void> _pickSize() async {
+    final selection = body.selection;
+    final at = selection.isValid ? selection.start : body.text.length;
+    dynamic current = body.typingStyle['size'];
+    for (final mark in body.marks) {
+      if (mark['key'] == 'size' &&
+          (mark['start'] as int) <= at &&
+          (mark['end'] as int) > at) {
+        current = mark['value'];
+      }
+    }
+    final base = widget.store.fontSize;
+    final picked = await showModalBottomSheet<int>(
+      context: context,
+      useSafeArea: true,
+      builder: (ctx) => SafeArea(
+        child: Wrap(
+          children: [
+            const ListTile(
+              title: Text(
+                'Tamanho do trecho',
+                style: TextStyle(fontWeight: FontWeight.w900),
+              ),
+              subtitle: Text('Selecione o texto antes para mudar só ele'),
+            ),
+            for (var i = 0; i < _sizes.length; i++)
+              ListTile(
+                title: Text(
+                  _sizes[i].$2,
+                  style: TextStyle(
+                    fontSize: (base * (_sizes[i].$1 ?? 1)).clamp(12.0, 30.0),
+                  ),
+                ),
+                trailing: (current is num ? current.toDouble() : null) ==
+                        _sizes[i].$1
+                    ? const Icon(Icons.check_rounded)
+                    : null,
+                onTap: () => Navigator.pop(ctx, i),
+              ),
+          ],
+        ),
+      ),
+    );
+    if (picked == null || !mounted) return;
+    body.apply('size', _sizes[picked].$1);
+    bodyFocus.requestFocus();
+  }
+
+  /// Ferramentas > Meta de palavras: quantas palavras escrever nesta nota.
+  Future<void> _pickWordGoal() async {
+    const quick = [100, 250, 500, 1000];
+    final current = wordGoal;
+    final custom = TextEditingController(
+      text: current != null && !quick.contains(current) ? '$current' : '',
+    );
+    final count = words;
+    final picked = await showDialog<int>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Meta de palavras'),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Quantas palavras você quer escrever nesta nota? '
+                'Agora ela tem $count.',
+              ),
+              const SizedBox(height: 14),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  for (final n in quick)
+                    ChoiceChip(
+                      label: Text('$n'),
+                      selected: current == n,
+                      onSelected: (_) => Navigator.pop(ctx, n),
+                    ),
+                ],
+              ),
+              const SizedBox(height: 10),
+              TextField(
+                controller: custom,
+                keyboardType: TextInputType.number,
+                inputFormatters: [
+                  FilteringTextInputFormatter.digitsOnly,
+                  LengthLimitingTextInputFormatter(6),
+                ],
+                decoration: const InputDecoration(labelText: 'Outro número'),
+                onSubmitted: (value) =>
+                    Navigator.pop(ctx, int.tryParse(value.trim())),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          if (current != null)
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, 0),
+              child: const Text('Tirar meta'),
+            ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancelar'),
+          ),
+          FilledButton(
+            onPressed: () =>
+                Navigator.pop(ctx, int.tryParse(custom.text.trim())),
+            child: const Text('Salvar'),
+          ),
+        ],
+      ),
+    );
+    // A janela fecha com animação; só depois o campo solta o controle.
+    await Future<void>.delayed(const Duration(milliseconds: 250));
+    custom.dispose();
+    if (picked == null || !mounted) return;
+    setState(() {
+      wordGoal = picked <= 0 ? null : picked;
+      _goalReached = wordGoal != null && words >= wordGoal!;
+    });
+    _markMetaChanged();
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          wordGoal == null ? 'Meta tirada' : 'Meta: $wordGoal palavras',
+        ),
+      ),
+    );
+  }
+
+  /// Ferramentas > Ler rolando: abre a nota em letra grande, rolando
+  /// sozinha. Só lê; a nota não muda.
+  Future<void> _openReader() async {
+    final note = widget.note;
+    final wallpaper = noteWallpaper(note);
+    final gradient = wallpaper == null
+        ? NotoAppearance.gradientAt(note.gradient)
+        : null;
+    final colorIndex = NotoAppearance.safeNoteColorIndex(note.color);
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => ReaderPage(
+          title: title.text,
+          text: fullMarkdown,
+          titleFamily: NotoAppearance.familyAt(note.titleFont ?? note.font),
+          bodyFamily: NotoAppearance.familyAt(note.bodyFont ?? note.font),
+          fontSize: widget.store.fontSize,
+          background: wallpaper != null
+              ? Colors.black
+              : gradient == null && colorIndex != 0
+              ? NotoAppearance.noteColors[colorIndex]
+              : null,
+          gradient: gradient,
+          textColor: editorTextColor,
+        ),
+      ),
+    );
+  }
+
   /// Coloca texto no cursor (texto comum) ou numa linha nova (lista de tarefas).
   void _insertText(String text) {
     if (text.isEmpty) return;
@@ -682,37 +928,29 @@ class _EditorPageState extends State<EditorPage>
     _insertText(text);
   }
 
-  /// Desmarca todas as tarefas ou apaga as concluídas.
-  void _rewriteTasks({required bool remove}) {
+  /// Desmarca todas as tarefas (nenhuma linha some).
+  void _uncheckAllTasks() {
     final task = RegExp(r'^(\s*(?:[-*]\s*)?)\[([xX])\](.*)$');
-    final lines = <String>[];
     var changed = 0;
-    for (final line in body.text.split('\n')) {
+    final lines = body.text.split('\n').map((line) {
       final match = task.firstMatch(line);
-      if (match == null) {
-        lines.add(line);
-        continue;
-      }
+      if (match == null) return line;
       changed++;
-      if (!remove) lines.add('${match.group(1)}[ ]${match.group(3)}');
-    }
+      return '${match.group(1)}[ ]${match.group(3)}';
+    }).toList();
     if (changed == 0) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Nenhuma tarefa concluída.')),
       );
       return;
     }
-    body.text = lines.isEmpty ? '- [ ] ' : lines.join('\n');
+    body.text = lines.join('\n');
     tableEpoch++;
     _editorChanged();
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(
-          remove
-              ? (changed == 1 ? '1 tarefa apagada' : '$changed tarefas apagadas')
-              : (changed == 1
-                    ? '1 tarefa desmarcada'
-                    : '$changed tarefas desmarcadas'),
+          changed == 1 ? '1 tarefa desmarcada' : '$changed tarefas desmarcadas',
         ),
         action: SnackBarAction(
           label: 'Desfazer',
@@ -998,31 +1236,6 @@ class _EditorPageState extends State<EditorPage>
           ),
         ),
       );
-  }
-
-  /// Tira a lista de tarefas da nota e deixa só o texto. Dá para desfazer.
-  void _deleteTaskList() {
-    if (!hasTaskLines(body.text)) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Esta nota não tem lista.')),
-      );
-      return;
-    }
-    final rest = removeTaskLines(body.text);
-    // Sem tarefas, a nota vira texto comum com o que sobrou.
-    widget.note.checklist = false;
-    body.text = rest;
-    tableEpoch++;
-    _editorChanged();
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: const Text('Lista excluída da nota'),
-        action: SnackBarAction(
-          label: 'Desfazer',
-          onPressed: () => _historyEdit(false),
-        ),
-      ),
-    );
   }
 
   /// Sumário da nota: pula para cada título (linhas com #).
@@ -1476,6 +1689,7 @@ class _EditorPageState extends State<EditorPage>
           'Cor e letra',
           [
             _MenuAction('font', Icons.font_download_outlined, 'Fonte'),
+            _MenuAction('size', Icons.format_size_rounded, 'Tamanho'),
             _MenuAction('color', Icons.format_color_text_rounded, 'Cor do texto'),
             _MenuAction('highlight', Icons.highlight_rounded, 'Marca-texto'),
             _MenuAction('align', Icons.format_align_left_rounded, 'Alinhar'),
@@ -1580,15 +1794,8 @@ class _EditorPageState extends State<EditorPage>
               const _MenuAction('copy-pending', Icons.content_copy_rounded, 'Copiar o que falta'),
               const _MenuAction('check-all', Icons.done_all_rounded, 'Marcar todas'),
               const _MenuAction('uncheck-all', Icons.restart_alt_rounded, 'Desmarcar todas'),
-              const _MenuAction('remove-done', Icons.playlist_remove_rounded, 'Apagar feitas'),
               const _MenuAction('sort-tasks', Icons.sort_by_alpha_rounded, 'Ordenar A-Z'),
               const _MenuAction('fresh-copy', Icons.copy_all_outlined, 'Cópia desmarcada'),
-              const _MenuAction(
-                'delete-list',
-                Icons.delete_sweep_outlined,
-                'Excluir lista',
-                danger: true,
-              ),
               _MenuAction(
                 'reset-daily',
                 resetDaily ? Icons.event_busy_outlined : Icons.event_repeat_outlined,
@@ -1609,7 +1816,10 @@ class _EditorPageState extends State<EditorPage>
             if (!checklist) ...[
               const _MenuAction('preview', Icons.visibility_outlined, 'Ver formatada'),
               const _MenuAction('sections', Icons.toc_rounded, 'Ir para seção'),
+              const _MenuAction('word-goal', Icons.track_changes_rounded, 'Meta de palavras'),
             ],
+            const _MenuAction('reader', Icons.auto_stories_outlined, 'Ler rolando'),
+            const _MenuAction('focus-timer', Icons.timer_outlined, 'Timer de foco'),
             const _MenuAction('info', Icons.info_outline_rounded, 'Informações'),
           ],
         ),
@@ -1618,7 +1828,9 @@ class _EditorPageState extends State<EditorPage>
           [
             const _MenuAction('share-image', Icons.image_outlined, 'Como imagem'),
             const _MenuAction('export', Icons.file_upload_outlined, 'Exportar arquivo'),
-            const _MenuAction('template', Icons.bookmark_add_outlined, 'Salvar como modelo'),
+            // Nota do cofre não vira modelo (o conteúdo sairia do cofre).
+            if (!note.locked)
+              const _MenuAction('template', Icons.bookmark_add_outlined, 'Salvar como modelo'),
             const _MenuAction('duplicate', Icons.copy_outlined, 'Duplicar'),
             const _MenuAction('history', Icons.history_rounded, 'Versões antigas'),
             const _MenuAction('home-shortcut', Icons.add_to_home_screen_rounded, 'Atalho na tela inicial'),
@@ -1720,8 +1932,8 @@ class _EditorPageState extends State<EditorPage>
         await _deleteAndClose();
       case 'hide-done':
         _setHideDone(!hideDone);
-      case 'uncheck-all' || 'remove-done':
-        _rewriteTasks(remove: value == 'remove-done');
+      case 'uncheck-all':
+        _uncheckAllTasks();
       case 'add-many':
         await _addManyTasks();
       case 'sort-tasks':
@@ -1752,8 +1964,6 @@ class _EditorPageState extends State<EditorPage>
             ),
           ),
         );
-      case 'delete-list':
-        _deleteTaskList();
       case 'sections':
         await _showSections();
       case 'home-shortcut':
@@ -1853,6 +2063,12 @@ class _EditorPageState extends State<EditorPage>
                 MarkdownPreviewPage(title: title.text, markdown: fullMarkdown),
           ),
         );
+      case 'word-goal':
+        await _pickWordGoal();
+      case 'reader':
+        await _openReader();
+      case 'focus-timer':
+        await openFocusTimer(context, widget.store);
       default:
         _tool(value);
     }
@@ -2128,7 +2344,9 @@ class _EditorPageState extends State<EditorPage>
   Color? get editorTextColor {
     final wallpaper = noteWallpaper(widget.note);
     if (widget.note.textColor == 0) {
-      return wallpaper == null ? null : Colors.white;
+      if (wallpaper != null) return Colors.white;
+      // Sobre degradê, uma cor que se lê bem no tema claro e no escuro.
+      return NotoAppearance.gradientTextColor(widget.note.gradient);
     }
     return NotoAppearance.textColors[NotoAppearance.safeTextColorIndex(
       widget.note.textColor,
@@ -2871,6 +3089,7 @@ class _EditorPageState extends State<EditorPage>
   }
 
   Future<void> _saveAsTemplate() async {
+    if (widget.note.locked) return;
     final persisted = await _saveDraft();
     if (!persisted || !mounted) return;
     final controller = TextEditingController(
@@ -3420,14 +3639,28 @@ class _EditorPageState extends State<EditorPage>
     final cs = Theme.of(context).colorScheme;
     final failed = saveLabel.startsWith('Não salvou');
     final saving = saveLabel == 'Salvando…';
+    // Fundo: wallpaper > degradê > cor da nota.
+    final gradient = selectedWallpaper == null
+        ? NotoAppearance.gradientAt(widget.note.gradient)
+        : null;
+    final gradientText = gradient == null
+        ? null
+        : NotoAppearance.gradientTextColor(widget.note.gradient);
+    // Margens e tamanho do título (Ajustes); o padrão é o de sempre.
+    final margin =
+        const [12.0, 20.0, 34.0][widget.store.editorMargin.clamp(0, 2).toInt()];
+    final side = focusMode ? margin + 4 : margin;
+    final titleSize =
+        const [22.0, 28.0, 34.0][widget.store.titleSize.clamp(0, 2).toInt()];
+    final paper = NotoAppearance.safePaperIndex(widget.note.paper);
+    final paperColor = (fg ?? cs.onSurface).withValues(alpha: .14);
 
-    return PopScope(
-      canPop: false,
-      onPopInvoked: (didPop) {
-        if (!didPop) saveAndClose();
-      },
-      child: Scaffold(
-        backgroundColor: selectedWallpaper != null ? Colors.black : noteColor,
+    final scaffold = Scaffold(
+        backgroundColor: selectedWallpaper != null
+            ? Colors.black
+            : gradient != null
+            ? Colors.transparent
+            : noteColor,
         appBar: focusMode
             ? null
             : AppBar(
@@ -3437,9 +3670,13 @@ class _EditorPageState extends State<EditorPage>
                   onPressed: saveAndClose,
                 ),
                 titleSpacing: 0,
+                backgroundColor: gradient != null ? Colors.transparent : null,
+                systemOverlayStyle: gradientText != null
+                    ? overlayStyleFor(gradientText)
+                    : null,
                 foregroundColor: selectedWallpaper != null
                     ? Colors.white
-                    : null,
+                    : gradientText,
                 title: InkWell(
                   borderRadius: BorderRadius.circular(12),
                   onTap: failed ? _autosave : null,
@@ -3517,9 +3754,9 @@ class _EditorPageState extends State<EditorPage>
                   Expanded(
                     child: Padding(
                       padding: EdgeInsets.fromLTRB(
-                        focusMode ? 24 : 20,
+                        side,
                         focusMode ? 22 : 4,
-                        focusMode ? 24 : 20,
+                        side,
                         0,
                       ),
                       child: Column(
@@ -3535,7 +3772,9 @@ class _EditorPageState extends State<EditorPage>
                                   ),
                                   child: Text(
                                     widget.note.emoji,
-                                    style: const TextStyle(fontSize: 25),
+                                    style: TextStyle(
+                                      fontSize: titleSize - 3,
+                                    ),
                                   ),
                                 ),
                               Expanded(
@@ -3559,7 +3798,9 @@ class _EditorPageState extends State<EditorPage>
                                   ),
                                   style: TextStyle(
                                     fontFamily: titleFamily,
-                                    fontSize: focusMode ? 32 : 28,
+                                    fontSize: focusMode
+                                        ? titleSize + 4
+                                        : titleSize,
                                     height: 1.18,
                                     fontWeight: FontWeight.w900,
                                     color: fg,
@@ -3573,6 +3814,8 @@ class _EditorPageState extends State<EditorPage>
                             const SizedBox(height: 8),
                             _metaChips(fg),
                           ],
+                          if (wordGoal != null && !widget.note.checklist)
+                            _wordGoalLine(fg),
                           SizedBox(height: focusMode ? 18 : 12),
                           Expanded(
                             child: widget.note.checklist
@@ -3584,6 +3827,12 @@ class _EditorPageState extends State<EditorPage>
                                     onShowDone: () => _setHideDone(false),
                                     onAllDone: _listFinished,
                                     roundChecks: widget.store.roundChecks,
+                                    doneStyle: widget.store.doneStyle,
+                                    doneToBottom: widget.store.doneToBottom,
+                                    paper: paper,
+                                    paperColor: paperColor,
+                                    paperBleed: side,
+                                    iconColor: gradient != null ? fg : null,
                                     onEmptied: _lastLineDeleted,
                                     // Aqui o teclado ainda aparece no MediaQuery
                                     // (dentro do Scaffold ele já foi descontado).
@@ -3597,7 +3846,24 @@ class _EditorPageState extends State<EditorPage>
                                     onChanged: () => setState(() {}),
                                   ),
                                   )
-                                : ListView(
+                                : NotePaper(
+                                    paper: paper,
+                                    // Uma linha do papel = uma linha de texto.
+                                    step: paper == 0
+                                        ? 0
+                                        : textFieldLineHeight(
+                                            context,
+                                            TextStyle(
+                                              fontFamily: bodyFamily,
+                                              fontSize: widget.store.fontSize,
+                                              height: widget
+                                                  .store
+                                                  .editorLineHeight,
+                                            ),
+                                          ),
+                                    color: paperColor,
+                                    bleed: side,
+                                    child: ListView(
                                     controller: editorScroll,
                                     padding: const EdgeInsets.only(bottom: 24),
                                     children: [
@@ -3673,6 +3939,7 @@ class _EditorPageState extends State<EditorPage>
                                         ),
                                     ],
                                   ),
+                                  ),
                           ),
                         ],
                       ),
@@ -3697,6 +3964,66 @@ class _EditorPageState extends State<EditorPage>
                 ),
               ),
           ],
+        ),
+      );
+
+    return PopScope(
+      canPop: false,
+      onPopInvoked: (didPop) {
+        if (!didPop) saveAndClose();
+      },
+      child: gradient == null
+          ? scaffold
+          : DecoratedBox(
+              decoration: BoxDecoration(gradient: gradient),
+              child: scaffold,
+            ),
+    );
+  }
+
+  /// Linha fina embaixo do título: "120 de 500 palavras".
+  Widget _wordGoalLine(Color? fg) {
+    final goal = wordGoal!;
+    final count = words;
+    final cs = Theme.of(context).colorScheme;
+    final done = count >= goal;
+    return Padding(
+      padding: const EdgeInsets.only(top: 8),
+      child: Tooltip(
+        message: 'Meta de palavras',
+        child: InkWell(
+          borderRadius: BorderRadius.circular(8),
+          onTap: readOnly ? null : _pickWordGoal,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 4),
+            child: Row(
+              children: [
+                Expanded(
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(4),
+                    child: LinearProgressIndicator(
+                      value: (count / goal).clamp(0, 1).toDouble(),
+                      minHeight: 4,
+                      backgroundColor: (fg ?? cs.primary).withValues(
+                        alpha: .15,
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Text(
+                  '$count de $goal palavras',
+                  style: TextStyle(
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w700,
+                    color: done
+                        ? (fg ?? cs.primary)
+                        : (fg ?? cs.onSurface).withValues(alpha: .7),
+                  ),
+                ),
+              ],
+            ),
+          ),
         ),
       ),
     );

@@ -86,6 +86,9 @@ class NotoRichController extends TextEditingController {
   void apply(String key, dynamic setting) {
     if (!selection.isValid || selection.isCollapsed) {
       typingStyle[key] = setting;
+    } else if (setting == null) {
+      // Valor neutro ("Normal"): tira a marca desse trecho de verdade.
+      clearRange(key, selection.start, selection.end);
     } else {
       marks.add({
         'start': selection.start,
@@ -95,6 +98,32 @@ class NotoRichController extends TextEditingController {
       });
     }
     notifyListeners();
+  }
+
+  /// Tira as marcas [key] entre [start] e [end]; o que passa das pontas fica.
+  void clearRange(String key, int start, int end) {
+    final kept = <Map<String, dynamic>>[];
+    for (final mark in marks) {
+      final from = mark['start'] as int;
+      final to = mark['end'] as int;
+      if (mark['key'] != key || to <= start || from >= end) {
+        kept.add(mark);
+        continue;
+      }
+      if (from < start) kept.add({...mark, 'end': start});
+      if (to > end) kept.add({...mark, 'start': end});
+    }
+    marks = kept;
+  }
+
+  /// Tamanho do trecho: a marca guarda quantas vezes o tamanho da nota
+  /// (0.8 = pequeno, 1.75 = enorme). Valores grandes são tamanhos antigos
+  /// em pontos.
+  static double? sizeFor(dynamic value, double? base) {
+    if (value is! num) return null;
+    final size = value.toDouble();
+    if (size <= 0) return null;
+    return size <= 4 ? (base ?? 17) * size : size;
   }
 
   @override
@@ -132,7 +161,7 @@ class NotoRichController extends TextEditingController {
             ? Color(attributes['highlight'] as int)
             : null,
         fontFamily: attributes['font'] as String?,
-        fontSize: (attributes['size'] as num?)?.toDouble(),
+        fontSize: sizeFor(attributes['size'], style?.fontSize),
       );
       if (withComposing &&
           value.isComposingRangeValid &&
