@@ -193,6 +193,46 @@ class AppStore extends ChangeNotifier {
   /// Mostra a barra Arquivadas · Lixeira · Pastas · Tags no topo.
   bool showShortcutsBar = true;
 
+  // ---- Personalização 4.5 ----
+
+  /// Cantos de botões, janelas e painéis: 0 retos, 1 suaves (padrão), 2 redondos.
+  int appCorners = 1;
+
+  /// Tamanho das letras de todo o app (menus, botões, cards): .9 a 1.2.
+  double uiScale = 1;
+
+  /// Aparência das tarefas feitas: 0 riscadas e apagadas, 1 só apagadas,
+  /// 2 só riscadas.
+  int doneStyle = 0;
+
+  /// Tarefas marcadas descem para o fim da lista.
+  bool doneToBottom = true;
+
+  /// Vibração ao tocar (marcar tarefa, selecionar, apagar com o X).
+  bool haptics = true;
+
+  /// Calendário começa no domingo (senão, na segunda).
+  bool weekStartsSunday = false;
+
+  /// Margens do editor: 0 estreitas, 1 normais (padrão), 2 largas.
+  int editorMargin = 1;
+
+  /// Tamanho do título dentro da nota: 0 pequeno, 1 médio (padrão), 2 grande.
+  int titleSize = 1;
+
+  /// Data dos cards por extenso (02/11/2026) em vez de "ontem", "14:30".
+  bool cardDateFull = false;
+
+  /// Dias até a lixeira se esvaziar sozinha (7, 15, 30 ou 60).
+  int trashDays = 30;
+
+  /// A nota de hoje traz as tarefas que faltaram na última nota do dia.
+  bool carryTasksToToday = true;
+
+  /// Timer de foco: minutos escolhidos e quando termina (se estiver rodando).
+  int focusMinutes = 25;
+  DateTime? focusEndsAt;
+
   /// Últimas buscas feitas (mais recente primeiro).
   final List<String> recentSearches = [];
 
@@ -474,6 +514,20 @@ class AppStore extends ChangeNotifier {
       ..clear()
       ..addAll(prefs.getStringList('recentSearches') ?? const []);
     vaultLockSeconds = (prefs.getInt('vaultLockSeconds') ?? 30).clamp(0, 3600).toInt();
+    appCorners = (prefs.getInt('appCorners') ?? 1).clamp(0, 2).toInt();
+    uiScale = (prefs.getDouble('uiScale') ?? 1).clamp(.9, 1.2).toDouble();
+    doneStyle = (prefs.getInt('doneStyle') ?? 0).clamp(0, 2).toInt();
+    doneToBottom = prefs.getBool('doneToBottom') ?? true;
+    haptics = prefs.getBool('haptics') ?? true;
+    NotoHaptics.enabled = haptics;
+    weekStartsSunday = prefs.getBool('weekStartsSunday') ?? false;
+    editorMargin = (prefs.getInt('editorMargin') ?? 1).clamp(0, 2).toInt();
+    titleSize = (prefs.getInt('titleSize') ?? 1).clamp(0, 2).toInt();
+    cardDateFull = prefs.getBool('cardDateFull') ?? false;
+    trashDays = safeTrashDays(prefs.getInt('trashDays') ?? 30);
+    carryTasksToToday = prefs.getBool('carryTasksToToday') ?? true;
+    focusMinutes = (prefs.getInt('focusMinutes') ?? 25).clamp(1, 180).toInt();
+    focusEndsAt = DateTime.tryParse(prefs.getString('focusEndsAt') ?? '');
     pinnedNotificationNoteId = prefs.getString('pinnedNotificationNoteId');
     await prefs.remove('homeShowPulse');
     await prefs.remove('editor.focus');
@@ -523,8 +577,9 @@ class AppStore extends ChangeNotifier {
       }
     }
 
-    // A lixeira se esvazia sozinha: notas apagadas há mais de 30 dias somem.
-    final limit = now.subtract(const Duration(days: 30));
+    // A lixeira se esvazia sozinha: notas apagadas há mais de [trashDays]
+    // dias somem.
+    final limit = now.subtract(Duration(days: trashDays));
     final expired = notes
         .where((n) => n.deletedAt != null && n.deletedAt!.isBefore(limit))
         .toList();
@@ -674,6 +729,24 @@ class AppStore extends ChangeNotifier {
     await prefs.setBool('showShortcutsBar', showShortcutsBar);
     await prefs.setStringList('recentSearches', recentSearches);
     await prefs.setInt('vaultLockSeconds', vaultLockSeconds);
+    await prefs.setInt('appCorners', appCorners);
+    await prefs.setDouble('uiScale', uiScale);
+    await prefs.setInt('doneStyle', doneStyle);
+    await prefs.setBool('doneToBottom', doneToBottom);
+    await prefs.setBool('haptics', haptics);
+    NotoHaptics.enabled = haptics;
+    await prefs.setBool('weekStartsSunday', weekStartsSunday);
+    await prefs.setInt('editorMargin', editorMargin);
+    await prefs.setInt('titleSize', titleSize);
+    await prefs.setBool('cardDateFull', cardDateFull);
+    await prefs.setInt('trashDays', trashDays);
+    await prefs.setBool('carryTasksToToday', carryTasksToToday);
+    await prefs.setInt('focusMinutes', focusMinutes);
+    if (focusEndsAt == null) {
+      await prefs.remove('focusEndsAt');
+    } else {
+      await prefs.setString('focusEndsAt', focusEndsAt!.toIso8601String());
+    }
     if (pinnedNotificationNoteId == null) {
       await prefs.remove('pinnedNotificationNoteId');
     } else {
@@ -1244,9 +1317,17 @@ class AppStore extends ChangeNotifier {
         cardOpacity: note.cardOpacity,
         priority: note.priority,
         dueAt: note.dueAt,
+        paper: note.paper,
+        gradient: note.gradient,
       );
     notes.add(copy);
     save();
     return copy;
   }
 }
+
+/// Opções de "Esvaziar a lixeira depois de".
+const trashDayOptions = <int>[7, 15, 30, 60];
+
+/// Mantém só os valores que o app oferece (30 se vier algo estranho).
+int safeTrashDays(int days) => trashDayOptions.contains(days) ? days : 30;

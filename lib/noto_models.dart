@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 /// Guarda se um arquivo de imagem existe, para não consultar o armazenamento
 /// a cada redesenho da tela (deixava a rolagem pesada com muitas notas).
@@ -51,6 +52,8 @@ class Note {
     DateTime? createdAt,
     this.locked = false,
     this.reminderRepeat = 0,
+    this.paper = 0,
+    this.gradient = 0,
   }) : createdAt = createdAt ?? updatedAt;
 
   final String id;
@@ -61,6 +64,12 @@ class Note {
 
   /// 0 = não repete, 1 = todo dia, 2 = dias úteis, 3 = toda semana.
   int reminderRepeat;
+
+  /// Papel da nota: índice em [NotoAppearance.papers] (0 = liso).
+  int paper;
+
+  /// Fundo degradê da nota: índice em [NotoAppearance.gradients] (0 = sem).
+  int gradient;
   String title;
   String body;
   DateTime updatedAt;
@@ -119,6 +128,8 @@ class Note {
     'createdAt': createdAt.toIso8601String(),
     'locked': locked,
     'reminderRepeat': reminderRepeat,
+    'paper': paper,
+    'gradient': gradient,
   };
 
   factory Note.fromJson(Map<String, dynamic> json) => Note(
@@ -158,6 +169,10 @@ class Note {
     createdAt: DateTime.tryParse(json['createdAt']?.toString() ?? ''),
     locked: json['locked'] == true,
     reminderRepeat: ((json['reminderRepeat'] as num?)?.toInt() ?? 0).clamp(0, 4).toInt(),
+    paper: NotoAppearance.safePaperIndex((json['paper'] as num?)?.toInt() ?? 0),
+    gradient: NotoAppearance.safeGradientIndex(
+      (json['gradient'] as num?)?.toInt() ?? 0,
+    ),
   );
 }
 
@@ -223,6 +238,32 @@ class NotoTemplate {
     emoji: json['emoji']?.toString() ?? '',
     editor: Map<String, dynamic>.from(json['editor'] ?? const {}),
   );
+}
+
+/// Fundo degradê de uma nota (estilo). [dark] diz se o texto deve ser claro.
+class NotoGradient {
+  const NotoGradient(this.name, this.colors, {this.dark = false});
+  final String name;
+  final List<Color> colors;
+  final bool dark;
+}
+
+/// Vibração do app. Desligada em Ajustes, nenhum toque vibra.
+/// Use no lugar de HapticFeedback para respeitar a escolha.
+class NotoHaptics {
+  static bool enabled = true;
+
+  static void selection() {
+    if (enabled) HapticFeedback.selectionClick();
+  }
+
+  static void light() {
+    if (enabled) HapticFeedback.lightImpact();
+  }
+
+  static void medium() {
+    if (enabled) HapticFeedback.mediumImpact();
+  }
 }
 
 class NotoAccent {
@@ -441,6 +482,47 @@ class NotoAppearance {
     'Arco do Triunfo',
     'Tetons (P&B)',
   ];
+
+  /// Papel da nota, desenhado atrás do texto (não é imagem).
+  static const papers = <String>['Liso', 'Pautado', 'Quadriculado', 'Pontilhado'];
+
+  /// Fundos degradê da nota. O índice 0 é "sem degradê".
+  static const gradients = <NotoGradient>[
+    NotoGradient('Sem degradê', []),
+    NotoGradient('Pêssego', [Color(0xFFFFE3C7), Color(0xFFFFBDBD)]),
+    NotoGradient('Lavanda', [Color(0xFFEBDDFF), Color(0xFFC9D8FF)]),
+    NotoGradient('Menta', [Color(0xFFD3F6E6), Color(0xFFBDE6FF)]),
+    NotoGradient('Limonada', [Color(0xFFFFF4B5), Color(0xFFFFD3A8)]),
+    NotoGradient('Algodão-doce', [Color(0xFFFFD4E7), Color(0xFFDCD3FF)]),
+    NotoGradient('Céu', [Color(0xFFD2EBFF), Color(0xFFF1F8FF)]),
+    NotoGradient('Noite', [Color(0xFF1E1B4B), Color(0xFF3B347E)], dark: true),
+    NotoGradient('Oceano', [Color(0xFF0B3C5D), Color(0xFF1C7293)], dark: true),
+    NotoGradient('Floresta', [Color(0xFF14352A), Color(0xFF2D6A4F)], dark: true),
+    NotoGradient('Vinho', [Color(0xFF4A1028), Color(0xFF7B2342)], dark: true),
+  ];
+
+  static int safePaperIndex(int index) =>
+      index.clamp(0, papers.length - 1).toInt();
+  static int safeGradientIndex(int index) =>
+      index.clamp(0, gradients.length - 1).toInt();
+
+  /// Degradê da nota, ou null quando ela não usa.
+  static LinearGradient? gradientAt(int index) {
+    final safe = safeGradientIndex(index);
+    if (safe == 0) return null;
+    return LinearGradient(
+      begin: Alignment.topLeft,
+      end: Alignment.bottomRight,
+      colors: gradients[safe].colors,
+    );
+  }
+
+  /// Cor do texto que fica legível sobre o degradê (null se não há degradê).
+  static Color? gradientTextColor(int index) {
+    final safe = safeGradientIndex(index);
+    if (safe == 0) return null;
+    return gradients[safe].dark ? Colors.white : const Color(0xFF1A1A1F);
+  }
 
   static int safeFontIndex(int index) =>
       index.clamp(0, fonts.length - 1).toInt();

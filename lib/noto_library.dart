@@ -326,8 +326,8 @@ class ArchivePage extends StatelessWidget {
   );
 }
 
-String _trashSubtitle(DateTime deletedAt) {
-  final left = 30 - DateTime.now().difference(deletedAt).inDays;
+String _trashSubtitle(DateTime deletedAt, int days) {
+  final left = days - DateTime.now().difference(deletedAt).inDays;
   final when = DateFormat('dd/MM').format(deletedAt);
   if (left <= 1) return 'Apagada em $when · some amanhã';
   return 'Apagada em $when · some em $left dias';
@@ -396,9 +396,9 @@ class TrashPage extends StatelessWidget {
           ],
         ),
         body: items.isEmpty
-            ? const Center(
+            ? Center(
                 child: Text(
-                  'A lixeira está vazia.\nO que fica aqui por mais de 30 dias é apagado sozinho.',
+                  'A lixeira está vazia.\nO que fica aqui por mais de ${store.trashDays} dias é apagado sozinho.',
                   textAlign: TextAlign.center,
                 ),
               )
@@ -416,7 +416,7 @@ class TrashPage extends StatelessWidget {
                             : displayTitle(note),
                       ),
                       subtitle: Text(
-                        _trashSubtitle(note.deletedAt!),
+                        _trashSubtitle(note.deletedAt!, store.trashDays),
                       ),
                       trailing: PopupMenuButton<String>(
                         onSelected: (value) async {
@@ -528,6 +528,18 @@ Future<void> exportBackup(BuildContext context, AppStore store) async {
       'plusAction': store.plusAction,
       'newNoteColor': store.newNoteColor,
       'showShortcutsBar': store.showShortcutsBar,
+      'appCorners': store.appCorners,
+      'uiScale': store.uiScale,
+      'doneStyle': store.doneStyle,
+      'doneToBottom': store.doneToBottom,
+      'haptics': store.haptics,
+      'weekStartsSunday': store.weekStartsSunday,
+      'editorMargin': store.editorMargin,
+      'titleSize': store.titleSize,
+      'cardDateFull': store.cardDateFull,
+      'trashDays': store.trashDays,
+      'carryTasksToToday': store.carryTasksToToday,
+      'focusMinutes': store.focusMinutes,
       // Só o resumo da senha, nunca a senha: o cofre continua funcionando
       // ao restaurar em outro celular.
       'vaultPinHash': store.vaultPinHash,
@@ -714,6 +726,18 @@ Future<void> importBackup(BuildContext context, AppStore store) async {
         .clamp(0, NotoAppearance.noteColors.length - 1)
         .toInt();
     store.showShortcutsBar = pick('showShortcutsBar', store.showShortcutsBar);
+    store.appCorners = pick<num>('appCorners', store.appCorners).toInt().clamp(0, 2).toInt();
+    store.uiScale = pick<num>('uiScale', store.uiScale).toDouble().clamp(.9, 1.2).toDouble();
+    store.doneStyle = pick<num>('doneStyle', store.doneStyle).toInt().clamp(0, 2).toInt();
+    store.doneToBottom = pick('doneToBottom', store.doneToBottom);
+    store.haptics = pick('haptics', store.haptics);
+    store.weekStartsSunday = pick('weekStartsSunday', store.weekStartsSunday);
+    store.editorMargin = pick<num>('editorMargin', store.editorMargin).toInt().clamp(0, 2).toInt();
+    store.titleSize = pick<num>('titleSize', store.titleSize).toInt().clamp(0, 2).toInt();
+    store.cardDateFull = pick('cardDateFull', store.cardDateFull);
+    store.trashDays = safeTrashDays(pick<num>('trashDays', store.trashDays).toInt());
+    store.carryTasksToToday = pick('carryTasksToToday', store.carryTasksToToday);
+    store.focusMinutes = pick<num>('focusMinutes', store.focusMinutes).toInt().clamp(1, 180).toInt();
     if (settings['vaultPinHash'] is String) {
       store.vaultPinHash = settings['vaultPinHash'] as String;
       store.vaultSalt = pick('vaultSalt', store.vaultSalt);
