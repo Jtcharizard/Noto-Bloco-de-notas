@@ -89,23 +89,26 @@ class _NotoAppState extends State<NotoApp> with WidgetsBindingObserver {
       debugShowCheckedModeBanner: false,
       title: 'Noto',
       navigatorKey: notoNavigatorKey,
-      builder: (context, child) => Stack(
-        children: [
-          NotoSafeFrame(child: child ?? const SizedBox()),
-          if (store.vaultLockRequested && store.vaultScreensOpen > 0)
-            Positioned.fill(
-              // Overlay próprio: o campo de senha precisa de um para funcionar
-              // aqui, acima das telas do app.
-              child: Overlay(
-                initialEntries: [
-                  OverlayEntry(
-                    builder: (_) =>
-                        VaultLockScreen(store: store, onLeave: _leaveVault),
-                  ),
-                ],
+      builder: (context, child) => NotoTextScale(
+        scale: store.uiScale,
+        child: Stack(
+          children: [
+            NotoSafeFrame(child: child ?? const SizedBox()),
+            if (store.vaultLockRequested && store.vaultScreensOpen > 0)
+              Positioned.fill(
+                // Overlay próprio: o campo de senha precisa de um para
+                // funcionar aqui, acima das telas do app.
+                child: Overlay(
+                  initialEntries: [
+                    OverlayEntry(
+                      builder: (_) =>
+                          VaultLockScreen(store: store, onLeave: _leaveVault),
+                    ),
+                  ],
+                ),
               ),
-            ),
-        ],
+          ],
+        ),
       ),
       theme: notoTheme(store, Brightness.light),
       darkTheme: notoTheme(store, Brightness.dark),
@@ -141,6 +144,53 @@ class _NotoAppState extends State<NotoApp> with WidgetsBindingObserver {
             ),
     ),
   );
+}
+
+/// "Tamanho das letras do app": multiplica o tamanho de letra do sistema
+/// pela escolha dos Ajustes. Com 1.0, nada muda.
+class NotoTextScale extends StatelessWidget {
+  const NotoTextScale({super.key, required this.scale, required this.child});
+
+  final double scale;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    if (scale == 1) return child;
+    final media = MediaQuery.of(context);
+    return MediaQuery(
+      data: media.copyWith(
+        textScaler: NotoTextScaler(media.textScaler, scale),
+      ),
+      child: child,
+    );
+  }
+}
+
+/// Letra do sistema vezes o fator do app (mantém a escala não linear do
+/// Android, quando houver).
+class NotoTextScaler extends TextScaler {
+  const NotoTextScaler(this.base, this.factor);
+
+  final TextScaler base;
+  final double factor;
+
+  @override
+  double scale(double fontSize) => base.scale(fontSize) * factor;
+
+  @override
+  // ignore: deprecated_member_use
+  double get textScaleFactor => base.textScaleFactor * factor;
+
+  @override
+  bool operator ==(Object other) =>
+      other is NotoTextScaler && other.base == base && other.factor == factor;
+
+  @override
+  int get hashCode => Object.hash(base, factor);
+
+  @override
+  String toString() => '$base x$factor';
 }
 
 class _LoadProblem extends StatelessWidget {
