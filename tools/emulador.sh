@@ -331,9 +331,18 @@ swipe_up() { adb shell input swipe $((W/2)) $((H*80/100)) $((W/2)) $((H*30/100))
 if tap_text "Menu"; then
   if tap_text "Foco"; then
     sleep 1; shot 40-timer-de-foco
-    if EXACT=1 tap_text "Começar"; then sleep 3; shot 41-timer-rodando; EXACT=1 tap_text "Parar" || true; fi
-    tap_text "Voltar" || adb shell input keyevent 4
-    sleep 1
+    if EXACT=1 tap_text "Começar"; then
+      sleep 3
+      # Na primeira vez o Android pede a permissão de alarmes exatos.
+      if screen_text | grep -qiE "alarms|alarmes"; then
+        shot 41a-permissao-alarme
+        adb shell input keyevent 4; sleep 2
+      fi
+      shot 41-timer-rodando
+      EXACT=1 tap_text "Parar" || true
+    fi
+    adb shell input keyevent 4
+    sleep 2
   else
     adb shell input keyevent 4; sleep 1
   fi
