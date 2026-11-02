@@ -347,7 +347,8 @@ if tap_text "Menu"; then
     adb shell input keyevent 4; sleep 1
   fi
 fi
-if tap_text "Carne"; then
+tap_text "Entendi" || true
+if tap_text "Carne" || { swipe_up; tap_text "Carne"; }; then
   sleep 2
   if tap_text "Mais opções"; then
     swipe_up
