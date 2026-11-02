@@ -390,7 +390,7 @@ class SettingsPage extends StatelessWidget {
               store.save();
               ScaffoldMessenger.of(context).hideCurrentSnackBar();
               ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text('Tema ${preset.name} aplicado')),
+                SnackBar(persist: false, content: Text('Tema ${preset.name} aplicado')),
               );
             },
             child: AnimatedContainer(
@@ -564,7 +564,7 @@ class SettingsPage extends StatelessWidget {
     final count = store.histories.values.fold<int>(0, (n, list) => n + list.length);
     if (count == 0) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Não há versões antigas guardadas.')),
+        const SnackBar(persist: false, content: Text('Não há versões antigas guardadas.')),
       );
       return;
     }
@@ -593,7 +593,7 @@ class SettingsPage extends StatelessWidget {
     await store.save();
     if (context.mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Histórico limpo.')),
+        const SnackBar(persist: false, content: Text('Histórico limpo.')),
       );
     }
   }

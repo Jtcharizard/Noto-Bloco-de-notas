@@ -267,7 +267,7 @@ class _MixedContentEditorState extends State<MixedContentEditor> {
         widget.onAllDone!();
       } else {
         ScaffoldMessenger.maybeOf(context)?.showSnackBar(
-          const SnackBar(content: Text('Tudo feito! 🎉')),
+          const SnackBar(persist: false, content: Text('Tudo feito! 🎉')),
         );
       }
     }
@@ -320,6 +320,7 @@ class _MixedContentEditorState extends State<MixedContentEditor> {
     messenger
         .showSnackBar(
           SnackBar(
+            persist: false,
             content: Text(line.task ? 'Tarefa apagada' : 'Linha apagada'),
             action: SnackBarAction(
               label: 'Desfazer',

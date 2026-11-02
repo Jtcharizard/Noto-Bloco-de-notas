@@ -111,7 +111,7 @@ Future<bool> unlockVault(BuildContext context, AppStore store) async {
     final wait = store.vaultWaitSeconds;
     if (wait > 0) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Muitas tentativas. Espere $wait segundos.')),
+        SnackBar(persist: false, content: Text('Muitas tentativas. Espere $wait segundos.')),
       );
       return false;
     }
@@ -120,6 +120,7 @@ Future<bool> unlockVault(BuildContext context, AppStore store) async {
     if (ok) return true;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
+        persist: false,
         content: Text(
           store.vaultWaitSeconds > 0
               ? 'Senha errada 5 vezes. Espere 30 segundos.'
@@ -141,7 +142,7 @@ Future<bool> resetVaultPin(BuildContext context, AppStore store) async {
   if (answer == null || !context.mounted) return false;
   if (!_checkAnswer(store, answer)) {
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Resposta diferente da cadastrada.')),
+      const SnackBar(persist: false, content: Text('Resposta diferente da cadastrada.')),
     );
     return false;
   }
@@ -150,7 +151,7 @@ Future<bool> resetVaultPin(BuildContext context, AppStore store) async {
   await _setPin(store, pin);
   if (context.mounted) {
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Senha nova salva.')),
+      const SnackBar(persist: false, content: Text('Senha nova salva.')),
     );
   }
   return true;
@@ -171,7 +172,7 @@ Future<void> changeVaultPin(BuildContext context, AppStore store) async {
   }
   if (!_checkPin(store, current)) {
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Senha errada.')),
+      const SnackBar(persist: false, content: Text('Senha errada.')),
     );
     return;
   }
@@ -180,7 +181,7 @@ Future<void> changeVaultPin(BuildContext context, AppStore store) async {
   await _setPin(store, pin);
   if (context.mounted) {
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Senha trocada.')),
+      const SnackBar(persist: false, content: Text('Senha trocada.')),
     );
   }
 }
@@ -200,7 +201,7 @@ Future<String?> _askNewPin(BuildContext context) async {
   if (second == null || !context.mounted) return null;
   if (first != second) {
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('As senhas não batem. Tente de novo.')),
+      const SnackBar(persist: false, content: Text('As senhas não batem. Tente de novo.')),
     );
     return null;
   }
@@ -831,7 +832,7 @@ class _VaultPageState extends State<VaultPage> {
                   if (value == 'lock') {
                     Navigator.popUntil(context, (route) => route.isFirst);
                     ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Cofre trancado')),
+                      const SnackBar(persist: false, content: Text('Cofre trancado')),
                     );
                     return;
                   }

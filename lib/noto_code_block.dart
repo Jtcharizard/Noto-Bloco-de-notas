@@ -79,7 +79,7 @@ class _NotoCodeBlockState extends State<NotoCodeBlock> {
                     );
                     if (context.mounted)
                       ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Código copiado')),
+                        const SnackBar(persist: false, content: Text('Código copiado')),
                       );
                   },
                 ),

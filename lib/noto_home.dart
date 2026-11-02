@@ -297,7 +297,7 @@ class _HomeShellState extends State<HomeShell> {
   Future<void> _mergeNotes(List<Note> chosen) async {
     if (chosen.length < 2) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Escolha pelo menos 2 notas para juntar.')),
+        const SnackBar(persist: false, content: Text('Escolha pelo menos 2 notas para juntar.')),
       );
       return;
     }
@@ -437,6 +437,7 @@ class _HomeShellState extends State<HomeShell> {
     final undoable = action == 'archive' || action == 'trash';
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
+        persist: false,
         content: Text(message),
         action: undoable
             ? SnackBarAction(
@@ -514,6 +515,7 @@ class _HomeShellState extends State<HomeShell> {
     if (!mounted || at == null) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
+        persist: false,
         content: Text('Lembrete adiado para ${DateFormat('HH:mm').format(at)}'),
       ),
     );
@@ -597,7 +599,7 @@ class _HomeShellState extends State<HomeShell> {
     );
     if (missed.isNotEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(missedTasksMessage(missed.length))),
+        SnackBar(persist: false, content: Text(missedTasksMessage(missed.length))),
       );
     }
     await _openNote(note, isNew: true);
@@ -1868,6 +1870,7 @@ class _HomeShellState extends State<HomeShell> {
     widget.store.save();
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
+        persist: false,
         content: const Text('Nota arquivada'),
         action: SnackBarAction(
           label: 'Desfazer',
@@ -1886,6 +1889,7 @@ class _HomeShellState extends State<HomeShell> {
     widget.store.save();
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
+        persist: false,
         content: const Text('Nota movida para a lixeira'),
         action: SnackBarAction(
           label: 'Desfazer',
@@ -2132,6 +2136,7 @@ class _HomeShellState extends State<HomeShell> {
                   widget.store.save();
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(
+                      persist: false,
                       content: Text(
                         was ? 'Pasta $item solta' : 'Pasta $item fixada no começo',
                       ),

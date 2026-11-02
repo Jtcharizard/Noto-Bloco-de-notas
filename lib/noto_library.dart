@@ -359,6 +359,7 @@ class TrashPage extends StatelessWidget {
                   store.save();
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(
+                      persist: false,
                       content: Text('${items.length} notas restauradas'),
                     ),
                   );
@@ -670,6 +671,7 @@ Future<void> importBackup(BuildContext context, AppStore store) async {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
+            persist: false,
             content: Text(
               added + updated == 0
                   ? 'Nada novo: você já tinha tudo deste backup.'
@@ -790,13 +792,14 @@ Future<void> importBackup(BuildContext context, AppStore store) async {
     }
     if (context.mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(notes.length == 1 ? '1 nota restaurada.' : '${notes.length} notas restauradas.')),
+        SnackBar(persist: false, content: Text(notes.length == 1 ? '1 nota restaurada.' : '${notes.length} notas restauradas.')),
       );
     }
   } catch (_) {
     if (context.mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
+          persist: false,
           content: Text('Esse arquivo não é um backup do Noto.'),
         ),
       );
@@ -955,6 +958,7 @@ Future<void> importTextFiles(BuildContext context, AppStore store) async {
   if (context.mounted) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
+        persist: false,
         content: Text(
           count == 0
               ? 'Não consegui ler esses arquivos.'

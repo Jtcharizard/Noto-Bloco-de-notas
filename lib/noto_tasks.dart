@@ -114,6 +114,7 @@ class _AllTasksPageState extends State<AllTasksPage> {
     ScaffoldMessenger.of(context).hideCurrentSnackBar();
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
+        persist: false,
         duration: const Duration(seconds: 3),
         content: Text(item.done ? 'Tarefa reaberta' : 'Feito: ${item.text}'),
         action: SnackBarAction(

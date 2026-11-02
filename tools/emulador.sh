@@ -279,6 +279,14 @@ if tap_text "Nova nota"; then
     fi
     tap_text "Voltar" || adb shell input keyevent 4
     sleep 2
+    shot 32-depois-da-tarefa-unica
+    # Ao sair, a tarefa apagada não pode voltar (a nota nova ficou vazia).
+    if screen_text | grep -qiF "Pilhas"; then
+      echo "::error::A tarefa única apagada voltou depois de sair da nota"
+      FAIL=1
+    else
+      echo "OK: a tarefa única apagada não voltou ao sair"
+    fi
   else
     adb shell input keyevent 4; sleep 1
   fi

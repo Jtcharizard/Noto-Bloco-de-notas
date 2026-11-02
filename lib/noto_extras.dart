@@ -153,6 +153,7 @@ Future<void> shareNoteAsImage(
                               if (dialogContext.mounted) Navigator.pop(dialogContext);
                               messenger.showSnackBar(
                                 const SnackBar(
+                                  persist: false,
                                   content: Text('Não deu para criar a imagem.'),
                                 ),
                               );

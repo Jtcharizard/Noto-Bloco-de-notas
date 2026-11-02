@@ -402,6 +402,7 @@ class _CalendarPageState extends State<CalendarPage> {
               ScaffoldMessenger.of(context).hideCurrentSnackBar();
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(
+                  persist: false,
                   content: Text(
                     widget.store.calendarOnlyDated
                         ? 'Mostrando só prazos e lembretes'

@@ -232,7 +232,7 @@ class _LoadProblem extends StatelessWidget {
                   onPressed: () {
                     Clipboard.setData(ClipboardData(text: details));
                     ScaffoldMessenger.maybeOf(context)?.showSnackBar(
-                      const SnackBar(content: Text('Detalhes copiados')),
+                      const SnackBar(persist: false, content: Text('Detalhes copiados')),
                     );
                   },
                   child: const Text('Copiar detalhes'),

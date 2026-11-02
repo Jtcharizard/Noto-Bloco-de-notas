@@ -198,6 +198,7 @@ class _EditorPageState extends State<EditorPage>
     if (!widget.store.takeTip('tasks-enter')) return;
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
+        persist: false,
         duration: Duration(seconds: 4),
         content: Text(
           'Dica: toque numa tarefa para ver o X de apagar. Enter cria a próxima.',
@@ -281,7 +282,7 @@ class _EditorPageState extends State<EditorPage>
       ScaffoldMessenger.of(context)
         ..hideCurrentSnackBar()
         ..showSnackBar(
-          const SnackBar(content: Text('Meta de palavras alcançada! 🎉')),
+          const SnackBar(persist: false, content: Text('Meta de palavras alcançada! 🎉')),
         );
     }
     _goalReached = reached;
@@ -387,7 +388,7 @@ class _EditorPageState extends State<EditorPage>
     await Clipboard.setData(ClipboardData(text: '${title.text}\n\n$fullText'));
     if (mounted)
       ScaffoldMessenger.of(context)
-          .showSnackBar(const SnackBar(content: Text('Nota copiada')));
+          .showSnackBar(const SnackBar(persist: false, content: Text('Nota copiada')));
   }
 
   /// Trechos do texto que "Buscar e trocar" pode mudar. Numa lista de
@@ -863,6 +864,7 @@ class _EditorPageState extends State<EditorPage>
     _markMetaChanged();
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
+        persist: false,
         content: Text(
           wordGoal == null ? 'Meta tirada' : 'Meta: $wordGoal palavras',
         ),
@@ -944,7 +946,7 @@ class _EditorPageState extends State<EditorPage>
     }).toList();
     if (changed == 0) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Nenhuma tarefa concluída.')),
+        const SnackBar(persist: false, content: Text('Nenhuma tarefa concluída.')),
       );
       return;
     }
@@ -953,6 +955,7 @@ class _EditorPageState extends State<EditorPage>
     _editorChanged();
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
+        persist: false,
         content: Text(
           changed == 1 ? '1 tarefa desmarcada' : '$changed tarefas desmarcadas',
         ),
@@ -967,6 +970,7 @@ class _EditorPageState extends State<EditorPage>
   void _undoSnack(String message) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
+        persist: false,
         content: Text(message),
         action: SnackBarAction(
           label: 'Desfazer',
@@ -1021,7 +1025,7 @@ class _EditorPageState extends State<EditorPage>
     final selection = body.selection;
     if (!selection.isValid || selection.isCollapsed) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Selecione o trecho primeiro.')),
+        const SnackBar(persist: false, content: Text('Selecione o trecho primeiro.')),
       );
       return;
     }
@@ -1136,6 +1140,7 @@ class _EditorPageState extends State<EditorPage>
     _editorChanged();
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
+        persist: false,
         content: const Text('Tudo feito! 🎉'),
         action: SnackBarAction(
           label: 'Desfazer',
@@ -1154,7 +1159,7 @@ class _EditorPageState extends State<EditorPage>
     ];
     if (items.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Nada pendente nesta lista.')),
+        const SnackBar(persist: false, content: Text('Nada pendente nesta lista.')),
       );
       return;
     }
@@ -1163,6 +1168,7 @@ class _EditorPageState extends State<EditorPage>
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
+        persist: false,
         content: Text(
           items.length == 1 ? '1 item copiado' : '${items.length} itens copiados',
         ),
@@ -1233,6 +1239,7 @@ class _EditorPageState extends State<EditorPage>
       ..hideCurrentSnackBar()
       ..showSnackBar(
         SnackBar(
+          persist: false,
           content: const Text('Tarefa apagada'),
           action: SnackBarAction(
             label: 'Desfazer',
@@ -1248,6 +1255,7 @@ class _EditorPageState extends State<EditorPage>
     if (sections.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
+          persist: false,
           content: Text(
             'Sem seções ainda. Use Formatar texto > Título para criar uma.',
           ),
@@ -1317,7 +1325,7 @@ class _EditorPageState extends State<EditorPage>
   Future<void> _pinToHomeScreen() async {
     if (widget.note.locked) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Notas do cofre não ganham atalho.')),
+        const SnackBar(persist: false, content: Text('Notas do cofre não ganham atalho.')),
       );
       return;
     }
@@ -1325,7 +1333,7 @@ class _EditorPageState extends State<EditorPage>
     if (!mounted) return;
     if (!persisted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Escreva algo na nota primeiro.')),
+        const SnackBar(persist: false, content: Text('Escreva algo na nota primeiro.')),
       );
       return;
     }
@@ -1342,6 +1350,7 @@ class _EditorPageState extends State<EditorPage>
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
+        persist: false,
         content: Text(
           ok
               ? 'Confirme no aviso do celular para pôr a nota na tela inicial.'
@@ -1404,6 +1413,7 @@ class _EditorPageState extends State<EditorPage>
                   if (!ok && mounted) {
                     ScaffoldMessenger.of(context).showSnackBar(
                       const SnackBar(
+                        persist: false,
                         content: Text('Nenhum app do celular abre esse link.'),
                       ),
                     );
@@ -1413,7 +1423,7 @@ class _EditorPageState extends State<EditorPage>
                   Clipboard.setData(ClipboardData(text: link.text));
                   Navigator.pop(ctx);
                   ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Copiado')),
+                    const SnackBar(persist: false, content: Text('Copiado')),
                   );
                 },
               ),
@@ -1430,6 +1440,7 @@ class _EditorPageState extends State<EditorPage>
     messenger.hideCurrentSnackBar();
     messenger.showSnackBar(
       SnackBar(
+        persist: false,
         content: const Text('Tudo feito! 🎉'),
         action: resetDaily
             ? null
@@ -1884,6 +1895,7 @@ class _EditorPageState extends State<EditorPage>
         setState(() => widget.store.togglePin(widget.note));
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
+            persist: false,
             content: Text(
               widget.note.pinned
                   ? 'Fixada no topo da tela inicial'
@@ -1952,6 +1964,7 @@ class _EditorPageState extends State<EditorPage>
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
+            persist: false,
             content: const Text('Cópia criada com tudo desmarcado'),
             action: SnackBarAction(
               label: 'Abrir',
@@ -1977,7 +1990,7 @@ class _EditorPageState extends State<EditorPage>
         if (!mounted) return;
         if (!persisted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Escreva algo na nota primeiro.')),
+            const SnackBar(persist: false, content: Text('Escreva algo na nota primeiro.')),
           );
           return;
         }
@@ -1986,6 +1999,7 @@ class _EditorPageState extends State<EditorPage>
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
+            persist: false,
             content: Text(
               'Pronto! Esta nota aparece no widget "Noto · Nota" da tela inicial.',
             ),
@@ -2009,6 +2023,7 @@ class _EditorPageState extends State<EditorPage>
         _markMetaChanged();
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
+            persist: false,
             content: Text(
               protectedNote
                   ? 'Nota protegida: abre só para ler. Toque em "Editar" quando precisar mudar.'
@@ -2027,6 +2042,7 @@ class _EditorPageState extends State<EditorPage>
         _markMetaChanged();
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
+            persist: false,
             content: Text(
               resetDaily
                   ? 'Todo dia, ao abrir o Noto, as tarefas desta lista voltam desmarcadas.'
@@ -2052,6 +2068,7 @@ class _EditorPageState extends State<EditorPage>
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
+            persist: false,
             content: Text(
               pinned
                   ? 'Nota tirada da barra de notificações'
@@ -2366,7 +2383,17 @@ class _EditorPageState extends State<EditorPage>
 
   Future<bool> _saveDraft() async {
     final shouldPersist = !widget.isNew || hasContent;
-    if (!shouldPersist) return false;
+    if (!shouldPersist) {
+      // Nota nova que ficou vazia depois de já ter sido guardada (ex.: apagou
+      // a única tarefa com o X): sai da lista, para o que foi apagado não
+      // voltar ao sair da nota.
+      if (widget.store.notes.remove(widget.note)) {
+        widget.store.cancelReminder(widget.note);
+        widget.store.histories.remove(widget.note.id);
+        await widget.store.save();
+      }
+      return false;
+    }
     _syncModel();
     if (widget.isNew && !widget.store.notes.contains(widget.note)) {
       widget.store.notes.add(widget.note);
@@ -2596,6 +2623,7 @@ class _EditorPageState extends State<EditorPage>
       if (repeat == 0) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
+            persist: false,
             content: Text('Esse horário já passou. Escolha outro.'),
           ),
         );
@@ -2612,6 +2640,7 @@ class _EditorPageState extends State<EditorPage>
     final when = DateFormat("dd/MM 'às' HH:mm").format(selected);
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
+        persist: false,
         content: Text(
           repeat == 0
               ? 'Lembrete marcado para $when'
@@ -2643,7 +2672,7 @@ class _EditorPageState extends State<EditorPage>
       if (!mounted) return;
       setState(() {});
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Nota tirada do cofre.')),
+        const SnackBar(persist: false, content: Text('Nota tirada do cofre.')),
       );
       return;
     }
@@ -2655,6 +2684,7 @@ class _EditorPageState extends State<EditorPage>
     await widget.store.refreshReminder(widget.note);
     messenger.showSnackBar(
       const SnackBar(
+        persist: false,
         content: Text(
           'Nota guardada no cofre. Para abrir, segure o logo do Noto por 2 segundos.',
         ),
@@ -2694,6 +2724,7 @@ class _EditorPageState extends State<EditorPage>
       ..hideCurrentSnackBar()
       ..showSnackBar(
         SnackBar(
+          persist: false,
           content: Text(message),
           action: SnackBarAction(
             label: 'Desfazer',
@@ -2734,6 +2765,7 @@ class _EditorPageState extends State<EditorPage>
     final copy = widget.store.duplicate(widget.note);
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
+        persist: false,
         content: const Text('Cópia criada'),
         action: SnackBarAction(
           label: 'Abrir',
@@ -2858,6 +2890,7 @@ class _EditorPageState extends State<EditorPage>
             setState(() {});
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
+                persist: false,
                 content: Text(
                   'Lembrete marcado para ${DateFormat("dd/MM 'às' HH:mm").format(at)}',
                 ),
@@ -3127,7 +3160,7 @@ class _EditorPageState extends State<EditorPage>
     await widget.store.addTemplateFromNote(widget.note, name);
     if (mounted) {
       ScaffoldMessenger.of(context)
-          .showSnackBar(const SnackBar(content: Text('Modelo salvo')));
+          .showSnackBar(const SnackBar(persist: false, content: Text('Modelo salvo')));
     }
   }
 
@@ -3594,6 +3627,7 @@ class _EditorPageState extends State<EditorPage>
                                   setState(() {});
                                   ScaffoldMessenger.of(context).showSnackBar(
                                     const SnackBar(
+                                      persist: false,
                                       content: Text('Versão restaurada'),
                                     ),
                                   );

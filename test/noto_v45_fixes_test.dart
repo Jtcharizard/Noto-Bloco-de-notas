@@ -308,6 +308,96 @@ void main() {
     });
   });
 
+  testWidgets('nota nova: apagar a única tarefa e sair não traz a tarefa '
+      'de volta', (tester) async {
+    screen(tester);
+    final store = AppStore()..loaded = true;
+    store.seenTips.add('tasks-enter');
+    final note = Note(
+      id: 'nova',
+      title: '',
+      body: '- [ ] ',
+      updatedAt: DateTime(2026, 11, 1),
+      checklist: true,
+    );
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Builder(
+          builder: (context) => Scaffold(
+            body: Center(
+              child: TextButton(
+                onPressed: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) =>
+                        EditorPage(store: store, note: note, isNew: true),
+                  ),
+                ),
+                child: const Text('abrir'),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.tap(find.text('abrir'));
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      find.byWidgetPredicate(
+        (w) => w is TextField && w.decoration?.hintText == 'Tarefa',
+      ),
+      'Pilhas',
+    );
+    // O salvamento automático já guarda a nota nova com a tarefa.
+    await tester.pump(const Duration(seconds: 1));
+    await tester.pumpAndSettle();
+    expect(store.notes, contains(note));
+
+    await tester.tap(find.text('Pilhas'));
+    await tester.pump();
+    await tester.tap(find.byTooltip('Apagar tarefa'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('Voltar'));
+    await tester.pumpAndSettle();
+    await tester.pump(const Duration(seconds: 5));
+    await tester.pumpAndSettle();
+    expect(find.text('abrir'), findsOneWidget);
+    expect(store.notes.where((n) => n.body.contains('Pilhas')), isEmpty);
+    expect(store.notes, isNot(contains(note)));
+    await tester.pumpWidget(const SizedBox());
+  });
+
+  testWidgets('o aviso "Tarefa apagada · Desfazer" some sozinho', (
+    tester,
+  ) async {
+    screen(tester);
+    final store = AppStore()..loaded = true;
+    store.seenTips.add('tasks-enter');
+    final note = Note(
+      id: 'aviso',
+      title: 'Lista',
+      body: '- [ ] Leite\n- [ ] Pão',
+      updatedAt: DateTime(2026, 11, 1),
+      checklist: true,
+    );
+    store.notes.add(note);
+    await tester.pumpWidget(
+      MaterialApp(home: EditorPage(store: store, note: note, isNew: false)),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Leite'));
+    await tester.pump();
+    await tester.tap(find.byTooltip('Apagar tarefa'));
+    await tester.pumpAndSettle();
+    expect(find.text('Tarefa apagada'), findsOneWidget);
+    // Antes ele ficava na tela para sempre, cobrindo os botões de baixo.
+    await tester.pump(const Duration(seconds: 5));
+    await tester.pumpAndSettle();
+    expect(find.text('Tarefa apagada'), findsNothing);
+    await tester.pump(const Duration(seconds: 1));
+    await tester.pumpWidget(const SizedBox());
+  });
+
   testWidgets('trocar o degradê não recria o editor (a rolagem fica)', (
     tester,
   ) async {

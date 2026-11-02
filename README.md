@@ -70,6 +70,8 @@ O app funciona sem conta e sem internet. As notas e preferências ficam armazena
 - Nota do cofre não pode virar modelo (o texto sairia do cofre sem senha).
 - O Android não faz mais backup automático das notas.
 - "Buscar e trocar" em listas agora guarda a troca.
+- Corrigido: numa nota nova, apagar a única tarefa e sair trazia a tarefa de volta.
+- Corrigido: os avisos com "Desfazer" (como "Tarefa apagada") ficavam na tela para sempre, cobrindo os botões. Agora somem sozinhos.
 
 ## Novidades da v4.1.0
 
