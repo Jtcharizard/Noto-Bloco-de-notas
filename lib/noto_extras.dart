@@ -1,0 +1,620 @@
+import 'dart:io';
+import 'dart:math' as math;
+import 'dart:ui' as ui;
+
+import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:share_plus/share_plus.dart';
+
+import 'noto_models.dart';
+import 'noto_theme.dart';
+
+/// Texto da nota preparado para ler ou desenhar: tira marcações de Markdown
+/// e troca as caixas de tarefa por símbolos.
+String noteImageText(String title, String body, {bool forImage = false}) {
+  final lines = body.split('\n').map((line) {
+    final task = RegExp(r'^\s*(?:[-*]\s*)?\[([ xX])\]\s?(.*)$').firstMatch(line);
+    if (task != null) {
+      final done = task.group(1) != ' ';
+      if (forImage) return '${done ? '☑' : '☐'}  ${task.group(2)}';
+      return '${task.group(2)}${done ? ', feito' : ''}.';
+    }
+    return line
+        .replaceAll(RegExp(r'^#{1,6}\s+'), '')
+        .replaceAll(RegExp(r'^\s*>\s?'), '')
+        .replaceAll(RegExp(r'\*\*|__|~~|`'), '')
+        .replaceAll(RegExp(r'\[\[([^\]]+)\]\]'), r'$1');
+  });
+  final text = lines.join('\n').replaceAll(RegExp(r'\n{3,}'), '\n\n').trim();
+  if (forImage) return text;
+  return [if (title.trim().isNotEmpty) '${title.trim()}.', text].join('\n');
+}
+
+/// Mostra a nota como um cartão bonito e compartilha como imagem PNG.
+Future<void> shareNoteAsImage(
+  BuildContext context, {
+  required String title,
+  required String body,
+  Color? background,
+  String? fontFamily,
+}) async {
+  final key = GlobalKey();
+  var text = noteImageText(title, body, forImage: true);
+  if (text.length > 1400) text = '${text.substring(0, 1400).trimRight()}…';
+  final cs = Theme.of(context).colorScheme;
+  final bg = background ?? cs.surfaceContainerHigh;
+  final fg = ThemeData.estimateBrightnessForColor(bg) == Brightness.dark
+      ? Colors.white
+      : const Color(0xFF1B1B1F);
+  var busy = false;
+
+  await showDialog<void>(
+    context: context,
+    builder: (dialogContext) => StatefulBuilder(
+      builder: (dialogContext, setDialogState) => Dialog(
+        insetPadding: const EdgeInsets.all(18),
+        clipBehavior: Clip.antiAlias,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Flexible(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.all(14),
+                child: RepaintBoundary(
+                  key: key,
+                  child: Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.fromLTRB(22, 22, 22, 16),
+                    decoration: BoxDecoration(
+                      color: bg,
+                      borderRadius: BorderRadius.circular(22),
+                      border: Border.all(color: cs.primary.withValues(alpha: .35), width: 2),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        if (title.trim().isNotEmpty) ...[
+                          Text(
+                            title.trim(),
+                            style: TextStyle(
+                              fontFamily: fontFamily,
+                              fontSize: 24,
+                              height: 1.2,
+                              fontWeight: FontWeight.w900,
+                              color: fg,
+                            ),
+                          ),
+                          const SizedBox(height: 10),
+                        ],
+                        Text(
+                          text,
+                          style: TextStyle(
+                            fontFamily: fontFamily,
+                            fontSize: 16,
+                            height: 1.45,
+                            color: fg.withValues(alpha: .88),
+                          ),
+                        ),
+                        const SizedBox(height: 18),
+                        Row(
+                          children: [
+                            const NotoMark(size: 20),
+                            const SizedBox(width: 6),
+                            Text(
+                              'Noto',
+                              style: TextStyle(
+                                fontWeight: FontWeight.w900,
+                                fontSize: 13,
+                                color: fg.withValues(alpha: .7),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(14, 0, 14, 14),
+              child: Row(
+                children: [
+                  TextButton(
+                    onPressed: () => Navigator.pop(dialogContext),
+                    child: const Text('Cancelar'),
+                  ),
+                  const Spacer(),
+                  FilledButton.icon(
+                    onPressed: busy
+                        ? null
+                        : () async {
+                            setDialogState(() => busy = true);
+                            final messenger = ScaffoldMessenger.of(context);
+                            try {
+                              final boundary = key.currentContext!.findRenderObject()!
+                                  as RenderRepaintBoundary;
+                              final image = await boundary.toImage(pixelRatio: 3);
+                              final data = await image.toByteData(
+                                format: ui.ImageByteFormat.png,
+                              );
+                              image.dispose();
+                              final dir = await getTemporaryDirectory();
+                              final file = File(
+                                '${dir.path}/noto-${DateTime.now().millisecondsSinceEpoch}.png',
+                              );
+                              await file.writeAsBytes(data!.buffer.asUint8List());
+                              if (dialogContext.mounted) Navigator.pop(dialogContext);
+                              await Share.shareXFiles(
+                                [XFile(file.path, mimeType: 'image/png')],
+                              );
+                            } catch (_) {
+                              if (dialogContext.mounted) Navigator.pop(dialogContext);
+                              messenger.showSnackBar(
+                                const SnackBar(
+                                  content: Text('Não deu para criar a imagem.'),
+                                ),
+                              );
+                            }
+                          },
+                    icon: const Icon(Icons.image_outlined),
+                    label: const Text('Compartilhar imagem'),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    ),
+  );
+}
+
+const _emojiChoices = [
+  '📁', '⭐', '❤️', '🏠', '💼', '📚', '🎓', '✏️', '🛒', '🍳',
+  '💰', '💡', '🎯', '✅', '📅', '⏰', '🏋️', '🧘', '💊', '🩺',
+  '✈️', '🚗', '🎮', '🎵', '🎬', '📷', '🎨', '🐶', '🐱', '🌱',
+  '☕', '🍕', '🎁', '🎉', '🔒', '🔧', '💻', '📱', '🌙', '🔥',
+];
+
+/// Escolhe um emoji (para pastas). Devolve '' para tirar o emoji
+/// e null se cancelar.
+Future<String?> pickEmoji(
+  BuildContext context, {
+  required String title,
+  String? current,
+}) {
+  final typed = TextEditingController();
+  return showModalBottomSheet<String>(
+    context: context,
+    useSafeArea: true,
+    isScrollControlled: true,
+    showDragHandle: true,
+    builder: (ctx) {
+      final cs = Theme.of(ctx).colorScheme;
+      return SingleChildScrollView(
+        padding: EdgeInsets.fromLTRB(
+          16,
+          0,
+          16,
+          MediaQuery.viewInsetsOf(ctx).bottom +
+              MediaQuery.viewPaddingOf(ctx).bottom +
+              16,
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              title,
+              style: Theme.of(ctx).textTheme.titleLarge?.copyWith(
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+            const SizedBox(height: 12),
+            GridView.count(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              crossAxisCount: 8,
+              mainAxisSpacing: 6,
+              crossAxisSpacing: 6,
+              children: [
+                for (final emoji in _emojiChoices)
+                  Material(
+                    color: emoji == current
+                        ? cs.primaryContainer
+                        : cs.surfaceContainerHighest,
+                    borderRadius: BorderRadius.circular(12),
+                    child: InkWell(
+                      borderRadius: BorderRadius.circular(12),
+                      onTap: () => Navigator.pop(ctx, emoji),
+                      child: Center(
+                        child: Text(emoji, style: const TextStyle(fontSize: 20)),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: typed,
+              maxLength: 4,
+              decoration: const InputDecoration(
+                hintText: 'Ou digite qualquer emoji',
+                counterText: '',
+              ),
+              onSubmitted: (value) {
+                if (value.trim().isNotEmpty) Navigator.pop(ctx, value.trim());
+              },
+            ),
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                if (current != null && current.isNotEmpty)
+                  TextButton.icon(
+                    onPressed: () => Navigator.pop(ctx, ''),
+                    icon: const Icon(Icons.block_rounded),
+                    label: const Text('Tirar emoji'),
+                  ),
+                const Spacer(),
+                FilledButton(
+                  onPressed: () {
+                    final value = typed.text.trim();
+                    Navigator.pop(ctx, value.isEmpty ? null : value);
+                  },
+                  child: const Text('Usar'),
+                ),
+              ],
+            ),
+          ],
+        ),
+      );
+    },
+  ).whenComplete(() => Future<void>.delayed(
+        const Duration(milliseconds: 400),
+        typed.dispose,
+      ));
+}
+
+/// Tema pronto: muda várias opções de aparência de uma vez.
+class NotoPreset {
+  const NotoPreset({
+    required this.name,
+    required this.mode,
+    required this.accent,
+    required this.font,
+    this.pureBlack = false,
+    this.cardRadius = 16,
+  });
+
+  final String name;
+  final ThemeMode mode;
+  final int accent;
+  final int font;
+  final bool pureBlack;
+  final int cardRadius;
+}
+
+const notoPresets = <NotoPreset>[
+  NotoPreset(name: 'Noto', mode: ThemeMode.system, accent: 0, font: 0),
+  NotoPreset(
+    name: 'Meia-noite',
+    mode: ThemeMode.dark,
+    accent: 17,
+    font: 20,
+    pureBlack: true,
+    cardRadius: 10,
+  ),
+  NotoPreset(name: 'Papel', mode: ThemeMode.light, accent: 9, font: 13, cardRadius: 4),
+  NotoPreset(name: 'Oceano', mode: ThemeMode.light, accent: 2, font: 14, cardRadius: 26),
+  NotoPreset(name: 'Floresta', mode: ThemeMode.dark, accent: 5, font: 35),
+  NotoPreset(name: 'Chiclete', mode: ThemeMode.light, accent: 14, font: 25, cardRadius: 26),
+  NotoPreset(name: 'Pôr do sol', mode: ThemeMode.dark, accent: 11, font: 29),
+  NotoPreset(name: 'Código', mode: ThemeMode.dark, accent: 6, font: 22, pureBlack: true, cardRadius: 4),
+  NotoPreset(name: 'Lavanda', mode: ThemeMode.light, accent: 16, font: 15, cardRadius: 26),
+  NotoPreset(name: 'Café', mode: ThemeMode.light, accent: 10, font: 33, cardRadius: 10),
+  NotoPreset(name: 'Neon', mode: ThemeMode.dark, accent: 15, font: 28, pureBlack: true),
+  NotoPreset(name: 'Menta', mode: ThemeMode.light, accent: 4, font: 30, cardRadius: 26),
+  NotoPreset(name: 'Cereja', mode: ThemeMode.dark, accent: 13, font: 5),
+  NotoPreset(name: 'Gelo', mode: ThemeMode.light, accent: 3, font: 31, cardRadius: 10),
+  NotoPreset(name: 'Grafite', mode: ThemeMode.dark, accent: 1, font: 16, cardRadius: 4),
+  NotoPreset(name: 'Limão', mode: ThemeMode.light, accent: 7, font: 19, cardRadius: 26),
+];
+
+/// "Bom dia", "Boa tarde" ou "Boa noite" pela hora certa do celular.
+String greetingFor(DateTime now) {
+  final hour = now.hour;
+  if (hour >= 5 && hour < 12) return 'Bom dia';
+  if (hour >= 12 && hour < 18) return 'Boa tarde';
+  return 'Boa noite';
+}
+
+const _weekdaysPt = [
+  'segunda-feira', 'terça-feira', 'quarta-feira', 'quinta-feira',
+  'sexta-feira', 'sábado', 'domingo',
+];
+const _monthsPt = [
+  'janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho', 'julho',
+  'agosto', 'setembro', 'outubro', 'novembro', 'dezembro',
+];
+
+/// "sábado, 24 de outubro", sem depender dos dados de idioma carregados.
+String longDatePt(DateTime day) =>
+    '${_weekdaysPt[day.weekday - 1]}, ${day.day} de ${_monthsPt[day.month - 1]}';
+
+/// Modelos que já vêm no Noto (como no Notion e no Evernote).
+final starterTemplates = <NotoTemplate>[
+  NotoTemplate(
+    id: 'pronto-compras',
+    name: 'Lista de compras',
+    emoji: '🛒',
+    title: 'Compras',
+    checklist: true,
+    body: '- [ ] Arroz\n- [ ] Feijão\n- [ ] Leite\n- [ ] Pão\n- [ ] Frutas\n- [ ] ',
+  ),
+  NotoTemplate(
+    id: 'pronto-reuniao',
+    name: 'Reunião',
+    emoji: '🗓️',
+    title: 'Reunião',
+    body: '## Pauta\n- \n\n## Decisões\n- \n\n## Próximos passos\n- ',
+  ),
+  NotoTemplate(
+    id: 'pronto-viagem',
+    name: 'Mala de viagem',
+    emoji: '✈️',
+    title: 'Viagem',
+    checklist: true,
+    body: '- [ ] Documentos\n  - [ ] RG ou passaporte\n  - [ ] Passagens\n'
+        '- [ ] Roupas\n- [ ] Carregador\n- [ ] Escova e pasta de dente\n'
+        '- [ ] Remédios\n- [ ] ',
+  ),
+  NotoTemplate(
+    id: 'pronto-diario',
+    name: 'Diário',
+    emoji: '📔',
+    title: 'Diário',
+    body: '## Como foi o dia\n\n\n## Sou grato por\n1. \n\n## Amanhã eu quero\n- ',
+  ),
+  NotoTemplate(
+    id: 'pronto-receita',
+    name: 'Receita',
+    emoji: '🍳',
+    title: 'Receita',
+    body: '## Ingredientes\n- \n\n## Modo de preparo\n1. \n\n## Rende\n',
+  ),
+  NotoTemplate(
+    id: 'pronto-metas',
+    name: 'Metas da semana',
+    emoji: '🎯',
+    title: 'Metas da semana',
+    checklist: true,
+    body: '- [ ] Saúde\n  - [ ] \n- [ ] Trabalho ou estudo\n  - [ ] \n'
+        '- [ ] Pessoal\n  - [ ] ',
+  ),
+  NotoTemplate(
+    id: 'pronto-estudos',
+    name: 'Resumo de estudo',
+    emoji: '📚',
+    title: 'Resumo',
+    body: '## Assunto\n\n\n## Pontos principais\n- \n\n## Dúvidas\n- ',
+  ),
+  NotoTemplate(
+    id: 'pronto-ideia',
+    name: 'Ideia ou projeto',
+    emoji: '💡',
+    title: 'Ideia',
+    body: '## A ideia\n\n\n## Por que vale a pena\n- \n\n## Primeiro passo\n- ',
+  ),
+];
+
+/// Confete rápido na tela (ao terminar uma lista). Não bloqueia toques.
+void showConfetti(BuildContext context) {
+  final overlay = Overlay.maybeOf(context, rootOverlay: true);
+  if (overlay == null) return;
+  final colors = [
+    Theme.of(context).colorScheme.primary,
+    Theme.of(context).colorScheme.tertiary,
+    const Color(0xFFFFC94D),
+    const Color(0xFFFF6B8B),
+    const Color(0xFF4DD4FF),
+    const Color(0xFF7CE38B),
+  ];
+  late OverlayEntry entry;
+  entry = OverlayEntry(
+    builder: (_) => IgnorePointer(
+      child: _ConfettiBurst(colors: colors, onDone: () => entry.remove()),
+    ),
+  );
+  overlay.insert(entry);
+}
+
+class _ConfettiBurst extends StatefulWidget {
+  const _ConfettiBurst({required this.colors, required this.onDone});
+  final List<Color> colors;
+  final VoidCallback onDone;
+
+  @override
+  State<_ConfettiBurst> createState() => _ConfettiBurstState();
+}
+
+class _ConfettiPiece {
+  _ConfettiPiece(math.Random r, this.color)
+    : x = .5 + (r.nextDouble() - .5) * .3,
+      vx = (r.nextDouble() - .5) * 1.4,
+      vy = -1.1 - r.nextDouble() * .9,
+      spin = (r.nextDouble() - .5) * 18,
+      size = 6 + r.nextDouble() * 7,
+      round = r.nextBool();
+  final double x, vx, vy, spin, size;
+  final bool round;
+  final Color color;
+}
+
+class _ConfettiBurstState extends State<_ConfettiBurst>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController controller = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 1700),
+  )..forward().whenComplete(widget.onDone);
+  late final List<_ConfettiPiece> pieces = () {
+    final r = math.Random();
+    return [
+      for (var i = 0; i < 90; i++)
+        _ConfettiPiece(r, widget.colors[i % widget.colors.length]),
+    ];
+  }();
+
+  @override
+  void dispose() {
+    controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => AnimatedBuilder(
+    animation: controller,
+    builder: (_, __) => CustomPaint(
+      size: Size.infinite,
+      painter: _ConfettiPainter(pieces, controller.value),
+    ),
+  );
+}
+
+class _ConfettiPainter extends CustomPainter {
+  _ConfettiPainter(this.pieces, this.t);
+  final List<_ConfettiPiece> pieces;
+  final double t;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final fade = t < .75 ? 1.0 : (1 - t) / .25;
+    for (final p in pieces) {
+      final dx = (p.x + p.vx * t * .6) * size.width;
+      final dy = size.height * (.62 + p.vy * t * .55 + 1.5 * t * t * .55);
+      final paint = Paint()..color = p.color.withValues(alpha: fade.clamp(0, 1));
+      canvas.save();
+      canvas.translate(dx, dy);
+      canvas.rotate(p.spin * t);
+      if (p.round) {
+        canvas.drawCircle(Offset.zero, p.size / 2.4, paint);
+      } else {
+        canvas.drawRect(
+          Rect.fromCenter(center: Offset.zero, width: p.size, height: p.size * .5),
+          paint,
+        );
+      }
+      canvas.restore();
+    }
+  }
+
+  @override
+  bool shouldRepaint(_ConfettiPainter old) => old.t != t;
+}
+
+/// Avatares prontos (ilustrações Fluent Emoji 3D, da Microsoft, licença MIT).
+const notoAvatars = <(String, String)>[
+  ('gato', 'Gato'),
+  ('cachorro', 'Cachorro'),
+  ('raposa', 'Raposa'),
+  ('panda', 'Panda'),
+  ('urso', 'Urso'),
+  ('coala', 'Coala'),
+  ('tigre', 'Tigre'),
+  ('leao', 'Leão'),
+  ('macaco', 'Macaco'),
+  ('sapo', 'Sapo'),
+  ('pinguim', 'Pinguim'),
+  ('coruja', 'Coruja'),
+  ('unicornio', 'Unicórnio'),
+  ('dragao', 'Dragão'),
+  ('robo', 'Robô'),
+  ('alien', 'Alien'),
+  ('fantasma', 'Fantasma'),
+  ('astronauta', 'Astronauta'),
+  ('ninja', 'Ninja'),
+  ('oculos', 'Estiloso'),
+];
+
+/// Caminho da imagem do avatar salvo ("av:gato"), ou null se não for um.
+String? avatarAsset(String value) {
+  if (!value.startsWith('av:')) return null;
+  final id = value.substring(3);
+  return notoAvatars.any((a) => a.$1 == id) ? 'assets/avatars/$id.png' : null;
+}
+
+/// Escolhe um avatar pronto. Devolve "av:<nome>", '' para tirar ou null.
+Future<String?> pickAvatar(BuildContext context, {String? current}) {
+  return showModalBottomSheet<String>(
+    context: context,
+    useSafeArea: true,
+    isScrollControlled: true,
+    showDragHandle: true,
+    builder: (ctx) {
+      final cs = Theme.of(ctx).colorScheme;
+      return SingleChildScrollView(
+        padding: EdgeInsets.fromLTRB(
+          16,
+          0,
+          16,
+          MediaQuery.viewPaddingOf(ctx).bottom + 16,
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Seu avatar',
+              style: Theme.of(ctx).textTheme.titleLarge?.copyWith(
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+            const SizedBox(height: 14),
+            GridView.count(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              crossAxisCount: 4,
+              mainAxisSpacing: 10,
+              crossAxisSpacing: 10,
+              children: [
+                for (final avatar in notoAvatars)
+                  Tooltip(
+                    message: avatar.$2,
+                    child: Material(
+                      color: current == 'av:${avatar.$1}'
+                          ? cs.primaryContainer
+                          : cs.surfaceContainerHighest,
+                      shape: CircleBorder(
+                        side: BorderSide(
+                          color: current == 'av:${avatar.$1}'
+                              ? cs.primary
+                              : Colors.transparent,
+                          width: 3,
+                        ),
+                      ),
+                      child: InkWell(
+                        customBorder: const CircleBorder(),
+                        onTap: () => Navigator.pop(ctx, 'av:${avatar.$1}'),
+                        child: Padding(
+                          padding: const EdgeInsets.all(10),
+                          child: Image.asset('assets/avatars/${avatar.$1}.png'),
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            if (current != null && current.isNotEmpty)
+              TextButton.icon(
+                onPressed: () => Navigator.pop(ctx, ''),
+                icon: const Icon(Icons.block_rounded),
+                label: const Text('Sem avatar (usa a inicial do nome)'),
+              ),
+          ],
+        ),
+      );
+    },
+  );
+}

@@ -1,0 +1,620 @@
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+
+import 'noto_formatting.dart';
+
+/// Editor de linhas que mistura texto comum e tarefas com caixa de marcar.
+///
+/// O conteúdo continua salvo como texto simples no [controller]
+/// (`- [ ] tarefa` / `- [x] feita`), então nada muda no formato das notas.
+class MixedContentEditor extends StatefulWidget {
+  const MixedContentEditor({
+    super.key,
+    required this.controller,
+    required this.onChanged,
+    this.family,
+    this.fontSize = 17,
+    this.textColor,
+    this.hideDone = false,
+    this.onShowDone,
+    this.onAllDone,
+    this.roundChecks = false,
+    this.showAddButtons = true,
+    this.onEmptied,
+  });
+
+  /// Chamado ao apagar a última linha que sobrou.
+  final VoidCallback? onEmptied;
+
+  /// Botões "Texto" e "Tarefa" embaixo (somem com o teclado aberto).
+  final bool showAddButtons;
+
+  /// Caixas de marcar redondas.
+  final bool roundChecks;
+
+  final TextEditingController controller;
+  final VoidCallback onChanged;
+  final String? family;
+  final double fontSize;
+  final Color? textColor;
+
+  /// Esconde as tarefas já marcadas.
+  final bool hideDone;
+  final VoidCallback? onShowDone;
+
+  /// Chamado quando a última tarefa da lista é marcada.
+  final VoidCallback? onAllDone;
+
+  @override
+  State<MixedContentEditor> createState() => _MixedContentEditorState();
+}
+
+class _MixedLine {
+  _MixedLine(
+    String text, {
+    this.task = false,
+    this.checked = false,
+    this.indent = 0,
+  }) : controller = TextEditingController(text: text);
+
+  final TextEditingController controller;
+  final FocusNode focus = FocusNode();
+  final Key key = UniqueKey();
+  bool task;
+  bool checked;
+
+  /// Recuo de subtarefa (0 = tarefa principal).
+  int indent;
+
+  /// Já está avisando o editor quando ganha foco.
+  bool tracked = false;
+
+  void dispose() {
+    controller.dispose();
+    focus.dispose();
+  }
+}
+
+class _MixedContentEditorState extends State<MixedContentEditor> {
+  final List<_MixedLine> lines = [];
+
+  /// Linha em que a pessoa mexeu por último: só ela mostra X e ⋮
+  /// (como no Keep). Não depende do foco, para o X não sumir no toque.
+  _MixedLine? _active;
+
+  static final RegExp _taskPattern = RegExp(
+    r'^([ \t]*)(?:[-*]\s*)?\[([ xX])\]\s?(.*)$',
+  );
+
+  @override
+  void initState() {
+    super.initState();
+    lines.addAll(widget.controller.text.split('\n').map(_parse));
+    if (lines.isEmpty) lines.add(_MixedLine(''));
+  }
+
+  @override
+  void dispose() {
+    for (final line in lines) {
+      line.dispose();
+    }
+    super.dispose();
+  }
+
+  _MixedLine _parse(String raw) {
+    final match = _taskPattern.firstMatch(raw);
+    if (match == null) return _MixedLine(raw);
+    final spaces = match.group(1)!.replaceAll('\t', '  ').length;
+    return _MixedLine(
+      match.group(3) ?? '',
+      task: true,
+      checked: match.group(2)!.toLowerCase() == 'x',
+      indent: (spaces ~/ 2).clamp(0, 3).toInt(),
+    );
+  }
+
+  void _sync() {
+    widget.controller.text = lines
+        .map((line) {
+          if (!line.task) return line.controller.text;
+          return '${'  ' * line.indent}- [${line.checked ? 'x' : ' '}] '
+              '${line.controller.text}';
+        })
+        .join('\n');
+    widget.onChanged();
+  }
+
+  void _focusLater(_MixedLine line) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      line.focus.requestFocus();
+      line.controller.selection = TextSelection.collapsed(
+        offset: line.controller.text.length,
+      );
+    });
+  }
+
+  void _add({required bool task}) {
+    final line = _MixedLine('', task: task);
+    setState(() => lines.add(line));
+    _sync();
+    _focusLater(line);
+  }
+
+  /// Enter cria uma nova linha do mesmo tipo, como em qualquer lista de tarefas.
+  /// Enter numa tarefa vazia transforma a linha em texto comum.
+  void _lineChanged(_MixedLine line, String value) {
+    if (!value.contains('\n')) {
+      _sync();
+      return;
+    }
+    final parts = value.split('\n');
+    final index = lines.indexOf(line);
+    if (line.task &&
+        parts.length == 2 &&
+        parts.first.trim().isEmpty &&
+        parts.last.isEmpty) {
+      // Subtarefa vazia: Enter tira o recuo antes de virar texto.
+      if (line.indent > 0) {
+        setState(() => line.indent--);
+        line.controller.text = '';
+        _sync();
+        _focusLater(line);
+        return;
+      }
+      setState(() => line.task = false);
+      line.controller.text = '';
+      _sync();
+      _focusLater(line);
+      return;
+    }
+    // Texto com lista ("1-", "-", "a)"): Enter continua a numeração.
+    if (!line.task && parts.length == 2 && parts.last.isEmpty) {
+      final prefix = nextListPrefix(parts.first);
+      if (prefix != null && prefix.isEmpty) {
+        line.controller.text = '';
+        _sync();
+        _focusLater(line);
+        return;
+      }
+      if (prefix != null) {
+        line.controller.text = parts.first;
+        final next = _MixedLine(prefix);
+        setState(() => lines.insert(index + 1, next));
+        _sync();
+        _focusLater(next);
+        return;
+      }
+    }
+    line.controller.text = parts.first;
+    final added = [
+      for (final part in parts.skip(1))
+        _MixedLine(part, task: line.task, indent: line.task ? line.indent : 0),
+    ];
+    setState(() => lines.insertAll(index + 1, added));
+    _sync();
+    _focusLater(added.last);
+  }
+
+  /// Tarefa marcada desce para o fim do seu grupo de tarefas;
+  /// desmarcada volta para junto das que faltam fazer.
+  void _toggle(_MixedLine line, bool checked) {
+    HapticFeedback.selectionClick();
+    setState(() {
+      line.checked = checked;
+      // Marcar uma tarefa marca as subtarefas dela também.
+      var child = lines.indexOf(line) + 1;
+      while (child < lines.length &&
+          lines[child].task &&
+          lines[child].indent > line.indent) {
+        lines[child].checked = checked;
+        child++;
+      }
+      var start = lines.indexOf(line);
+      var end = start;
+      while (start > 0 && lines[start - 1].task) {
+        start--;
+      }
+      while (end < lines.length - 1 && lines[end + 1].task) {
+        end++;
+      }
+      final block = lines.sublist(start, end + 1);
+      // Com subtarefas, mantém a ordem para não separar dos pais.
+      if (block.any((item) => item.indent > 0)) return;
+      final ordered = [
+        ...block.where((item) => !item.checked),
+        ...block.where((item) => item.checked),
+      ];
+      lines.replaceRange(start, end + 1, ordered);
+    });
+    _sync();
+    final tasks = lines.where((item) => item.task).toList();
+    if (checked && tasks.length >= 2 && tasks.every((item) => item.checked)) {
+      HapticFeedback.mediumImpact();
+      if (widget.onAllDone != null) {
+        widget.onAllDone!();
+      } else {
+        ScaffoldMessenger.maybeOf(context)?.showSnackBar(
+          const SnackBar(content: Text('Tudo feito! 🎉')),
+        );
+      }
+    }
+  }
+
+  /// Apaga a linha. Se for a única, só esvazia (a nota não fica sem linha).
+  void _deleteLine(_MixedLine line) {
+    // Fecha o teclado antes: o campo some sem o teclado mandar texto
+    // atrasado para ele.
+    FocusManager.instance.primaryFocus?.unfocus();
+    if (lines.length > 1) {
+      _removeLine(line);
+      return;
+    }
+    // Era a única linha: a nota fica em branco (quem cuida é o editor).
+    if (widget.onEmptied != null) {
+      widget.onEmptied!();
+      return;
+    }
+    setState(() {
+      line.checked = false;
+      line.indent = 0;
+    });
+    line.controller.text = '';
+    _sync();
+  }
+
+  /// Apaga a linha e oferece "Desfazer" por alguns segundos.
+  void _removeLine(_MixedLine line) {
+    if (lines.length <= 1) return;
+    final index = lines.indexOf(line);
+    setState(() {
+      lines.remove(line);
+      if (identical(_active, line)) _active = null;
+    });
+    _sync();
+    var restored = false;
+    final messenger = ScaffoldMessenger.maybeOf(context);
+    if (messenger == null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => line.dispose());
+      return;
+    }
+    messenger.hideCurrentSnackBar();
+    messenger
+        .showSnackBar(
+          SnackBar(
+            content: Text(line.task ? 'Tarefa apagada' : 'Linha apagada'),
+            action: SnackBarAction(
+              label: 'Desfazer',
+              onPressed: () {
+                if (!mounted) return;
+                restored = true;
+                setState(
+                  () => lines.insert(index.clamp(0, lines.length).toInt(), line),
+                );
+                _sync();
+              },
+            ),
+          ),
+        )
+        .closed
+        .then((_) {
+          if (!restored) line.dispose();
+        });
+  }
+
+  List<_MixedLine> get _visible => widget.hideDone
+      ? lines.where((line) => !(line.task && line.checked)).toList()
+      : lines;
+
+  @override
+  Widget build(BuildContext context) {
+    final visible = _visible;
+    final hidden = lines.length - visible.length;
+    final total = lines.where((line) => line.task).length;
+    final done = lines.where((line) => line.task && line.checked).length;
+    final cs = Theme.of(context).colorScheme;
+    return Column(
+    children: [
+      if (total > 0)
+        Padding(
+          padding: const EdgeInsets.fromLTRB(12, 0, 12, 6),
+          child: Row(
+            children: [
+              Expanded(
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(6),
+                  child: LinearProgressIndicator(
+                    value: done / total,
+                    minHeight: 6,
+                    backgroundColor: cs.primary.withValues(alpha: .15),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Text(
+                done == total ? 'Tudo feito' : '$done de $total feitas',
+                style: TextStyle(
+                  fontSize: 12.5,
+                  fontWeight: FontWeight.w700,
+                  color: widget.textColor ?? cs.onSurface.withValues(alpha: .7),
+                ),
+              ),
+            ],
+          ),
+        ),
+      Expanded(
+        child: ReorderableListView.builder(
+          padding: const EdgeInsets.only(bottom: 12),
+          buildDefaultDragHandles: false,
+          itemCount: visible.length,
+          onReorder: (oldIndex, newIndex) {
+            setState(() {
+              final moving = visible[oldIndex];
+              final anchor = newIndex < visible.length
+                  ? visible[newIndex]
+                  : null;
+              final original = lines.indexOf(moving);
+              lines.remove(moving);
+              final position = anchor == null
+                  ? lines.length
+                  : identical(anchor, moving)
+                  ? original
+                  : lines.indexOf(anchor);
+              lines.insert(position, moving);
+            });
+            _sync();
+          },
+          itemBuilder: (context, index) {
+            final line = visible[index];
+            if (!line.tracked) {
+              line.tracked = true;
+              line.focus.addListener(() {
+                if (line.focus.hasFocus && !identical(_active, line) && mounted) {
+                  setState(() => _active = line);
+                }
+              });
+            }
+            final active = identical(_active, line);
+            final position = lines.indexOf(line);
+            final canIndent = line.task &&
+                line.indent < 3 &&
+                position > 0 &&
+                lines[position - 1].task &&
+                lines[position - 1].indent >= line.indent;
+            return KeyedSubtree(
+              key: line.key,
+              child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                if (line.indent > 0) SizedBox(width: line.indent * 24.0),
+                ReorderableDragStartListener(
+                  index: index,
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(0, 14, 0, 12),
+                    child: Icon(
+                      Icons.drag_indicator_rounded,
+                      size: 18,
+                      color: cs.onSurface.withValues(alpha: .28),
+                    ),
+                  ),
+                ),
+                if (line.task)
+                  Checkbox(
+                    value: line.checked,
+                    shape: widget.roundChecks ? const CircleBorder() : null,
+                    onChanged: (value) => _toggle(line, value ?? false),
+                  )
+                else
+                  const SizedBox(width: 10),
+                Expanded(
+                  child: TextField(
+                    controller: line.controller,
+                    focusNode: line.focus,
+                    minLines: 1,
+                    maxLines: null,
+                    textCapitalization: TextCapitalization.sentences,
+                    decoration: InputDecoration(
+                      hintText: line.task ? 'Tarefa' : 'Escreva aqui',
+                      filled: false,
+                      border: InputBorder.none,
+                      enabledBorder: InputBorder.none,
+                      focusedBorder: InputBorder.none,
+                    ),
+                    style: TextStyle(
+                      fontFamily: widget.family,
+                      fontSize: widget.fontSize,
+                      color: line.checked
+                          ? (widget.textColor ??
+                                    Theme.of(context).colorScheme.onSurface)
+                                .withValues(alpha: .55)
+                          : widget.textColor,
+                      decoration: line.checked
+                          ? TextDecoration.lineThrough
+                          : null,
+                    ),
+                    onChanged: (value) => _lineChanged(line, value),
+                  ),
+                ),
+                if (active) ...[
+                  _DeleteButton(
+                    label: line.task ? 'Apagar tarefa' : 'Apagar linha',
+                    onDelete: () => _deleteLine(line),
+                  ),
+                PopupMenuButton<String>(
+                  tooltip: 'Opções da linha',
+                  padding: EdgeInsets.zero,
+                  icon: Icon(
+                    Icons.more_vert_rounded,
+                    size: 20,
+                    color: cs.onSurface.withValues(alpha: .6),
+                  ),
+                  onSelected: (value) {
+                    if (value == 'convert') {
+                      setState(() {
+                        line.task = !line.task;
+                        if (!line.task) {
+                          line.checked = false;
+                          line.indent = 0;
+                        }
+                      });
+                      _sync();
+                    } else if (value == 'indent' || value == 'outdent') {
+                      setState(() => line.indent += value == 'indent' ? 1 : -1);
+                      _sync();
+                    }
+                  },
+                  itemBuilder: (_) => [
+                    if (canIndent)
+                      const PopupMenuItem(
+                        value: 'indent',
+                        child: ListTile(
+                          leading: Icon(Icons.format_indent_increase_rounded),
+                          title: Text('Virar subtarefa'),
+                        ),
+                      ),
+                    if (line.indent > 0)
+                      const PopupMenuItem(
+                        value: 'outdent',
+                        child: ListTile(
+                          leading: Icon(Icons.format_indent_decrease_rounded),
+                          title: Text('Tirar recuo'),
+                        ),
+                      ),
+                    PopupMenuItem(
+                      value: 'convert',
+                      child: ListTile(
+                        leading: Icon(
+                          line.task
+                              ? Icons.notes_rounded
+                              : Icons.check_box_outlined,
+                        ),
+                        title: Text(
+                          line.task
+                              ? 'Transformar em texto'
+                              : 'Transformar em tarefa',
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                ],
+              ],
+            ),
+            );
+          },
+        ),
+      ),
+      if (hidden > 0)
+        Align(
+          alignment: Alignment.centerLeft,
+          child: TextButton.icon(
+            onPressed: widget.onShowDone,
+            icon: const Icon(Icons.visibility_outlined, size: 18),
+            label: Text(
+              hidden == 1
+                  ? '1 tarefa concluída escondida · Mostrar'
+                  : '$hidden tarefas concluídas escondidas · Mostrar',
+            ),
+          ),
+        ),
+      // Com o teclado aberto, os botões somem para sobrar espaço para a
+      // lista (o Enter já cria a próxima tarefa).
+      if (widget.showAddButtons)
+      Row(
+        children: [
+          Expanded(
+            child: OutlinedButton.icon(
+              onPressed: () => _add(task: false),
+              icon: const Icon(Icons.notes_rounded),
+              label: const Text('Texto'),
+            ),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: FilledButton.tonalIcon(
+              onPressed: () => _add(task: true),
+              icon: const Icon(Icons.check_box_outlined),
+              label: const Text('Tarefa'),
+            ),
+          ),
+        ],
+      ),
+    ],
+    );
+  }
+}
+
+
+/// Botão de apagar a linha. Usa o toque cru da tela (Listener), sem disputa
+/// com a rolagem ou com o campo de texto ao lado: em alguns celulares o
+/// IconButton comum não recebia o toque.
+class _DeleteButton extends StatefulWidget {
+  const _DeleteButton({required this.label, required this.onDelete});
+
+  final String label;
+  final VoidCallback onDelete;
+
+  @override
+  State<_DeleteButton> createState() => _DeleteButtonState();
+}
+
+class _DeleteButtonState extends State<_DeleteButton> {
+  Offset? _down;
+  bool _pressed = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    return Tooltip(
+      message: widget.label,
+      child: Semantics(
+        button: true,
+        label: widget.label,
+        onTap: widget.onDelete,
+        excludeSemantics: true,
+        child: Listener(
+          behavior: HitTestBehavior.opaque,
+          onPointerDown: (event) => setState(() {
+            _down = event.position;
+            _pressed = true;
+          }),
+          onPointerCancel: (_) => setState(() {
+            _down = null;
+            _pressed = false;
+          }),
+          onPointerUp: (event) {
+            final start = _down;
+            setState(() {
+              _down = null;
+              _pressed = false;
+            });
+            if (start != null && (event.position - start).distance < 40) {
+              HapticFeedback.lightImpact();
+              widget.onDelete();
+            }
+          },
+          child: SizedBox(
+            width: 44,
+            height: 48,
+            child: Center(
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 90),
+                width: _pressed ? 30 : 28,
+                height: _pressed ? 30 : 28,
+                decoration: BoxDecoration(
+                  color: _pressed ? cs.error : cs.errorContainer,
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(
+                  Icons.close_rounded,
+                  size: 18,
+                  color: _pressed ? cs.onError : cs.onErrorContainer,
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}

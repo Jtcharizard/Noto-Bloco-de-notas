@@ -1,6 +1,55 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android" android:id="@+id/widget_root" android:layout_width="match_parent" android:layout_height="match_parent" android:orientation="vertical" android:padding="18dp" android:background="@drawable/noto_widget_bg">
-    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="NOTO • NOTA RECENTE" android:textColor="#FFB15A" android:textSize="11sp" android:textStyle="bold"/>
-    <TextView android:id="@+id/widget_title" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="8dp" android:maxLines="1" android:text="Noto" android:textColor="#FFFFFF" android:textSize="20sp" android:textStyle="bold"/>
-    <TextView android:id="@+id/widget_body" android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1" android:layout_marginTop="5dp" android:maxLines="4" android:text="Toca para abrir tuas notas" android:textColor="#E8E3ED" android:textSize="13sp"/>
-</LinearLayout>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/widget_root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+
+    <ImageView
+        android:id="@+id/widget_bg"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:scaleType="fitXY"
+        android:src="@drawable/noto_widget_shape" />
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:orientation="vertical"
+        android:padding="14dp">
+
+        <TextView
+            android:id="@+id/widget_tag"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:letterSpacing="0.08"
+            android:text="NOTA"
+            android:textColor="#C4A6FF"
+            android:textSize="10sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/widget_title"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:ellipsize="end"
+            android:maxLines="2"
+            android:text="Noto"
+            android:textColor="#FFFFFF"
+            android:textSize="17sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/widget_body"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_marginTop="4dp"
+            android:layout_weight="1"
+            android:ellipsize="end"
+            android:lineSpacingExtra="2dp"
+            android:maxLines="6"
+            android:text="Toque para abrir suas notas"
+            android:textColor="#E8E3ED"
+            android:textSize="12.5sp" />
+    </LinearLayout>
+</FrameLayout>

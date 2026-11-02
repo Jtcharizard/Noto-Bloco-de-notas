@@ -29,16 +29,18 @@ void main() {
     expect(backlinksFor(target, [target, source, other]), [source]);
   });
 
-  test('Pulse detecta checklist pendente e pasta dominante', () {
-    final notes = [
-      note('1', 'A', '[ ] Fazer', folder: 'Escola', checklist: true),
-      note('2', 'B', 'Texto', folder: 'Escola'),
-      note('3', 'C', '[[A]]', folder: 'Geral'),
-    ];
+  test('conta tarefas nos formatos antigo e novo', () {
+    const body = '[ ] Antiga\n- [ ] Nova\n- [x] Feita\nTexto solto';
+    expect(hasTaskLines(body), isTrue);
+    expect(countPendingTasks(body), 2);
+    expect(countDoneTasks(body), 1);
+    expect(hasTaskLines('Só texto'), isFalse);
+  });
 
-    final insights = buildPulseInsights(notes, now: DateTime(2026, 9, 5));
-    expect(insights.any((item) => item.kind == PulseKind.checklist), isTrue);
-    expect(insights.any((item) => item.kind == PulseKind.folder), isTrue);
-    expect(insights.any((item) => item.kind == PulseKind.links), isTrue);
+  test('prévia legível sem marcações cruas', () {
+    expect(
+      readablePreview('## Mercado\n- [ ] Leite\n- [x] Pão\n- Ovos'),
+      'Mercado\n☐ Leite\n☑ Pão\n• Ovos',
+    );
   });
 }

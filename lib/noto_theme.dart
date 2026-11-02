@@ -7,35 +7,50 @@ import 'noto_models.dart';
 import 'noto_store.dart';
 
 class NotoPalette {
-  static const ink = Color(0xFF181512);
-  static const inkSoft = Color(0xFF2B2723);
-  static const cocoa = Color(0xFF33241C);
-  static const paper = Color(0xFFF7F3ED);
-  static const paperSoft = Color(0xFFFCFAF6);
-  static const paperDeep = Color(0xFFE8E1D7);
-  static const ember = Color(0xFFE66F25);
-  static const emberSoft = Color(0xFFF3A16D);
+  // Neutros sem cor própria: o tom do app vem da cor de destaque escolhida.
+  static const ink = Color(0xFF1A1A1F);
+  static const paper = Color(0xFFF8F8FA);
+  static const paperSoft = Color(0xFFFFFFFF);
 }
 
 ThemeData notoTheme(AppStore store, Brightness brightness) {
-  final accent = NotoAppearance
+  final selectedAccent = NotoAppearance
       .accents[NotoAppearance.safeAccentIndex(store.accent)]
       .color;
   final dark = brightness == Brightness.dark;
-  final surface = dark ? const Color(0xFF181614) : NotoPalette.paper;
-  final raised = dark ? const Color(0xFF211F1C) : NotoPalette.paperSoft;
-  final text = dark ? const Color(0xFFF3EEE8) : NotoPalette.ink;
-  final muted = dark ? const Color(0xFFAFA69D) : const Color(0xFF6F6861);
-  final line = dark ? const Color(0xFF393530) : const Color(0xFFDCD5CC);
+  // No claro, cores muito luminosas (amarelo, lima, ciano) escurecem um pouco
+  // para o texto colorido continuar legível; no escuro, clareiam levemente.
+  final accent = dark
+      ? Color.lerp(selectedAccent, Colors.white, .18)!
+      : selectedAccent.computeLuminance() > .3
+      ? Color.lerp(selectedAccent, Colors.black, .28)!
+      : selectedAccent;
+  Color tint(Color base, double amount) =>
+      Color.alphaBlend(selectedAccent.withValues(alpha: amount), base);
+  final black = dark && store.pureBlack;
+  final surface = black
+      ? Colors.black
+      : dark
+      ? tint(const Color(0xFF121216), .05)
+      : tint(NotoPalette.paper, .035);
+  final raised = black
+      ? tint(const Color(0xFF0E0E10), .06)
+      : dark
+      ? tint(const Color(0xFF1D1D23), .08)
+      : NotoPalette.paperSoft;
+  final text = dark ? const Color(0xFFF4F4F7) : NotoPalette.ink;
+  final muted = dark ? const Color(0xFFB4B4BE) : const Color(0xFF5E5E68);
+  final line = dark
+      ? tint(const Color(0xFF34343C), .12)
+      : tint(const Color(0xFFDCDCE2), .10);
 
-  final scheme = ColorScheme(
+  final generated = ColorScheme.fromSeed(
+    seedColor: selectedAccent,
     brightness: brightness,
+  );
+  final scheme = generated.copyWith(
     primary: accent,
-    onPrimary: Colors.white,
-    secondary: accent,
-    onSecondary: Colors.white,
-    error: const Color(0xFFB3261E),
-    onError: Colors.white,
+    onPrimary: accent.computeLuminance() > .179 ? Colors.black : Colors.white,
     surface: surface,
     onSurface: text,
     outline: muted,
@@ -44,7 +59,10 @@ ThemeData notoTheme(AppStore store, Brightness brightness) {
     surfaceContainerLow: surface,
     surfaceContainer: raised,
     surfaceContainerHigh: raised,
-    surfaceContainerHighest: raised,
+    surfaceContainerHighest: Color.alphaBlend(
+      accent.withValues(alpha: .08),
+      raised,
+    ),
   );
 
   final base = ThemeData(
@@ -81,11 +99,7 @@ ThemeData notoTheme(AppStore store, Brightness brightness) {
         side: BorderSide(color: line),
       ),
     ),
-    dividerTheme: DividerThemeData(
-      color: line,
-      thickness: 1,
-      space: 1,
-    ),
+    dividerTheme: DividerThemeData(color: line, thickness: 1, space: 1),
     inputDecorationTheme: InputDecorationTheme(
       filled: false,
       hintStyle: TextStyle(color: muted),
@@ -119,7 +133,7 @@ ThemeData notoTheme(AppStore store, Brightness brightness) {
     filledButtonTheme: FilledButtonThemeData(
       style: FilledButton.styleFrom(
         backgroundColor: accent,
-        foregroundColor: Colors.white,
+        foregroundColor: scheme.onPrimary,
         elevation: 0,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
@@ -128,7 +142,7 @@ ThemeData notoTheme(AppStore store, Brightness brightness) {
     ),
     floatingActionButtonTheme: FloatingActionButtonThemeData(
       elevation: 1,
-      foregroundColor: Colors.white,
+      foregroundColor: scheme.onPrimary,
       backgroundColor: accent,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
     ),
@@ -157,7 +171,7 @@ ThemeData notoTheme(AppStore store, Brightness brightness) {
 
 ImageProvider? noteWallpaper(Note note) {
   final custom = note.customWallpaper;
-  if (custom != null && File(custom).existsSync()) {
+  if (custom != null && FileCache.exists(custom)) {
     return FileImage(File(custom));
   }
   if (note.wallpaper > 0 &&
@@ -168,11 +182,7 @@ ImageProvider? noteWallpaper(Note note) {
 }
 
 class GlobalWallpaper extends StatelessWidget {
-  const GlobalWallpaper({
-    super.key,
-    required this.store,
-    required this.child,
-  });
+  const GlobalWallpaper({super.key, required this.store, required this.child});
 
   final AppStore store;
   final Widget child;
@@ -181,8 +191,9 @@ class GlobalWallpaper extends StatelessWidget {
   Widget build(BuildContext context) {
     final custom = store.customWallpaper;
     final file = custom == null ? null : File(custom);
-    final hasCustom = file != null && file.existsSync();
-    final hasBuiltIn = store.wallpaper > 0 &&
+    final hasCustom = file != null && FileCache.exists(custom);
+    final hasBuiltIn =
+        store.wallpaper > 0 &&
         store.wallpaper < NotoAppearance.wallpaperPaths.length;
     if (!hasCustom && !hasBuiltIn) return child;
 
@@ -216,31 +227,12 @@ class NotoMark extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final primary = Theme.of(context).colorScheme.primary;
-    return SizedBox(
+    return Image.asset(
+      'assets/noto_mark.png',
       width: size,
       height: size,
-      child: Stack(
-        alignment: Alignment.center,
-        children: [
-          Positioned(
-            left: 0,
-            top: size * .16,
-            bottom: size * .16,
-            child: Container(width: 3, color: primary),
-          ),
-          Text(
-            'N',
-            style: TextStyle(
-              color: Theme.of(context).colorScheme.onSurface,
-              fontSize: size * .58,
-              fontWeight: FontWeight.w900,
-              height: 1,
-              letterSpacing: -1.4,
-            ),
-          ),
-        ],
-      ),
+      fit: BoxFit.contain,
+      semanticLabel: 'Noto',
     );
   }
 }
@@ -280,26 +272,24 @@ class SectionTitle extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Padding(
-        padding: const EdgeInsets.only(bottom: 8),
-        child: Row(
-          children: [
-            Expanded(
-              child: Text(
-                title.toUpperCase(),
-                style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                      fontWeight: FontWeight.w800,
-                      letterSpacing: 1.1,
-                      color: Theme.of(context)
-                          .colorScheme
-                          .onSurface
-                          .withValues(alpha: .62),
-                    ),
-              ),
+    padding: const EdgeInsets.only(bottom: 8),
+    child: Row(
+      children: [
+        Expanded(
+          child: Text(
+            title.toUpperCase(),
+            style: Theme.of(context).textTheme.labelMedium?.copyWith(
+              fontWeight: FontWeight.w800,
+              letterSpacing: 1.1,
+              color: Theme.of(context).colorScheme.onSurface
+                  .withValues(alpha: .62),
             ),
-            if (trailing != null) trailing!,
-          ],
+          ),
         ),
-      );
+        if (trailing != null) trailing!,
+      ],
+    ),
+  );
 }
 
 class NotoTile extends StatelessWidget {
@@ -332,20 +322,27 @@ class NotoTile extends StatelessWidget {
         ),
         child: Row(
           children: [
-            Icon(icon, size: 20, color: iconColor ?? cs.onSurface.withValues(alpha: .70)),
+            Icon(
+              icon,
+              size: 20,
+              color: iconColor ?? cs.onSurface.withValues(alpha: .70),
+            ),
             const SizedBox(width: 14),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(title, style: const TextStyle(fontWeight: FontWeight.w700)),
+                  Text(
+                    title,
+                    style: const TextStyle(fontWeight: FontWeight.w700),
+                  ),
                   if (subtitle != null) ...[
                     const SizedBox(height: 2),
                     Text(
                       subtitle!,
                       style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                            color: cs.onSurface.withValues(alpha: .58),
-                          ),
+                        color: cs.onSurface.withValues(alpha: .58),
+                      ),
                     ),
                   ],
                 ],
@@ -354,10 +351,51 @@ class NotoTile extends StatelessWidget {
             if (trailing != null)
               trailing!
             else
-              Icon(Icons.chevron_right_rounded, size: 19, color: cs.onSurface.withValues(alpha: .38)),
+              Icon(
+                Icons.chevron_right_rounded,
+                size: 19,
+                color: cs.onSurface.withValues(alpha: .38),
+              ),
           ],
         ),
       ),
     );
   }
 }
+
+/// Reserves system navigation space for every route, including modal sheets.
+class NotoSafeFrame extends StatelessWidget {
+  const NotoSafeFrame({super.key, required this.child});
+  final Widget child;
+  @override
+  Widget build(BuildContext context) => ColoredBox(
+    color: Theme.of(context).colorScheme.surface,
+    child: SafeArea(
+      top: false,
+      maintainBottomViewPadding: true,
+      child: Padding(padding: const EdgeInsets.only(bottom: 12), child: child),
+    ),
+  );
+}
+
+
+/// Abertura suave das notas: aparece crescendo um pouco, sem o deslize lateral.
+Route<T> notoRoute<T>(Widget page) => PageRouteBuilder<T>(
+  transitionDuration: const Duration(milliseconds: 280),
+  reverseTransitionDuration: const Duration(milliseconds: 200),
+  pageBuilder: (_, __, ___) => page,
+  transitionsBuilder: (_, animation, __, child) {
+    final curved = CurvedAnimation(
+      parent: animation,
+      curve: Curves.easeOutCubic,
+      reverseCurve: Curves.easeInCubic,
+    );
+    return FadeTransition(
+      opacity: curved,
+      child: ScaleTransition(
+        scale: Tween<double>(begin: .94, end: 1).animate(curved),
+        child: child,
+      ),
+    );
+  },
+);
