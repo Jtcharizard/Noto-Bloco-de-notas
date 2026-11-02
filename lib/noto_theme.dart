@@ -65,6 +65,15 @@ ThemeData notoTheme(AppStore store, Brightness brightness) {
     ),
   );
 
+  // Cantos do app (Ajustes > Aparência): 1 = suaves, exatamente como sempre;
+  // 0 = retos (2 a 4); 2 = redondos (20 a 28, botão + todo redondo).
+  final corners = store.appCorners;
+  double corner(double normal) => switch (corners) {
+    0 => (normal / 3).clamp(2.0, 4.0).toDouble(),
+    2 => (normal * 2.2).clamp(20.0, 28.0).toDouble(),
+    _ => normal,
+  };
+
   final base = ThemeData(
     useMaterial3: true,
     brightness: brightness,
@@ -95,7 +104,7 @@ ThemeData notoTheme(AppStore store, Brightness brightness) {
       color: Colors.transparent,
       surfaceTintColor: Colors.transparent,
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(10),
+        borderRadius: BorderRadius.circular(corner(10)),
         side: BorderSide(color: line),
       ),
     ),
@@ -115,7 +124,9 @@ ThemeData notoTheme(AppStore store, Brightness brightness) {
       backgroundColor: Colors.transparent,
       selectedColor: accent.withValues(alpha: .10),
       side: BorderSide(color: line),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(7)),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(corner(7)),
+      ),
       padding: const EdgeInsets.symmetric(horizontal: 4),
       labelStyle: TextStyle(
         color: text,
@@ -135,7 +146,9 @@ ThemeData notoTheme(AppStore store, Brightness brightness) {
         backgroundColor: accent,
         foregroundColor: scheme.onPrimary,
         elevation: 0,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(corner(8)),
+        ),
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
         textStyle: const TextStyle(fontWeight: FontWeight.w700),
       ),
@@ -144,27 +157,37 @@ ThemeData notoTheme(AppStore store, Brightness brightness) {
       elevation: 1,
       foregroundColor: scheme.onPrimary,
       backgroundColor: accent,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      shape: corners == 2
+          ? const StadiumBorder()
+          : RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(corner(10)),
+            ),
     ),
     bottomSheetTheme: BottomSheetThemeData(
       showDragHandle: false,
       backgroundColor: raised,
       modalBackgroundColor: raised,
       surfaceTintColor: Colors.transparent,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(14)),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(
+          top: Radius.circular(corner(14)),
+        ),
       ),
     ),
     dialogTheme: DialogThemeData(
       backgroundColor: raised,
       surfaceTintColor: Colors.transparent,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(corner(12)),
+      ),
     ),
     snackBarTheme: SnackBarThemeData(
       behavior: SnackBarBehavior.floating,
       backgroundColor: dark ? const Color(0xFFEAE3DB) : NotoPalette.ink,
       contentTextStyle: TextStyle(color: dark ? NotoPalette.ink : Colors.white),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(corner(8)),
+      ),
     ),
   );
 }

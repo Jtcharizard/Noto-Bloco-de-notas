@@ -239,6 +239,47 @@ class SettingsPage extends StatelessWidget {
     (16, 'Normal (padrão)'),
     (20, 'Largo'),
   ];
+  static const _cornerOptions = [
+    (0, 'Retos'),
+    (1, 'Suaves (padrão)'),
+    (2, 'Redondos'),
+  ];
+  // Em porcentagem: 90 = 0,9.
+  static const _uiScaleOptions = [
+    (90, 'Pequeno'),
+    (100, 'Normal (padrão)'),
+    (110, 'Grande'),
+    (120, 'Maior'),
+  ];
+  static const _titleSizeOptions = [
+    (0, 'Pequeno'),
+    (1, 'Médio (padrão)'),
+    (2, 'Grande'),
+  ];
+  static const _marginOptions = [
+    (0, 'Estreitas'),
+    (1, 'Normais (padrão)'),
+    (2, 'Largas'),
+  ];
+  static const _cardDateOptions = [
+    (0, 'Relativa (ontem, 14:30)'),
+    (1, 'Completa (02/11/2026)'),
+  ];
+  static const _doneStyleOptions = [
+    (0, 'Riscadas e apagadas (padrão)'),
+    (1, 'Só apagadas'),
+    (2, 'Só riscadas'),
+  ];
+  static const _weekStartOptions = [
+    (0, 'Domingo'),
+    (1, 'Segunda (padrão)'),
+  ];
+  static const _trashOptions = [
+    (7, '7 dias'),
+    (15, '15 dias'),
+    (30, '30 dias (padrão)'),
+    (60, '60 dias'),
+  ];
 
   String _label(List<(int, String)> options, int value) {
     for (final option in options) {
@@ -670,6 +711,23 @@ class SettingsPage extends StatelessWidget {
           store.save();
         },
       ),
+      NotoTile(
+        icon: Icons.crop_square_rounded,
+        title: 'Cantos do app',
+        subtitle: _label(_cornerOptions, store.appCorners),
+        onTap: () async {
+          final value = await _choose(
+            context,
+            'Cantos do app',
+            _cornerOptions,
+            store.appCorners,
+          );
+          if (value != null) {
+            store.appCorners = value;
+            await store.save();
+          }
+        },
+      ),
       const SizedBox(height: 24),
       const SectionTitle('Texto'),
       NotoTile(
@@ -711,6 +769,57 @@ class SettingsPage extends StatelessWidget {
           );
           if (value != null) {
             store.editorLineHeight = value / 10;
+            await store.save();
+          }
+        },
+      ),
+      NotoTile(
+        icon: Icons.text_increase_rounded,
+        title: 'Tamanho das letras do app',
+        subtitle: _label(_uiScaleOptions, (store.uiScale * 100).round()),
+        onTap: () async {
+          final value = await _choose(
+            context,
+            'Tamanho das letras do app',
+            _uiScaleOptions,
+            (store.uiScale * 100).round(),
+          );
+          if (value != null) {
+            store.uiScale = value / 100;
+            await store.save();
+          }
+        },
+      ),
+      NotoTile(
+        icon: Icons.title_rounded,
+        title: 'Tamanho do título da nota',
+        subtitle: _label(_titleSizeOptions, store.titleSize),
+        onTap: () async {
+          final value = await _choose(
+            context,
+            'Tamanho do título da nota',
+            _titleSizeOptions,
+            store.titleSize,
+          );
+          if (value != null) {
+            store.titleSize = value;
+            await store.save();
+          }
+        },
+      ),
+      NotoTile(
+        icon: Icons.format_indent_increase_rounded,
+        title: 'Margens do editor',
+        subtitle: _label(_marginOptions, store.editorMargin),
+        onTap: () async {
+          final value = await _choose(
+            context,
+            'Margens do editor',
+            _marginOptions,
+            store.editorMargin,
+          );
+          if (value != null) {
+            store.editorMargin = value;
             await store.save();
           }
         },
@@ -912,6 +1021,23 @@ class SettingsPage extends StatelessWidget {
           }
         },
       ),
+      NotoTile(
+        icon: Icons.event_outlined,
+        title: 'Data nos cards',
+        subtitle: _label(_cardDateOptions, store.cardDateFull ? 1 : 0),
+        onTap: () async {
+          final value = await _choose(
+            context,
+            'Data nos cards',
+            _cardDateOptions,
+            store.cardDateFull ? 1 : 0,
+          );
+          if (value != null) {
+            store.cardDateFull = value == 1;
+            await store.save();
+          }
+        },
+      ),
       Padding(
         padding: const EdgeInsets.symmetric(vertical: 10),
         child: Column(
@@ -990,6 +1116,43 @@ class SettingsPage extends StatelessWidget {
           store.save();
         },
       ),
+      NotoTile(
+        icon: Icons.check_circle_outline_rounded,
+        title: 'Tarefas feitas',
+        subtitle: _label(_doneStyleOptions, store.doneStyle),
+        onTap: () async {
+          final value = await _choose(
+            context,
+            'Tarefas feitas',
+            _doneStyleOptions,
+            store.doneStyle,
+          );
+          if (value != null) {
+            store.doneStyle = value;
+            await store.save();
+          }
+        },
+      ),
+      SwitchListTile(
+        contentPadding: EdgeInsets.zero,
+        title: const Text('Feitas descem para o fim'),
+        subtitle: const Text('Ao marcar, a tarefa vai para o fim da lista'),
+        value: store.doneToBottom,
+        onChanged: (value) {
+          store.doneToBottom = value;
+          store.save();
+        },
+      ),
+      SwitchListTile(
+        contentPadding: EdgeInsets.zero,
+        title: const Text('Nota de hoje traz o que faltou'),
+        subtitle: const Text('Copia as tarefas não feitas da última nota do dia'),
+        value: store.carryTasksToToday,
+        onChanged: (value) {
+          store.carryTasksToToday = value;
+          store.save();
+        },
+      ),
       const SizedBox(height: 24),
       const SectionTitle('Notas novas'),
       NotoTile(
@@ -1054,6 +1217,36 @@ class SettingsPage extends StatelessWidget {
           }
         },
       ),
+      const SizedBox(height: 24),
+      const SectionTitle('Toque e calendário'),
+      SwitchListTile(
+        contentPadding: EdgeInsets.zero,
+        title: const Text('Vibrar ao tocar'),
+        subtitle: const Text('Vibração curta ao marcar tarefas e selecionar notas'),
+        value: store.haptics,
+        onChanged: (value) {
+          store.haptics = value;
+          NotoHaptics.enabled = value;
+          store.save();
+        },
+      ),
+      NotoTile(
+        icon: Icons.calendar_view_week_outlined,
+        title: 'Semana começa no',
+        subtitle: _label(_weekStartOptions, store.weekStartsSunday ? 0 : 1),
+        onTap: () async {
+          final value = await _choose(
+            context,
+            'Semana começa no',
+            _weekStartOptions,
+            store.weekStartsSunday ? 0 : 1,
+          );
+          if (value != null) {
+            store.weekStartsSunday = value == 0;
+            await store.save();
+          }
+        },
+      ),
       // Só faz sentido escolher quando há notas para escolher.
       if (_activeNotes.isNotEmpty) ...[
         const SizedBox(height: 24),
@@ -1097,6 +1290,25 @@ class SettingsPage extends StatelessWidget {
         title: 'Exportar todas as notas',
         subtitle: 'Um arquivo de texto fácil de ler em qualquer lugar',
         onTap: () => exportAllNotes(store),
+      ),
+      const SizedBox(height: 24),
+      const SectionTitle('Lixeira'),
+      NotoTile(
+        icon: Icons.auto_delete_outlined,
+        title: 'Esvaziar a lixeira depois de',
+        subtitle: _label(_trashOptions, store.trashDays),
+        onTap: () async {
+          final value = await _choose(
+            context,
+            'Esvaziar a lixeira depois de',
+            _trashOptions,
+            store.trashDays,
+          );
+          if (value != null) {
+            store.trashDays = safeTrashDays(value);
+            await store.save();
+          }
+        },
       ),
       const SizedBox(height: 24),
       const SectionTitle('Espaço e números'),
@@ -1189,7 +1401,7 @@ class SettingsPage extends StatelessWidget {
               icon: Icons.swipe_rounded,
               color: cs.secondary,
               title: 'Notas, gestos e widget',
-              subtitle: 'Botão +, cor das notas novas, deslizar',
+              subtitle: 'Listas, botão +, deslizar e calendário',
               onTap: () => _open(context, 'Notas, gestos e widget', _notesItems),
             ),
             _CategoryCard(

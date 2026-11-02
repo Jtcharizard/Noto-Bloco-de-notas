@@ -1207,6 +1207,47 @@ class AppStore extends ChangeNotifier {
     } catch (_) {}
   }
 
+  /// Aviso do Timer de foco. Número negativo: os lembretes das notas usam
+  /// só números positivos, então nunca se cruzam.
+  static const focusNotificationId = -4501;
+
+  /// Agenda o aviso de fim do Timer de foco (toca mesmo com o app fechado).
+  Future<void> scheduleFocusDone(DateTime at) async {
+    try {
+      await notifications.cancel(focusNotificationId);
+      final exact = await _prepareNotifications();
+      await notifications.zonedSchedule(
+        focusNotificationId,
+        'Tempo de foco terminou!',
+        'Hora de uma pausa.',
+        tz.TZDateTime.from(at, tz.local),
+        const NotificationDetails(
+          android: AndroidNotificationDetails(
+            'noto_reminders',
+            'Lembretes do Noto',
+            channelDescription: 'Lembretes marcados nas notas',
+            importance: Importance.high,
+            priority: Priority.high,
+          ),
+        ),
+        androidScheduleMode: exact
+            ? AndroidScheduleMode.exactAllowWhileIdle
+            : AndroidScheduleMode.inexactAllowWhileIdle,
+      );
+    } catch (_) {
+      /* Sem notificações (ex.: testes): o timer funciona com o app aberto. */
+    }
+  }
+
+  /// Tira o aviso do Timer de foco (ao pausar, parar ou terminar).
+  Future<void> cancelFocusDone() async {
+    try {
+      await notifications.cancel(focusNotificationId);
+    } catch (_) {
+      /* Sem notificações nesta plataforma. */
+    }
+  }
+
   static int _snoozeId(Note note) => (note.id.hashCode & 0x0fffffff) | 0x10000000;
 
   /// Adia o lembrete: toca de novo daqui a [minutes] minutos (uma vez só).

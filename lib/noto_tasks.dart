@@ -1,11 +1,53 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 
 import 'noto_features.dart';
 import 'noto_models.dart';
 import 'noto_store.dart';
 
 final RegExp _task = RegExp(r'^(\s*(?:[-*]\s*)?)\[([ xX])\]\s?(.*)$');
+
+/// Tarefas não feitas de um texto, no formato da lista ("- [ ] ..."),
+/// mantendo o recuo das subtarefas. Tarefas feitas e vazias ficam de fora.
+List<String> pendingTaskLines(String body) {
+  final lines = <String>[];
+  for (final line in body.split('\n')) {
+    final match = _task.firstMatch(line);
+    if (match == null || match.group(2) != ' ') continue;
+    final text = (match.group(3) ?? '').trim();
+    if (text.isEmpty) continue;
+    final spaces = RegExp(r'^\s*')
+        .stringMatch(line)!
+        .replaceAll('\t', '  ')
+        .length;
+    final indent = (spaces ~/ 2).clamp(0, 3).toInt();
+    lines.add('${'  ' * indent}- [ ] $text');
+  }
+  return lines;
+}
+
+/// Tarefas que faltaram na última nota do dia antes de [todayKey]
+/// (chave de [dayKey]). Só copia: a nota antiga não muda. Notas apagadas e
+/// do cofre não entram. Sem nota do dia anterior, devolve uma lista vazia.
+List<String> missedTasksForToday(Iterable<Note> notes, String todayKey) {
+  Note? last;
+  String? lastKey;
+  for (final note in notes) {
+    final key = note.editor['daily'];
+    if (key is! String || note.deletedAt != null || note.locked) continue;
+    if (key.compareTo(todayKey) >= 0) continue;
+    if (lastKey == null || key.compareTo(lastKey) > 0) {
+      last = note;
+      lastKey = key;
+    }
+  }
+  if (last == null) return const [];
+  return pendingTaskLines(last.body);
+}
+
+/// Aviso depois de trazer as tarefas para a nota de hoje.
+String missedTasksMessage(int count) => count == 1
+    ? '1 tarefa que faltou veio para hoje'
+    : '$count tarefas que faltaram vieram para hoje';
 
 class _TaskItem {
   const _TaskItem(this.note, this.line, this.text, this.done);
@@ -62,7 +104,7 @@ class _AllTasksPageState extends State<AllTasksPage> {
     if (item.line >= lines.length) return;
     final match = _task.firstMatch(lines[item.line]);
     if (match == null) return;
-    HapticFeedback.selectionClick();
+    NotoHaptics.selection();
     lines[item.line] = '${match.group(1)}[${item.done ? ' ' : 'x'}] ${match.group(3)}';
     item.note
       ..body = lines.join('\n')
@@ -95,6 +137,11 @@ class _AllTasksPageState extends State<AllTasksPage> {
     builder: (_, __) {
       final items = _items();
       final cs = Theme.of(context).colorScheme;
+      // Ajustes > Tarefas feitas: 0 riscadas e apagadas, 1 só apagadas,
+      // 2 só riscadas.
+      final doneStyle = widget.store.doneStyle;
+      final strike = doneStyle != 1;
+      final fade = doneStyle != 2;
       final rows = <Widget>[];
       Note? current;
       for (final item in items) {
@@ -132,8 +179,12 @@ class _AllTasksPageState extends State<AllTasksPage> {
               item.text,
               style: TextStyle(
                 fontSize: 15,
-                decoration: item.done ? TextDecoration.lineThrough : null,
-                color: item.done ? cs.onSurface.withValues(alpha: .5) : null,
+                decoration: item.done && strike
+                    ? TextDecoration.lineThrough
+                    : null,
+                color: item.done && fade
+                    ? cs.onSurface.withValues(alpha: .5)
+                    : null,
               ),
             ),
           ),

@@ -13,6 +13,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'noto_editor.dart';
 import 'noto_extras.dart';
 import 'noto_features.dart';
+import 'noto_focus.dart';
 import 'noto_models.dart';
 import 'noto_power_tools.dart';
 import 'noto_library.dart';
@@ -39,7 +40,7 @@ class _HomeShellState extends State<HomeShell> {
   int sortOrder = 0;
   final Set<String> selectedIds = {};
   void _select(Note note) => setState(() {
-    HapticFeedback.selectionClick();
+    NotoHaptics.selection();
     if (!selectedIds.add(note.id)) selectedIds.remove(note.id);
   });
   Future<String?> _askText(String title, String label, String action) async {
@@ -471,6 +472,9 @@ class _HomeShellState extends State<HomeShell> {
   bool dueOnly = false;
   bool overdueOnly = false;
   int priorityFilter = 0;
+
+  /// Filtro por cor da nota (índice em [NotoAppearance.noteColors]; 0 = qualquer).
+  int colorFilter = 0;
   DateTime? updatedFrom;
   DateTime? updatedTo;
 
@@ -574,17 +578,28 @@ class _HomeShellState extends State<HomeShell> {
     await _saveCollections();
     if (!mounted) return;
     final weekday = longDatePt(now).split(',').first;
+    // Tarefas que faltaram na última nota do dia vêm para hoje (cópia: a
+    // nota antiga fica como estava).
+    final missed = widget.store.carryTasksToToday
+        ? missedTasksForToday(widget.store.notes, key)
+        : const <String>[];
     final note = Note(
       id: now.microsecondsSinceEpoch.toString(),
       title: '${weekday[0].toUpperCase()}${weekday.substring(1)}, '
           '${DateFormat('dd/MM/yyyy').format(now)}',
-      body: '',
+      body: missed.join('\n'),
       updatedAt: now,
+      checklist: missed.isNotEmpty,
       folder: 'Diário',
       font: widget.store.font,
       color: widget.store.newNoteColor,
       editor: {'daily': key},
     );
+    if (missed.isNotEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(missedTasksMessage(missed.length))),
+      );
+    }
     await _openNote(note, isNew: true);
   }
 
@@ -802,6 +817,7 @@ class _HomeShellState extends State<HomeShell> {
       if (dueOnly && note.dueAt == null) return false;
       if (overdueOnly && !_isOverdue(note)) return false;
       if (priorityFilter > 0 && note.priority != priorityFilter) return false;
+      if (colorFilter > 0 && note.color != colorFilter) return false;
       if (updatedFrom != null) {
         final start = DateTime(
           updatedFrom!.year,
@@ -878,6 +894,7 @@ class _HomeShellState extends State<HomeShell> {
       dueOnly ||
       overdueOnly ||
       priorityFilter > 0 ||
+      colorFilter > 0 ||
       updatedFrom != null ||
       updatedTo != null;
 
@@ -890,6 +907,7 @@ class _HomeShellState extends State<HomeShell> {
     dueOnly = false;
     overdueOnly = false;
     priorityFilter = 0;
+    colorFilter = 0;
     updatedFrom = null;
     updatedTo = null;
   });
@@ -937,15 +955,6 @@ class _HomeShellState extends State<HomeShell> {
           2 => 'checklist',
           _ => null,
         };
-    var canPaste = false;
-    if (shortcut == null) {
-      try {
-        canPaste = await Clipboard.hasStrings();
-      } catch (_) {
-        /* Sem área de transferência (ex.: testes). */
-      }
-      if (!mounted) return;
-    }
     final choice = shortcut ?? await showModalBottomSheet<String>(
       context: context,
       useSafeArea: true,
@@ -980,12 +989,6 @@ class _HomeShellState extends State<HomeShell> {
               subtitle: 'Com caixas para marcar',
               onTap: () => Navigator.pop(sheetContext, 'checklist'),
             ),
-            if (canPaste)
-              _CreateRow(
-                title: 'Colar o que copiei',
-                subtitle: 'Cria a nota com o texto copiado',
-                onTap: () => Navigator.pop(sheetContext, 'paste'),
-              ),
             if (widget.store.templates.isNotEmpty)
               _CreateRow(
                 title: 'Usar um modelo',
@@ -1004,30 +1007,7 @@ class _HomeShellState extends State<HomeShell> {
       return;
     }
 
-    var pasted = '';
-    if (choice == 'paste') {
-      pasted = ((await Clipboard.getData(Clipboard.kTextPlain))?.text ?? '')
-          .replaceAll('\r\n', '\n')
-          .trim();
-      if (!mounted) return;
-      if (pasted.isEmpty) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Não tem texto copiado.')),
-        );
-        return;
-      }
-    }
-    // Texto colado: a primeira linha curta vira o título.
-    var pastedTitle = '';
-    if (pasted.isNotEmpty) {
-      final lines = pasted.split('\n');
-      if (lines.length > 1 && lines.first.trim().length <= 60) {
-        pastedTitle = lines.first.trim();
-        pasted = lines.skip(1).join('\n').trim();
-      }
-    }
-    final checklist =
-        choice == 'checklist' || (pasted.isNotEmpty && hasTaskLines(pasted));
+    final checklist = choice == 'checklist';
     final targetFolder = folder ?? 'Geral';
     final targetTags = tag == null ? <String>[] : <String>[tag!];
     savedFolders.add(targetFolder);
@@ -1036,8 +1016,8 @@ class _HomeShellState extends State<HomeShell> {
 
     final note = Note(
       id: DateTime.now().microsecondsSinceEpoch.toString(),
-      title: pastedTitle,
-      body: pasted.isNotEmpty ? pasted : (checklist ? '- [ ] ' : ''),
+      title: '',
+      body: checklist ? '- [ ] ' : '',
       updatedAt: DateTime.now(),
       folder: targetFolder,
       tags: targetTags,
@@ -1495,6 +1475,7 @@ class _HomeShellState extends State<HomeShell> {
     var draftDue = dueOnly;
     var draftOverdue = overdueOnly;
     var draftPriority = priorityFilter;
+    var draftColor = colorFilter;
     var draftFrom = updatedFrom;
     var draftTo = updatedTo;
 
@@ -1534,6 +1515,7 @@ class _HomeShellState extends State<HomeShell> {
                       draftDue = false;
                       draftOverdue = false;
                       draftPriority = 0;
+                      draftColor = 0;
                       draftFrom = null;
                       draftTo = null;
                     }),
@@ -1626,6 +1608,34 @@ class _HomeShellState extends State<HomeShell> {
                 onChanged: (value) =>
                     setModalState(() => draftPriority = value ?? 0),
               ),
+              const SizedBox(height: 16),
+              Text(
+                'Cor',
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: Theme.of(context).colorScheme.onSurface
+                      .withValues(alpha: .62),
+                ),
+              ),
+              const SizedBox(height: 8),
+              // Toque de novo na cor escolhida para tirar o filtro.
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  for (var index = 1;
+                      index < NotoAppearance.noteColors.length;
+                      index++)
+                    _ColorDot(
+                      color: NotoAppearance.noteColors[index],
+                      label: 'Cor $index',
+                      selected: draftColor == index,
+                      onTap: () => setModalState(
+                        () => draftColor = draftColor == index ? 0 : index,
+                      ),
+                    ),
+                ],
+              ),
+              const SizedBox(height: 4),
               SwitchListTile(
                 contentPadding: EdgeInsets.zero,
                 title: const Text('Só com lembrete'),
@@ -1699,6 +1709,7 @@ class _HomeShellState extends State<HomeShell> {
         dueOnly = draftDue;
         overdueOnly = draftOverdue;
         priorityFilter = draftPriority;
+        colorFilter = draftColor;
         updatedFrom = draftFrom;
         updatedTo = draftTo;
       });
@@ -1719,6 +1730,11 @@ class _HomeShellState extends State<HomeShell> {
               (n.reminderRepeat > 0 || n.reminderAt!.isAfter(DateTime.now())),
         )
         .length;
+    // Timer de foco rodando: o selo mostra os minutos que faltam.
+    final focusLeft = widget.store.focusEndsAt?.difference(DateTime.now());
+    final focusBadge = focusLeft != null && focusLeft > Duration.zero
+        ? '${(focusLeft.inSeconds / 60).ceil()} min'
+        : null;
     final choice = await showModalBottomSheet<String>(
       context: context,
       useSafeArea: true,
@@ -1765,6 +1781,7 @@ class _HomeShellState extends State<HomeShell> {
                   tile('reminders', Icons.notifications_active_outlined,
                       'Lembretes', reminders > 0 ? '$reminders' : null),
                   tile('calendar', Icons.calendar_month_outlined, 'Calendário'),
+                  tile('focus', Icons.timer_outlined, 'Foco', focusBadge),
                   tile('folders', Icons.folder_outlined, 'Pastas'),
                   tile('tags', Icons.label_outline_rounded, 'Tags'),
                   tile('archive', Icons.archive_outlined, 'Arquivadas',
@@ -1800,6 +1817,8 @@ class _HomeShellState extends State<HomeShell> {
         );
       case 'calendar':
         _openCalendar();
+      case 'focus':
+        openFocusTimer(context, widget.store);
       case 'folders':
         _manageCollection(folders: true);
       case 'tags':
@@ -1899,12 +1918,12 @@ class _HomeShellState extends State<HomeShell> {
         return true;
       case 2:
         widget.store.togglePin(note);
-        HapticFeedback.selectionClick();
+        NotoHaptics.selection();
         return false;
       case 3:
         note.favorite = !note.favorite;
         widget.store.save();
-        HapticFeedback.selectionClick();
+        NotoHaptics.selection();
         return false;
     }
     return false;
@@ -1966,6 +1985,7 @@ class _HomeShellState extends State<HomeShell> {
         folderLabel: widget.store.folderLabel(note.folder),
         glass: widget.store.glassCards && _hasWallpaper,
         style: widget.store.cardStyle,
+        dateFull: widget.store.cardDateFull,
       ),
     );
   }
@@ -1994,7 +2014,9 @@ class _HomeShellState extends State<HomeShell> {
       }
       rows.add(note);
     }
-    final height = widget.store.compactCards ? 136.0 : 184.0;
+    // Letras do app maiores (Ajustes > Aparência) pedem cards mais altos.
+    final height =
+        (widget.store.compactCards ? 136.0 : 184.0) * widget.store.uiScale;
     return ListView.builder(
       controller: _scroll,
       padding: const EdgeInsets.fromLTRB(20, 0, 20, 110),
@@ -2103,7 +2125,7 @@ class _HomeShellState extends State<HomeShell> {
             _Pill(
                 // Segurar a pasta fixa ela no começo dos atalhos.
                 onLongPress: () {
-                  HapticFeedback.selectionClick();
+                  NotoHaptics.selection();
                   final pinned = widget.store.pinnedFolders;
                   final was = pinned.remove(item);
                   if (!was) pinned.insert(0, item);
@@ -2191,7 +2213,7 @@ class _HomeShellState extends State<HomeShell> {
                           duration: const Duration(seconds: 2),
                         ),
                         (instance) => instance.onLongPress = () {
-                          HapticFeedback.mediumImpact();
+                          NotoHaptics.medium();
                           openVault(context, widget.store);
                         },
                       ),
@@ -2395,6 +2417,19 @@ class _HomeShellState extends State<HomeShell> {
                           fontWeight: FontWeight.w800,
                         ),
                       ),
+                    if (colorFilter > 0)
+                      Padding(
+                        padding: const EdgeInsets.only(left: 6),
+                        child: _ColorDot(
+                          color: NotoAppearance.noteColors[
+                              NotoAppearance.safeNoteColorIndex(colorFilter)],
+                          label: 'Tirar filtro de cor',
+                          selected: true,
+                          size: 22,
+                          icon: Icons.close_rounded,
+                          onTap: () => setState(() => colorFilter = 0),
+                        ),
+                      ),
                     if (_hasFilters)
                       TextButton(
                         onPressed: _clearFilters,
@@ -2427,8 +2462,10 @@ class _HomeShellState extends State<HomeShell> {
                                 crossAxisCount: columns,
                                 crossAxisSpacing: 12,
                                 mainAxisSpacing: 12,
+                                // Cresce junto com as letras do app.
                                 mainAxisExtent:
-                                    widget.store.compactCards ? 168 : 224,
+                                    (widget.store.compactCards ? 168 : 224) *
+                                    widget.store.uiScale,
                               );
                           // Fixadas e Outras em blocos separados (como no Keep).
                           final pinnedNotes =
@@ -2519,7 +2556,7 @@ class _HomeShellState extends State<HomeShell> {
             : GestureDetector(
                 // Segurar o + cria direto o outro tipo de nota.
                 onLongPress: () {
-                  HapticFeedback.mediumImpact();
+                  NotoHaptics.medium();
                   _createNote(
                     direct: widget.store.plusAction == 2 ? 'blank' : 'checklist',
                   );
@@ -2861,6 +2898,52 @@ class _Pill extends StatelessWidget {
               ],
             ),
           ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Bolinha de cor da Busca avançada (e do filtro de cor ativo, para tirar).
+class _ColorDot extends StatelessWidget {
+  const _ColorDot({
+    required this.color,
+    required this.label,
+    required this.selected,
+    required this.onTap,
+    this.size = 34,
+    this.icon = Icons.check_rounded,
+  });
+
+  final Color color;
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+  final double size;
+  final IconData icon;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    return Tooltip(
+      message: label,
+      child: InkWell(
+        customBorder: const CircleBorder(),
+        onTap: onTap,
+        child: Container(
+          width: size,
+          height: size,
+          decoration: BoxDecoration(
+            color: color,
+            shape: BoxShape.circle,
+            border: Border.all(
+              color: selected ? cs.primary : cs.outlineVariant,
+              width: selected ? 2.5 : 1,
+            ),
+          ),
+          child: selected
+              ? Icon(icon, size: size * .55, color: NotoPalette.ink)
+              : null,
         ),
       ),
     );
@@ -3220,10 +3303,14 @@ class _NoteCard extends StatelessWidget {
     this.folderLabel,
     this.glass = false,
     this.style = 0,
+    this.dateFull = false,
   });
 
   /// 0 = borda, 1 = sombra, 2 = liso.
   final int style;
+
+  /// Data completa (02/11/2026) em vez de "ontem", "14:30".
+  final bool dateFull;
 
   /// Card translúcido (opção "Cards de vidro").
   final bool glass;
@@ -3283,6 +3370,23 @@ class _NoteCard extends StatelessWidget {
     final background = glass && !hasWallpaper
         ? solid.withValues(alpha: .58)
         : solid;
+    // Fundo degradê da nota (só sem foto de fundo própria). No vidro, fica
+    // um pouco transparente também.
+    final noteGradient =
+        hasWallpaper ? null : NotoAppearance.gradientAt(note.gradient);
+    final gradientText = noteGradient == null
+        ? null
+        : NotoAppearance.gradientTextColor(note.gradient);
+    final cardGradient = noteGradient == null || !glass
+        ? noteGradient
+        : LinearGradient(
+            begin: noteGradient.begin,
+            end: noteGradient.end,
+            colors: [
+              for (final color in noteGradient.colors)
+                color.withValues(alpha: .66),
+            ],
+          );
     final titleFont = NotoAppearance.familyAt(note.titleFont ?? note.font);
     final bodyFont = NotoAppearance.familyAt(note.bodyFont ?? note.font);
     final customTextColor = note.textColor == 0
@@ -3291,10 +3395,14 @@ class _NoteCard extends StatelessWidget {
             note.textColor,
           )];
     final contentColor =
-        customTextColor ?? (hasWallpaper ? Colors.white : cs.onSurface);
+        customTextColor ??
+        gradientText ??
+        (hasWallpaper ? Colors.white : cs.onSurface);
     final contentSecondary = contentColor.withValues(alpha: .72);
     final metadataColor = hasWallpaper
         ? Colors.white70
+        : gradientText != null
+        ? gradientText.withValues(alpha: .66)
         : cs.onSurface.withValues(alpha: .58);
     // Sem título, a primeira linha vira o título; a prévia mostra o resto.
     var bodyLines = readablePreview(note.body)
@@ -3310,7 +3418,8 @@ class _NoteCard extends StatelessWidget {
     final done = countDoneTasks(note.body);
     final total = pending + done;
     final accentText =
-        customTextColor ?? (hasWallpaper ? Colors.white : cs.primary);
+        customTextColor ??
+        (hasWallpaper ? Colors.white : gradientText ?? cs.primary);
     final reminder = note.reminderAt;
     final showReminder =
         reminder != null &&
@@ -3339,7 +3448,8 @@ class _NoteCard extends StatelessWidget {
         clipBehavior: Clip.antiAlias,
         child: Ink(
           decoration: BoxDecoration(
-            color: background,
+            color: cardGradient == null ? background : null,
+            gradient: cardGradient,
             borderRadius: BorderRadius.circular(radius),
             border: Border.all(
               width: selected ? 2.5 : 1,
@@ -3416,9 +3526,7 @@ class _NoteCard extends StatelessWidget {
                               Icon(
                                 Icons.star_rounded,
                                 size: 14,
-                                color:
-                                    customTextColor ??
-                                    (hasWallpaper ? Colors.white : cs.primary),
+                                color: accentText,
                               ),
                             ],
                           ],
@@ -3550,7 +3658,10 @@ class _NoteCard extends StatelessWidget {
                             if (showTags && note.tags.isNotEmpty)
                               note.tags.take(2).map((t) => '#$t').join(' '),
                             if (showDate)
-                              shortWhen(note.updatedAt, DateTime.now()),
+                              dateFull
+                                  ? DateFormat('dd/MM/yyyy')
+                                      .format(note.updatedAt)
+                                  : shortWhen(note.updatedAt, DateTime.now()),
                           ].join('  ·  '),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
