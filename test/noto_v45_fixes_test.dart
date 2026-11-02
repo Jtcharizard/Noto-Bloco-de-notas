@@ -132,6 +132,22 @@ void main() {
     });
   });
 
+  test('lixeira: prazo menor já tira o que passou dele', () {
+    final store = AppStore()..loaded = true;
+    final now = DateTime(2026, 11, 2);
+    Note trashed(String id, int daysAgo) => Note(
+      id: id,
+      title: id,
+      body: '',
+      updatedAt: now,
+      deletedAt: now.subtract(Duration(days: daysAgo)),
+    );
+    store.notes.addAll([trashed('velha', 10), trashed('nova', 3)]);
+    store.trashDays = 7;
+    expect(store.purgeOldTrash(now), 1);
+    expect(store.notes.map((n) => n.id), ['nova']);
+  });
+
   group('Tarefas que faltaram', () {
     Note daily(String key, String body, {bool locked = false, bool trash = false}) =>
         Note(
@@ -175,6 +191,31 @@ void main() {
         'branco', (tester) async {
       screen(tester);
       final controller = TextEditingController(text: '- [ ] Pilhas\n');
+      var emptied = 0;
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: MixedContentEditor(
+              controller: controller,
+              onChanged: () {},
+              onEmptied: () => emptied++,
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Pilhas'));
+      await tester.pump();
+      await tester.tap(find.byTooltip('Apagar tarefa'));
+      await tester.pumpAndSettle();
+      expect(emptied, 1);
+      await tester.pumpWidget(const SizedBox());
+    });
+
+    testWidgets('X na única tarefa com uma tarefa vazia sobrando: nota em '
+        'branco', (tester) async {
+      screen(tester);
+      final controller = TextEditingController(text: '- [ ] Pilhas\n- [ ] ');
       var emptied = 0;
       await tester.pumpWidget(
         MaterialApp(

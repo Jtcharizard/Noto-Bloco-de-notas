@@ -181,6 +181,9 @@ ThemeData notoTheme(AppStore store, Brightness brightness) {
         borderRadius: BorderRadius.circular(corner(12)),
       ),
     ),
+    // Segurar um botão mostra a dica; com "Vibrar ao tocar" desligado, sem
+    // vibrar.
+    tooltipTheme: TooltipThemeData(enableFeedback: store.haptics),
     snackBarTheme: SnackBarThemeData(
       behavior: SnackBarBehavior.floating,
       backgroundColor: dark ? const Color(0xFFEAE3DB) : NotoPalette.ink,

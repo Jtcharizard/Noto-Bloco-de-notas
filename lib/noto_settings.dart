@@ -1306,6 +1306,8 @@ class SettingsPage extends StatelessWidget {
           );
           if (value != null) {
             store.trashDays = safeTrashDays(value);
+            // Prazo menor: o que já passou dele sai agora, não só ao reabrir.
+            store.purgeOldTrash();
             await store.save();
           }
         },

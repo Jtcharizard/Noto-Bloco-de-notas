@@ -278,12 +278,11 @@ class _MixedContentEditorState extends State<MixedContentEditor> {
     // Fecha o teclado antes: o campo some sem o teclado mandar texto
     // atrasado para ele.
     FocusManager.instance.primaryFocus?.unfocus();
-    // Se depois dela só sobram linhas de texto vazias, é como apagar a última:
-    // a nota volta em branco (e não uma lista vazia).
+    // Se depois dela só sobram linhas vazias (texto ou tarefa sem nada
+    // escrito), é como apagar a última: a nota volta em branco.
     final onlyBlankLeft = lines.every(
       (other) =>
-          identical(other, line) ||
-          (!other.task && other.controller.text.trim().isEmpty),
+          identical(other, line) || other.controller.text.trim().isEmpty,
     );
     if (lines.length > 1 && !(onlyBlankLeft && widget.onEmptied != null)) {
       _removeLine(line);

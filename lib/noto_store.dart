@@ -581,9 +581,18 @@ class AppStore extends ChangeNotifier {
       }
     }
 
-    // A lixeira se esvazia sozinha: notas apagadas há mais de [trashDays]
-    // dias somem.
-    final limit = now.subtract(Duration(days: trashDays));
+    purgeOldTrash(now);
+
+    loaded = true;
+    notifyListeners();
+    runDailyResets();
+  }
+
+  /// A lixeira se esvazia sozinha: notas apagadas há mais de [trashDays] dias
+  /// somem. Roda ao abrir o app e quando o prazo muda nos Ajustes.
+  /// Devolve quantas notas saíram.
+  int purgeOldTrash([DateTime? now]) {
+    final limit = (now ?? DateTime.now()).subtract(Duration(days: trashDays));
     final expired = notes
         .where((n) => n.deletedAt != null && n.deletedAt!.isBefore(limit))
         .toList();
@@ -592,10 +601,7 @@ class AppStore extends ChangeNotifier {
       histories.remove(note.id);
       _savedContent.remove(note.id);
     }
-
-    loaded = true;
-    notifyListeners();
-    runDailyResets();
+    return expired.length;
   }
 
   /// Desmarca as listas de rotina quando o dia vira.

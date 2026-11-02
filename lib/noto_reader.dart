@@ -126,6 +126,7 @@ class ReaderPage extends StatefulWidget {
     this.gradient,
     this.textColor,
     this.startDelay = const Duration(milliseconds: 1500),
+    this.keepScreenOn = true,
   });
 
   final String title;
@@ -143,6 +144,10 @@ class ReaderPage extends StatefulWidget {
 
   /// Espera antes de começar a rolar, para dar tempo de ler o começo.
   final Duration startDelay;
+
+  /// Deixa a tela acesa enquanto rola. Desligado para notas do cofre, para
+  /// o cofre continuar trancando sozinho com o celular parado.
+  final bool keepScreenOn;
 
   @override
   State<ReaderPage> createState() => _ReaderPageState();
@@ -185,13 +190,13 @@ class _ReaderPageState extends State<ReaderPage>
   @override
   void initState() {
     super.initState();
-    _keepScreenOn(true);
+    if (widget.keepScreenOn) _keepScreenOn(true);
     _ticker.start();
   }
 
   @override
   void dispose() {
-    _keepScreenOn(false);
+    if (widget.keepScreenOn) _keepScreenOn(false);
     _ticker.dispose();
     _scroll.dispose();
     super.dispose();

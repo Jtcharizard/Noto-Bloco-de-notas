@@ -883,6 +883,7 @@ class _EditorPageState extends State<EditorPage>
       context,
       MaterialPageRoute(
         builder: (_) => ReaderPage(
+          keepScreenOn: !note.locked,
           title: title.text,
           text: fullMarkdown,
           titleFamily: NotoAppearance.familyAt(note.titleFont ?? note.font),
